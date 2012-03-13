@@ -1,0 +1,18 @@
+config RAWFS_FS
+	tristate "Raw file system support"
+	depends on BLOCK
+	---help---
+	  This is a very small file system.
+	  
+	  If you don't know whether you need it, then you don't need it:
+	  answer N.
+
+
+config RAWFS_FS_DISABLE_WRITEPROT
+       bool "Ignore write protection"
+	depends on RAWFS_FS
+	default n
+	help
+	  Be careful using this configuration parameter.
+	  If you don't know whether you need it answer N.
+	
