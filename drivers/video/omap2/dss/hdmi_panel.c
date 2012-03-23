@@ -36,11 +36,18 @@ static int overscan_percent = 10;
 
 static struct {
 	struct mutex hdmi_lock;
-	struct switch_dev hpd_switch;
+	struct switch_dev hdmi_switch;
 	spinlock_t phy_lock;
 	int connected;
+	int initialized;
 	struct completion phy_completion;
 } hdmi;
+
+enum hdmi_switch_value{
+	HDMI_NOT_AVAILABLE = 0,
+	HDMI_AVAILABLE = 1,
+	HDMI_EDID_AVAILABLE = 2,
+};
 
 static ssize_t hdmi_deepcolor_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -196,6 +203,11 @@ static int hdmi_panel_probe(struct omap_dss_device *dssdev)
 	DSSDBG("hdmi_panel_probe x_res= %d y_res = %d\n",
 		dssdev->panel.timings.x_res,
 		dssdev->panel.timings.y_res);
+
+	hdmi.initialized = true;
+	if (hdmi_get_current_hpd())
+		hdmi_panel_hpd_handler(true);
+
 	return 0;
 }
 
@@ -306,12 +318,12 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 	dssdev = omap_dss_find_device(NULL, match);
 
 	pr_err("in hpd work %d, state=%d\n", state, dssdev->state);
-	if (dssdev == NULL)
+	if (dssdev == NULL || !hdmi.initialized)
 		return;
 
 	mutex_lock(&hdmi.hdmi_lock);
 	if (state == HPD_STATE_OFF) {
-		switch_set_state(&hdmi.hpd_switch, 0);
+		switch_set_state(&hdmi.hdmi_switch, HDMI_NOT_AVAILABLE);
 		if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE) {
 			mutex_unlock(&hdmi.hdmi_lock);
 			dssdev->driver->disable(dssdev);
@@ -338,7 +350,7 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 				spin_unlock_irqrestore(&hdmi.phy_lock, flags);
 
 		} else if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE ||
-			   hdmi.hpd_switch.state) {
+			   (hdmi.hdmi_switch.state != HDMI_NOT_AVAILABLE)) {
 			/* powered down after enable - skip EDID read */
 			goto done;
 		} else if (hdmi_read_edid(&dssdev->panel.timings)) {
@@ -351,7 +363,7 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 					dssdev->panel.monspecs.max_x * 10000;
 			dssdev->panel.height_in_um =
 					dssdev->panel.monspecs.max_y * 10000;
-			switch_set_state(&hdmi.hpd_switch, 1);
+			switch_set_state(&hdmi.hdmi_switch, HDMI_EDID_AVAILABLE);
 			goto done;
 		} else if (state == HPD_STATE_EDID_TRYLAST){
 			pr_info("Failed to read EDID after %d times. Giving up.", state - HPD_STATE_START);
@@ -426,6 +438,12 @@ static int hdmi_get_modedb(struct omap_dss_device *dssdev,
 	return modedb_len;
 }
 
+int omapdss_hdmi_panel_display_set_mode(struct omap_dss_device *dssdev,
+				  struct fb_videomode *vm) {
+	if (!omapdss_hdmi_display_set_mode(dssdev, vm))
+		switch_set_state(&hdmi.hdmi_switch, HDMI_AVAILABLE);
+}
+
 static struct omap_dss_driver hdmi_driver = {
 	.probe		= hdmi_panel_probe,
 	.remove		= hdmi_panel_remove,
@@ -437,7 +455,7 @@ static struct omap_dss_driver hdmi_driver = {
 	.set_timings	= hdmi_set_timings,
 	.check_timings	= hdmi_check_timings,
 	.get_modedb	= hdmi_get_modedb,
-	.set_mode	= omapdss_hdmi_display_set_mode,
+	.set_mode	= omapdss_hdmi_panel_display_set_mode,
 	.driver			= {
 		.name   = "hdmi_panel",
 		.owner  = THIS_MODULE,
@@ -450,8 +468,8 @@ int hdmi_panel_init(void)
 	spin_lock_init(&hdmi.phy_lock);
 	init_completion(&hdmi.phy_completion);
 	mutex_init(&hdmi.hdmi_lock);
-	hdmi.hpd_switch.name = "hdmi";
-	switch_dev_register(&hdmi.hpd_switch);
+	hdmi.hdmi_switch.name = "hdmi";
+	switch_dev_register(&hdmi.hdmi_switch);
 
 	my_workq = create_singlethread_workqueue("hdmi_hotplug");
 	INIT_DELAYED_WORK(&hpd_work.dwork, hdmi_hotplug_detect_worker);
@@ -465,7 +483,7 @@ void hdmi_panel_exit(void)
 	destroy_workqueue(my_workq);
 	omap_dss_unregister_driver(&hdmi_driver);
 
-	switch_dev_unregister(&hdmi.hpd_switch);
+	switch_dev_unregister(&hdmi.hdmi_switch);
 }
 
 void hdmi_panel_phy_connected(void)

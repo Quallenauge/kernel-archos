@@ -109,8 +109,6 @@ struct cypress_tma340_priv {
 	struct completion irq_trigged;
 	struct regulator *regulator;
 	struct wake_lock wakelock;
-	struct workqueue_struct *wq;
-	struct work_struct work;
 
 	int state;
 	int point_state;
@@ -292,11 +290,10 @@ static int cypress_tma340_write_boot_cmd(struct i2c_client * client, u8 cmd)
 	return cypress_tma340_write(client, 0, (u8 *) &buf, sizeof(buf));
 }
 
-static void cypress_tma340_work_func(struct work_struct *work)
+static irqreturn_t cypress_tma340_irq(int irq, void *p)
 {
-	struct cypress_tma340_priv *priv =
-		container_of(work, struct cypress_tma340_priv, work);
-
+	struct cypress_tma340_priv *priv = p;
+	
 	int nu_point_state = 0;
 	int i = 0;
 
@@ -395,8 +392,8 @@ static void cypress_tma340_work_func(struct work_struct *work)
 	input_sync(priv->input_dev);
 
 exit_work:
-	do {} while (0);
 	//enable_irq(priv->irq);
+	return IRQ_HANDLED;
 }
 
 #ifdef BENCH
@@ -425,7 +422,7 @@ static enum hrtimer_restart irq_counter_func(struct hrtimer *timer)
 }
 #endif
 
-static irqreturn_t cypress_tma340_irq_handler(int irq, void * p)
+static irqreturn_t cypress_tma340_hardirq(int irq, void * p)
 {
 	struct cypress_tma340_priv *priv = p;
 
@@ -435,8 +432,7 @@ static irqreturn_t cypress_tma340_irq_handler(int irq, void * p)
 			priv->irq_count++;
 #endif
 			//disable_irq_nosync(priv->irq);
-			queue_work(priv->wq, &priv->work);
-			break;
+			return IRQ_WAKE_THREAD;
 
 		default:
 			complete(&priv->irq_trigged);
@@ -1091,14 +1087,6 @@ static int cypress_tma340_probe(struct i2c_client *client, const struct i2c_devi
 	priv->down = 0;
 #endif
 
-	priv->wq = create_singlethread_workqueue(id->name);
-	if (priv->wq == NULL) {
-		ret = -ENOMEM;
-		goto err_wq_create;
-	}
-
-	INIT_WORK(&priv->work, cypress_tma340_work_func);
-
 	init_completion(&priv->irq_trigged);
 
 	priv->regulator = regulator_get(&client->dev, "tsp_vcc");
@@ -1108,7 +1096,7 @@ static int cypress_tma340_probe(struct i2c_client *client, const struct i2c_devi
 		goto err_regulator_get;
 	}
 
-	ret = request_irq(priv->irq, cypress_tma340_irq_handler,
+	ret = request_threaded_irq(priv->irq, cypress_tma340_hardirq, cypress_tma340_irq,
 			IRQF_TRIGGER_FALLING, client->name, priv);
 	if (ret) {
 		dev_err(&client->dev, "request_irq failed\n");
@@ -1186,7 +1174,7 @@ static int cypress_tma340_probe(struct i2c_client *client, const struct i2c_devi
 	}
 	input_set_abs_params(priv->input_dev, ABS_PRESSURE, 0, 0x80, 0, 0);
 #else
-	input_mt_init_slots(priv->input_dev, priv->finger_max);
+	input_mt_init_slots(priv->input_dev, 16);
 
 	if (priv->flags & CYPRESS_TMA340_FLAGS_XY_SWAP) {
 		input_set_abs_params(priv->input_dev, ABS_MT_POSITION_Y, 0, priv->x_max, 0, 0);
@@ -1251,9 +1239,6 @@ err_irq_request_failed:
 	regulator_put(priv->regulator);
 
 err_regulator_get:
-	destroy_workqueue(priv->wq);
-
-err_wq_create:
 	kfree(priv);
 
 	return ret;
@@ -1274,8 +1259,6 @@ static int cypress_tma340_remove(struct i2c_client *client)
 
 	unregister_early_suspend(&priv->early_suspend);
 #endif
-	destroy_workqueue(priv->wq);
-
 	disable_irq_wake(priv->irq);
 	free_irq(priv->irq, priv);
 
@@ -1301,8 +1284,6 @@ static int cypress_tma340_suspend(struct i2c_client *client, pm_message_t mesg)
 	priv->state = ST_SUSPEND;
 
 	disable_irq(priv->irq);
-
-	flush_work(&priv->work);
 
 	cypress_tma340_power(client, 0);
 

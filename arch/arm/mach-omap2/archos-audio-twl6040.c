@@ -26,11 +26,6 @@ static struct platform_device audio_soc_device = {
 	},
 };
 
-static struct platform_device hdmi_audio_device = {
-	.name		= "hdmi-dai",
-	.id		= -1,
-};
-
 static void _auxclk_en(int en)
 {
 	struct clk *auxclk0_ck;
@@ -120,17 +115,7 @@ int __init archos_audio_twl6040_init(struct twl4030_codec_data * codec_data)
 		return -ENODEV;
 	}
 
-	ret = platform_device_register(&hdmi_audio_device);
-	if (ret) {
-		printk(KERN_ERR "Unable to register hdmi audio platform device\n");
-		goto err;
-	}
-
 	return 0;
-
-err:
-	platform_device_unregister(&audio_soc_device);
-	return -ENODEV;
 }
 
 EXPORT_SYMBOL(audio_twl6040_device_io);

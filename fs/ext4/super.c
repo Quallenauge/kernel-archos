@@ -1024,8 +1024,8 @@ static int ext4_show_options(struct seq_file *seq, struct vfsmount *vfs)
 	if (sbi->s_dmode != EXT4_DEF_UMODE ) {
 		seq_printf(seq, ",dmode=%04o", sbi->s_dmode);
 	}
-	if (sbi->s_dmode != EXT4_DEF_UMODE ) {
-		seq_printf(seq, ",dmode=%04o", sbi->s_dmode);
+	if (test_opt(sb, FORCE_UID)) {
+		seq_printf(seq, ",uid=%u", sbi->s_uid);
 	}
 	if (test_opt(sb, FORCE_GID)) {
 		seq_printf(seq, ",gid=%u", sbi->s_gid);
@@ -1309,7 +1309,11 @@ enum {
 	Opt_dioread_nolock, Opt_dioread_lock,
 	Opt_discard, Opt_nodiscard,
 	Opt_init_inode_table, Opt_noinit_inode_table,
-	Opt_umode, Opt_fmode, Opt_dmode, Opt_gid, Opt_nogid
+#ifdef CONFIG_EXT4_FS_UMODE
+	Opt_fmode, Opt_dmode,
+	Opt_uid, Opt_nouid,
+	Opt_gid, Opt_nogid,
+#endif
 };
 
 static const match_table_t tokens = {
@@ -1385,11 +1389,14 @@ static const match_table_t tokens = {
 	{Opt_init_inode_table, "init_itable=%u"},
 	{Opt_init_inode_table, "init_itable"},
 	{Opt_noinit_inode_table, "noinit_itable"},
-	{Opt_umode, "umode=%o"},
+#ifdef CONFIG_EXT4_FS_UMODE
 	{Opt_fmode, "fmode=%o"},
 	{Opt_dmode, "dmode=%o"},	
+	{Opt_uid, "uid=%u"},
+	{Opt_nouid, "uid="},
 	{Opt_gid, "gid=%u"},
 	{Opt_nogid, "gid="},
+#endif
 	{Opt_err, NULL},
 };
 
@@ -1881,6 +1888,15 @@ set_qf_format:
 			clear_opt(sb, INIT_INODE_TABLE);
 			break;
 #ifdef CONFIG_EXT4_FS_UMODE
+		case Opt_uid:
+			if (match_int(&args[0], &option))
+				return 0;
+			set_opt(sb, FORCE_UID);
+			sbi->s_uid = option;
+			break;
+		case Opt_nouid:
+			clear_opt(sb, FORCE_UID);
+			break;
 		case Opt_gid:
 			if (match_int(&args[0], &option))
 				return 0;
@@ -4333,6 +4349,7 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 #ifdef CONFIG_EXT4_FS_UMODE
 	old_opts.s_fmode  = sbi->s_fmode;
 	old_opts.s_dmode  = sbi->s_dmode;
+	old_opts.s_uid = sbi->s_uid;
 	old_opts.s_gid = sbi->s_gid;
 #endif	
 #ifdef CONFIG_QUOTA
@@ -4499,6 +4516,7 @@ restore_opts:
 #ifdef CONFIG_EXT4_FS_UMODE
 	sbi->s_fmode = old_opts.s_fmode;
 	sbi->s_dmode = old_opts.s_dmode;
+	sbi->s_uid = old_opts.s_uid;
 	sbi->s_gid = old_opts.s_gid;
 #endif	
 #ifdef CONFIG_QUOTA

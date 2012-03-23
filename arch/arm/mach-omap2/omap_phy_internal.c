@@ -62,6 +62,11 @@ int omap4430_phy_init(struct device *dev)
 		pr_err("control module ioremap failed\n");
 		return -ENOMEM;
 	}
+
+	/* Enable session END and IDIG to high impedance. */
+	__raw_writel(SESSEND | IDDIG, ctrl_base +
+				USBOTGHS_CONTROL);
+
 	/* Power down the phy */
 	__raw_writel(PHY_PD, ctrl_base + CONTROL_DEV_CONF);
 
@@ -106,7 +111,7 @@ int omap4430_phy_set_clk(struct device *dev, int on)
 		clk_enable(clk48m);
 		clk_enable(clk32k);
 		state = 1;
-	} else if (state) {
+	} else if (!on && state) {
 		/* Disable the phy clocks */
 		clk_disable(phyclk);
 		clk_disable(clk48m);

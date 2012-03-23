@@ -157,9 +157,6 @@ struct pixcir_priv {
 
 	int irq;
 
-	struct workqueue_struct *wq;
-	struct work_struct work;
-
 	// current finger count.
 	int finger_cnt;
 	int state;
@@ -336,10 +333,9 @@ static int scale(int value, int min, int max, int scale, int offset)
 #define scale_x(v, p) scale(v, p->x_min, p->x_max, p->x_scale, p->x_offset)
 #define scale_y(v, p) scale(v, p->y_min, p->y_max, p->y_scale, p->y_offset)
 
-static void pixcir_m48_work_func(struct work_struct *work)
+static irqreturn_t pixcir_m48_irq(int irq, void *p)
 {
-	struct pixcir_priv *priv =
-		container_of(work, struct pixcir_priv, work);
+	struct pixcir_priv *priv = p;
 
 	u8 data[0x10];
 	u8 i;
@@ -417,13 +413,13 @@ static void pixcir_m48_work_func(struct work_struct *work)
 	input_sync(priv->input_dev);
 
 exit_work:
-	do {} while (0);
 	//enable_irq(priv->irq);
+	return IRQ_HANDLED;
 }
 
 #define LOW_BAT_WA
 
-static void pixcir_m45_work_func(struct work_struct *work)
+static irqreturn_t pixcir_m45_irq(int irq, void *p)
 {
 	struct finger {
 		u8 status;
@@ -435,7 +431,7 @@ static void pixcir_m45_work_func(struct work_struct *work)
 		u8 yz;
 	} __attribute__ ((packed));
 
-	struct pixcir_priv *priv = container_of(work, struct pixcir_priv, work);
+	struct pixcir_priv *priv = p;
 	u8 data[4 * sizeof(struct finger) + 1];
 	int read_len, i;
 
@@ -511,8 +507,8 @@ static void pixcir_m45_work_func(struct work_struct *work)
 	priv->finger_cnt = data[0];
 
 exit_work:
-	do {} while (0);
 	//enable_irq(priv->irq);
+	return IRQ_HANDLED;
 }
 
 #ifdef BENCH
@@ -543,7 +539,7 @@ static enum hrtimer_restart irq_counter_func(struct hrtimer *timer)
 }
 #endif
 
-static irqreturn_t pixcir_irq_handler(int irq, void * p)
+static irqreturn_t pixcir_hardirq(int irq, void * p)
 {
 	struct pixcir_priv *priv = p;
 
@@ -553,8 +549,7 @@ static irqreturn_t pixcir_irq_handler(int irq, void * p)
 			priv->irq_count++;
 #endif
 			//disable_irq_nosync(priv->irq);
-			queue_work(priv->wq, &priv->work);
-			break;
+			return IRQ_WAKE_THREAD;
 		default:
 			complete(&priv->irq_trigged);
 			break;
@@ -738,6 +733,7 @@ static int pixcir_probe(struct i2c_client *client, const struct i2c_device_id *i
 {
 	struct pixcir_platform_data *pdata = client->dev.platform_data;
 	struct pixcir_priv *priv;
+	irq_handler_t pixcir_thread_fn;
 	int ret;
 
 	u8 tsp_version[4];
@@ -770,12 +766,6 @@ static int pixcir_probe(struct i2c_client *client, const struct i2c_device_id *i
 #ifdef CONFIG_TOUCHSCREEN_ARCHOS_TS_MONOTOUCH_COMPAT
 	priv->down = 0;
 #endif
-
-	priv->wq = create_singlethread_workqueue(id->name);
-	if (priv->wq == NULL) {
-		ret = -ENOMEM;
-		goto err_wq_create;
-	}
 
 	init_completion(&priv->irq_trigged);
 
@@ -810,23 +800,23 @@ static int pixcir_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	if (priv->is_m45) {
 		dev_info(&client->dev, "M45!\n");
-		INIT_WORK(&priv->work, pixcir_m45_work_func);
+		pixcir_thread_fn =  pixcir_m45_irq;
 	} else {
 		pixcir_read(client, map_m48.firmware_version_base, tsp_version, sizeof(tsp_version));
 		dev_info(&client->dev, "M8 fw version %x:%x:%x - rev r%d\n",
 				tsp_version[2], tsp_version[1], tsp_version[0], tsp_version[3]);
 
-		INIT_WORK(&priv->work, pixcir_m48_work_func);
+		pixcir_thread_fn = pixcir_m48_irq;
 	}
 
-	ret = request_irq(priv->irq, pixcir_irq_handler,
+	ret = request_threaded_irq(priv->irq, pixcir_hardirq, pixcir_thread_fn,
 			IRQF_TRIGGER_RISING, client->name, priv);
 	if (ret) {
 		ret = -ENODEV;
 		dev_err(&client->dev, "request_irq failed\n");
 		goto err_irq_request_failed;
 	}
-	irq_set_irq_wake(priv->irq, 1);
+	enable_irq_wake(priv->irq);
 	device_init_wakeup(&client->dev, true);
 	
 	dev_info(&client->dev, "x_min/max : %d/%d - y_min/max : %d/%d\n",
@@ -908,7 +898,7 @@ err_input_register_failed:
 	input_free_device(priv->input_dev);
 
 err_input_alloc_failed:
-	irq_set_irq_wake(priv->irq, 0);
+	disable_irq_wake(priv->irq);
 	free_irq(priv->irq, priv);
 
 	pixcir_power(client, 0);
@@ -920,9 +910,6 @@ err_detect_failed:
 	regulator_put(priv->regulator_supply);
 
 err_regulator_get:
-	destroy_workqueue(priv->wq);
-
-err_wq_create:
 	kfree(priv);
 
 	return ret;
@@ -941,8 +928,7 @@ static int pixcir_remove(struct i2c_client *client)
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	unregister_early_suspend(&priv->early_suspend);
 #endif
-	destroy_workqueue(priv->wq);
-	irq_set_irq_wake(priv->irq, 0);
+	disable_irq_wake(priv->irq);
 	free_irq(priv->irq, priv);
 
 	input_unregister_device(priv->input_dev);
@@ -963,8 +949,6 @@ static int pixcir_suspend(struct i2c_client *client, pm_message_t mesg)
 	priv->state = ST_SUSPEND;
 
 	disable_irq(priv->irq);
-
-	flush_work(&priv->work);
 
 	pixcir_power(client, 0);
 

@@ -586,6 +586,7 @@ struct ext4_mount_options {
 #ifdef CONFIG_EXT4_FS_UMODE
 	unsigned short s_fmode;
 	unsigned short s_dmode;
+	uid_t s_uid;
 	gid_t s_gid;
 #endif
 };
@@ -937,7 +938,11 @@ struct ext4_inode_info {
 #define EXT4_MOUNT_BLOCK_VALIDITY	0x20000000 /* Block validity checking */
 #define EXT4_MOUNT_DISCARD		0x40000000 /* Issue DISCARD requests */
 #define EXT4_MOUNT_INIT_INODE_TABLE	0x80000000 /* Initialize uninitialized itables */
+
+#ifdef CONFIG_EXT4_FS_UMODE
+#define EXT4_MOUNT_FORCE_UID		0x40000 /* Force a given UID */
 #define EXT4_MOUNT_FORCE_GID		0x200 /* Force a given GID */
+#endif
 
 #define clear_opt(sb, opt)		EXT4_SB(sb)->s_mount_opt &= \
 						~EXT4_MOUNT_##opt
@@ -1241,6 +1246,7 @@ struct ext4_sb_info {
 #ifdef CONFIG_EXT4_FS_UMODE
 	unsigned short s_fmode; 		/* allow to specify a mode that overrides all ext4 file perms */
 	unsigned short s_dmode; 		/* allow to specify a mode that overrides all ext4 directory perms */
+	uid_t s_uid;	 			/* allow to specify a uid that overrides all ext4 perms */
 	gid_t s_gid;	 			/* allow to specify a gid that overrides all ext4 perms */
 #endif	
 };

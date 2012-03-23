@@ -450,6 +450,8 @@ static int platform_kim_suspend(struct platform_device *pdev, pm_message_t state
 static int platform_kim_resume(struct platform_device *pdev);
 static int plat_kim_chip_enable(void);
 static int plat_kim_chip_disable(void);
+static int plat_kim_chip_awake(void);
+static int plat_kim_chip_asleep(void);
 
 static struct ti_st_plat_data wilink_pdata = {
 	.nshutdown_gpio = -1,
@@ -460,9 +462,10 @@ static struct ti_st_plat_data wilink_pdata = {
 	.resume = platform_kim_resume,
 	.chip_enable = plat_kim_chip_enable,
 	.chip_disable = plat_kim_chip_disable,
+	.chip_awake = plat_kim_chip_awake,
+	.chip_asleep = plat_kim_chip_asleep,
 };
 
-static unsigned long retry_suspend = 0;
 static bool uart_req;
 static struct wake_lock st_wk_lock;
 static int platform_kim_suspend(struct platform_device *pdev, pm_message_t state)
@@ -471,7 +474,18 @@ static int platform_kim_suspend(struct platform_device *pdev, pm_message_t state
 }
 static int platform_kim_resume(struct platform_device *pdev)
 {
-	retry_suspend = 0;
+	return 0;
+}
+
+static int plat_kim_chip_awake(void)
+{
+	wake_lock(&st_wk_lock);
+	return 0;
+}
+
+static int plat_kim_chip_asleep(void)
+{
+	wake_unlock(&st_wk_lock);
 	return 0;
 }
 

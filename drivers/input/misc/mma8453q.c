@@ -486,38 +486,52 @@ static int mma8453q_set_int_pin_active_level(int level)
 }
 #endif
 
-static void mma8453q_get_values(struct mma8453q_accel_data * values)
+static int mma8453q_get_values(struct mma8453q_accel_data * values)
 {
 	u8 tmp[6];
-
+	bool ready = false;
+	unsigned long timeout;
+	
 	if (!values) {
 		printk("mma8453q_get_values: values = NULL !!");
-		return;
+		return -EINVAL;
 	}
 
 	/* x, y and z are 10 bits signed values */
 	/* Wait for the data to be ready */
-	while (!(mma8453q_read(this_client, REG_STATUS) & MMA8453Q_STATUS_ZYXRDY)) {
-		printk("mma8453q_get_values: Not ready !\n");
+	timeout = jiffies + msecs_to_jiffies(100);
+	while (time_before(jiffies, timeout)) {
+		if (mma8453q_read(this_client, REG_STATUS) & MMA8453Q_STATUS_ZYXRDY) {
+			ready = true;
+			break;
+		}
 	}
+	if (!ready)
+		return -ETIMEDOUT;
+	
 	/* Read all 6 bytes of acceleration data in a single I2C transfert */
 	if (mma8453q_read_multiple(this_client, REG_OUT_X_MSB, 6, tmp) != 6) {
 		printk(KERN_ERR "mma8453q_get_values: Failed to read acceleration values !\n");
 		values->x = values->y = values->z = 0;
-		return;
+		return -EIO;
 	}
 
 	values->x = (((signed char)tmp[0]) * 4) | ((tmp[1] >> 6) & 0x3);
 	values->y = (((signed char)tmp[2]) * 4) | ((tmp[3] >> 6) & 0x3);
 	values->z = (((signed char)tmp[4]) * 4) | ((tmp[5] >> 6) & 0x3);
+	
+	return 0;
 }
 
 static void mma8453q_report_values(void)
 {
 	struct mma8453q_accel_data values;
 	struct mma8453q_data *data = i2c_get_clientdata(this_client);
-
-	mma8453q_get_values(&values);
+	int err;
+	
+	err = mma8453q_get_values(&values);
+	if (IS_ERR_VALUE(err))
+		return;
 
 	/* First samples are null (usually 1) and need to be skipped */
 	if(data->samples_to_skip > 0) {
@@ -860,6 +874,7 @@ mma8453q_ctrl_ioctl(struct file *file,
 	short short_data;
 	struct mma8453q_accel_data accel_values;
 	int int_data;
+	int err;
 
 	switch (cmd) {
 	case MMA8453Q_IOCTL_S_MODE:
@@ -1050,7 +1065,9 @@ mma8453q_ctrl_ioctl(struct file *file,
 		mma8453q_general_purpose_event(int_data);
 		break;
 	case MMA8453Q_IOCTL_G_ACCEL_DATA:
-		mma8453q_get_values(&accel_values);
+		err = mma8453q_get_values(&accel_values);
+		if (IS_ERR_VALUE(err))
+			return err;
 #ifdef DEBUG_IOCTL
 		printk("mma8453q_ctrl_ioctl: Get accel values x=%d, y=%d, z=%d\n", accel_values.x, accel_values.y, accel_values.z);
 #endif

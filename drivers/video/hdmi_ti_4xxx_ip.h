@@ -49,6 +49,7 @@ struct hdmi_reg { u16 idx; };
 #define HDMI_WP_AUDIO_DATA			HDMI_WP_REG(0x8C)
 #define HDMI_WP_IRQSTATUS_CORE			0x1
 #define HDMI_WP_IRQENABLE_CORE			0x1
+#define HDMI_WP_AUDIO_FIFO_UNDERFLOW		(0x1 << 8)
 #define HDMI_WP_IRQSTATUS_PHY_LINK_CONNECT	(0x1<<25)
 #define HDMI_WP_IRQENABLE_PHY_LINK_CONNECT	(0x1<<25)
 #define HDMI_WP_IRQSTATUS_PHY_LINK_DISCONNECT	(0x1<<26)
@@ -346,4 +347,6 @@ struct hdmi_video_interface {
 	int	tm;	/* Timing mode */
 };
 
+int hdmi_lib_start_acr_wa(void);
+void hdmi_lib_stop_acr_wa(void);
 #endif

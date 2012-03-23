@@ -493,6 +493,8 @@ static int platform_kim_suspend(struct platform_device *pdev, pm_message_t state
 static int platform_kim_resume(struct platform_device *pdev);
 static int plat_kim_chip_enable(void);
 static int plat_kim_chip_disable(void);
+static int plat_kim_chip_awake(void);
+static int plat_kim_chip_asleep(void);
 
 static struct ti_st_plat_data wilink_pdata = {
 	.nshutdown_gpio = -1,
@@ -503,31 +505,30 @@ static struct ti_st_plat_data wilink_pdata = {
 	.resume = platform_kim_resume,
 	.chip_enable = plat_kim_chip_enable,
 	.chip_disable = plat_kim_chip_disable,
+	.chip_awake = plat_kim_chip_awake,
+	.chip_asleep = plat_kim_chip_asleep,
 };
 
-static unsigned long retry_suspend = 0;
 static bool uart_req;
 static struct wake_lock st_wk_lock;
 static int platform_kim_suspend(struct platform_device *pdev, pm_message_t state)
 {
-#if 0
-	struct kim_data_s *kim_gdata;
-	struct st_data_s *core_data;
-	kim_gdata = dev_get_drvdata(&pdev->dev);
-	core_data = kim_gdata->core_data;
-	 if (st_ll_getstate(core_data) != ST_LL_INVALID) {
-		 /*Prevent suspend until sleep indication from chip*/
-		   while(st_ll_getstate(core_data) != ST_LL_ASLEEP &&
-				   (retry_suspend++ < 5)) {
-			   return -1;
-		   }
-	 }
-#endif
 	return 0;
 }
 static int platform_kim_resume(struct platform_device *pdev)
 {
-	retry_suspend = 0;
+	return 0;
+}
+
+static int plat_kim_chip_awake(void)
+{
+	wake_lock(&st_wk_lock);
+	return 0;
+}
+
+static int plat_kim_chip_asleep(void)
+{
+	wake_unlock(&st_wk_lock);
 	return 0;
 }
 
@@ -1419,7 +1420,7 @@ static void enable_board_wakeup_source(void)
 }
 
 
-static bool enable_suspend_off = true;
+static bool enable_suspend_off = false;
 module_param(enable_suspend_off, bool, S_IRUSR | S_IRGRP | S_IROTH);
 
 #ifdef CONFIG_OMAP_MUX
