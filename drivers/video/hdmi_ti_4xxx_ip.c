@@ -29,13 +29,16 @@
 #include <linux/delay.h>
 #include <linux/string.h>
 #include <linux/omapfb.h>
+#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
 #include <linux/rpmsg.h>
 #include <linux/remoteproc.h>
 #include <linux/pm_runtime.h>
 #include <linux/clk.h>
+#endif
 
 #include "hdmi_ti_4xxx_ip.h"
 
+#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
 static bool hdmi_acrwa_registered;
 struct omap_chip_id audio_must_use_tclk;
 
@@ -175,6 +178,7 @@ void hdmi_lib_stop_acr_wa(void)
 		}
 	}
 }
+#endif
 
 static inline void hdmi_write_reg(void __iomem *base_addr,
 				const struct hdmi_reg idx, u32 val)
@@ -443,7 +447,9 @@ int hdmi_ti_4xxx_phy_init(struct hdmi_ip_data *ip_data, int tmds)
 
 void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data, bool set_mode)
 {
+#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
 	hdmi_lib_stop_acr_wa();
+#endif
 	/*
 	 * HDMI PHY should always be LDOON to avoid condition of HDMI Tx
 	 * Lanes being turned ON when PHY in OFF state. This is a known
@@ -1275,7 +1281,9 @@ int hdmi_ti_4xxx_config_audio_acr(struct hdmi_ip_data *ip_data,
 {
 	u32 r;
 	u32 deep_color = 0;
+#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
 	u32 cts_interval_qtt, cts_interval_res, n_val, cts_interval;
+#endif
 
 	if (n == NULL || cts == NULL)
 		return -EINVAL;
@@ -1326,6 +1334,7 @@ int hdmi_ti_4xxx_config_audio_acr(struct hdmi_ip_data *ip_data,
 	/* Calculate CTS. See HDMI 1.3a or 1.4a specifications */
 	*cts = pclk * (*n / 128) * deep_color / (sample_freq / 10);
 
+#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
 	if (omap_chip_is(audio_must_use_tclk)) {
 		n_val = *n;
 		cts_interval = 0;
@@ -1341,6 +1350,7 @@ int hdmi_ti_4xxx_config_audio_acr(struct hdmi_ip_data *ip_data,
 		hdmi_payload.cts_interval = cts_interval;
 		hdmi_payload.acr_rate = 128 * sample_freq / n_val;
 	}
+#endif
 
 	return 0;
 }
@@ -1586,9 +1596,11 @@ EXPORT_SYMBOL(hdmi_ti_4xx_check_aksv_data);
 
 static int __init hdmi_ti_4xxx_init(void)
 {
+#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
 	audio_must_use_tclk.oc = CHIP_IS_OMAP4430ES2 |
 			CHIP_IS_OMAP4430ES2_1 | CHIP_IS_OMAP4430ES2_2;
 	hdmi_acrwa_registered = false;
+#endif
 	return 0;
 }
 
