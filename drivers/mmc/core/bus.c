@@ -120,7 +120,7 @@ static int mmc_bus_remove(struct device *dev)
 	return 0;
 }
 
-static int mmc_bus_pm_suspend(struct device *dev)
+static int mmc_bus_suspend(struct device *dev)
 {
 	struct mmc_driver *drv = to_mmc_driver(dev->driver);
 	struct mmc_card *card = mmc_dev_to_card(dev);
@@ -128,7 +128,7 @@ static int mmc_bus_pm_suspend(struct device *dev)
 	pm_message_t state = { PM_EVENT_SUSPEND };
 
 	if (dev->driver && drv->suspend)
-		ret = drv->suspend(card, state);
+		ret = drv->suspend(card);
 	return ret;
 }
 
@@ -164,9 +164,12 @@ static int mmc_runtime_idle(struct device *dev)
 }
 #endif /* CONFIG_PM_RUNTIME */
 
+#endif /* !CONFIG_PM_RUNTIME */
+
 static const struct dev_pm_ops mmc_bus_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(mmc_bus_pm_suspend, mmc_bus_pm_resume)
-	SET_RUNTIME_PM_OPS(mmc_runtime_suspend, mmc_runtime_resume, mmc_runtime_idle)
+	SET_RUNTIME_PM_OPS(mmc_runtime_suspend, mmc_runtime_resume,
+			mmc_runtime_idle)
+	SET_SYSTEM_SLEEP_PM_OPS(mmc_bus_suspend, mmc_bus_resume)
 };
 
 static struct bus_type mmc_bus_type = {
