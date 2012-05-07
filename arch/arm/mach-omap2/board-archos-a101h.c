@@ -342,6 +342,7 @@ static struct regulator_init_data fixed_reg_hdmi_5v_initdata = {
 		.max_uV 		= 5000000,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
 		.valid_ops_mask 	= REGULATOR_CHANGE_STATUS,
+		.always_on 		= true,
 	},
 	.consumer_supplies = fixed_reg_hdmi_5v_consumer,
 	.num_consumer_supplies = ARRAY_SIZE(fixed_reg_hdmi_5v_consumer),

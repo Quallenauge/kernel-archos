@@ -280,11 +280,15 @@ void hdmi_get_monspecs(struct fb_monspecs *specs)
 	fb_edid_to_monspecs(edid, specs);
 	if (specs->modedb == NULL)
 		return;
-
+	
 	for (i = 1; i <= edid[0x7e] && i * 128 < HDMI_EDID_MAX_LENGTH; i++) {
 		if (edid[i * 128] == 0x2)
 			fb_edid_add_monspecs(edid + i * 128, specs);
 	}
+
+#ifdef CONFIG_SUPPORT_PANEL_EXTRA_MODE
+	fb_extrapolate_modedb(specs);
+#endif
 
 	hdmi.can_do_hdmi = specs->misc & FB_MISC_HDMI;
 
@@ -509,7 +513,7 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 		goto err;
 	}
 
-	hdmi.cfg.cm.mode = hdmi.can_do_hdmi ? hdmi.mode : HDMI_DVI;
+	hdmi.cfg.cm.mode = hdmi.can_do_hdmi ? HDMI_HDMI : hdmi.mode;
 	hdmi.cfg.cm.code = hdmi.code;
 	hdmi_ti_4xxx_basic_configure(&hdmi.hdmi_data, &hdmi.cfg);
 	if (hdmi.s3d_enable) {
@@ -843,7 +847,7 @@ int omapdss_hdmi_display_set_mode(struct omap_dss_device *dssdev,
 	r1 = hdmi_set_timings(vm, false) ? 0 : -EINVAL;
 	hdmi.custom_set = 1;
 	hdmi.code = hdmi.cfg.cm.code;
-	hdmi.mode = hdmi.cfg.cm.mode;
+	hdmi.mode = hdmi.can_do_hdmi ? HDMI_HDMI : hdmi.cfg.cm.mode;
 	r2 = dssdev->driver->enable(dssdev);
 	return r1 ? : r2;
 }

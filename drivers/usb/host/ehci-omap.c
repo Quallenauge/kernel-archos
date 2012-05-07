@@ -277,6 +277,8 @@ static int ehci_hcd_omap_probe(struct platform_device *pdev)
 
 	pm_runtime_get_sync(dev->parent);
 
+	*pdata->usbhs_update_sar = 1;
+
 	/*
 	 * An undocumented "feature" in the OMAP3 EHCI controller,
 	 * causes suspended ports to be taken out of suspend when
@@ -431,9 +433,10 @@ static int ehci_omap_bus_resume(struct usb_hcd *hcd)
 			OCP_INITIATOR_AGENT,
 			(200*1000*4));
 
-	if (dev->parent) {
+	if (dev->parent && pm_runtime_suspended(dev->parent))
 		pm_runtime_get_sync(dev->parent);
-	}
+
+	*pdata->usbhs_update_sar = 1;
 
 	return ehci_bus_resume(hcd);
 }

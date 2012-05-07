@@ -594,6 +594,7 @@ struct dsscomp_display_info {
 	__u16 height_in_mm;
 
 	__u32 modedb_len;		/* number of video timings */
+	__u32 support_underscan;	/* support underscan property*/
 	struct dsscomp_videomode modedb[];	/* display supported timings */
 };
 

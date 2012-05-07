@@ -346,6 +346,7 @@ static long query_display(struct dsscomp_dev *cdev,
 	if (dis->modedb_len && dev->driver->get_modedb)
 		dis->modedb_len = dev->driver->get_modedb(dev,
 			(struct fb_videomode *) dis->modedb, dis->modedb_len);
+	dis->support_underscan = (dev->panel.monspecs.misc & FB_MISC_UNDERSCAN)?1:0;
 	return 0;
 }
 

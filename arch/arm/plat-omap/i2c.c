@@ -168,8 +168,7 @@ static inline int omap2_i2c_add_bus(int bus_id)
 	if (cpu_is_omap34xx() ||  cpu_is_omap44xx())
 		pdata->needs_wakeup_latency = true;
 
-	if (bus_id != 4)
-		pdata->device_reset = omap2_i2c_reset;
+	pdata->device_reset = omap2_i2c_reset;
 
 	od = omap_device_build(name, bus_id, oh, pdata,
 			sizeof(struct omap_i2c_bus_platform_data),

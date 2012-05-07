@@ -342,6 +342,7 @@ static struct regulator_init_data fixed_reg_hdmi_5v_initdata = {
 		.max_uV 		= 5000000,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
 		.valid_ops_mask 	= REGULATOR_CHANGE_STATUS,
+		.always_on 		= true,
 	},
 	.consumer_supplies = fixed_reg_hdmi_5v_consumer,
 	.num_consumer_supplies = ARRAY_SIZE(fixed_reg_hdmi_5v_consumer),
@@ -1009,7 +1010,7 @@ static struct omap2_hsmmc_info mmc[] = {
 	{
 		.mmc		= 1,
 		.caps		= MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA |
-					MMC_CAP_1_8V_DDR,
+					MMC_CAP_1_8V_DDR | MMC_CAP_NEEDS_POLL,
 		.gpio_wp	= -EINVAL,
 		.gpio_cd	= -EINVAL,
 	},

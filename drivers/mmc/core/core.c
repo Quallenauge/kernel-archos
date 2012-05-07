@@ -1687,7 +1687,7 @@ void mmc_rescan(struct work_struct *work)
 		wake_lock_timeout(&host->detect_wake_lock, HZ / 2);
 	else
 		wake_unlock(&host->detect_wake_lock);
-	if (host->caps & MMC_CAP_NEEDS_POLL) {
+	if (host->caps & MMC_CAP_NEEDS_POLL && (!host->ops->get_cd || host->ops->get_cd(host)) && host->bus_dead) {
 		wake_lock(&host->detect_wake_lock);
 		mmc_schedule_delayed_work(&host->detect, HZ);
 	}
@@ -1695,6 +1695,7 @@ void mmc_rescan(struct work_struct *work)
 
 void mmc_start_host(struct mmc_host *host)
 {
+	host->bus_dead = 1;
 	mmc_power_off(host);
 	mmc_detect_change(host, 0);
 }

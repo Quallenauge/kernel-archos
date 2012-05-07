@@ -352,6 +352,8 @@ static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 			omap2430_musb_set_vbus(musb, 0);
 			if (musb->xceiv->set_vbus)
 				otg_set_vbus(musb->xceiv, 0);
+			/* hack! wait for DISCONNECT interrupt */
+			msleep(1);
 		}
 		otg_shutdown(musb->xceiv);
 		val = musb_readl(musb->mregs, OTG_INTERFSEL);

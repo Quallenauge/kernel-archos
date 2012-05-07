@@ -53,6 +53,8 @@
 #define FBMON_FIX_INPUT   2
 #define FBMON_FIX_TIMINGS 3
 
+#define MAX_FB_MODE 50
+
 #ifdef CONFIG_FB_MODE_HELPERS
 struct broken_edid {
 	u8  manufacturer[4];
@@ -142,6 +144,12 @@ static int edid_is_timing_block(unsigned char *block)
 		return 1;
 	else
 		return 0;
+}
+
+static int extension_is_cea_block(unsigned char *block)
+{
+	if (block[0] == 0x02) return 1;
+	return 0;
 }
 
 static int check_edid(unsigned char *edid)
@@ -408,6 +416,17 @@ static void calc_mode_timings(int xres, int yres, int refresh,
 	}
 }
 
+static int check_mode_in_spec(struct fb_monspecs *specs, const struct fb_videomode* mode) {
+	int j;
+	if (!specs || !mode || (mode->pixclock == 0)) return 0;
+
+	for (j = 0; j < specs->modedb_len; j++) {
+		if (fb_mode_is_equal(mode, &specs->modedb[j]))
+			return 1;
+	}
+	return 0;
+}
+
 static int get_est_timing(unsigned char *block, struct fb_videomode *mode)
 {
 	int num = 0;
@@ -549,6 +568,8 @@ static void get_detailed_timing(unsigned char *block,
 	int v_size = V_SIZE;
 	int h_size = H_SIZE;
 
+	mode->sync = 0;
+	mode->vmode = 0;
 	mode->xres = H_ACTIVE;
 	mode->yres = V_ACTIVE;
 	mode->pixclock = PIXEL_CLOCK;
@@ -592,6 +613,64 @@ static void get_detailed_timing(unsigned char *block,
 	DPRINTK("%sHSync %sVSync\n\n", (HSYNC_POSITIVE) ? "+" : "-",
 	       (VSYNC_POSITIVE) ? "+" : "-");
 }
+
+#ifdef CONFIG_SUPPORT_PANEL_EXTRA_MODE
+static int check_mode_in_range(struct fb_monspecs *specs, const struct fb_videomode* mode) {
+	if (!specs || !mode || (mode->pixclock == 0)) return 0;
+
+	if (specs->dclkmax >= PICOS2KHZ(mode->pixclock)*1000) {
+		//Check if mode can be supported by the panel
+		int h_pix = mode->xres + mode->left_margin + mode->right_margin + mode->hsync_len;
+		int h_f = PICOS2KHZ(mode->pixclock)*1000 / h_pix;
+		int v_pix = (mode->yres + mode->upper_margin + mode->lower_margin + mode->vsync_len)*h_pix;
+		int v_f = PICOS2KHZ(mode->pixclock)*1000 / v_pix;
+
+		if ((h_f >= specs->hfmin) && (h_f <= specs->hfmax) && (v_f >= specs->vfmin) && (v_f <= specs->vfmax) ) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+void fb_extrapolate_modedb(struct fb_monspecs *specs)
+{
+	struct fb_videomode *mode;
+	int i;
+
+        if (!specs) return;
+
+	// No nice 720p or 1080p format supported. Try to see if the panel can support it based on timings
+	// Even if 1080p@60Hz is supported, look for other 720p or 1080p formats since Hi fclk may not be supported
+	if ((check_mode_in_spec(specs,  &cea_modes[04]) ||
+	      check_mode_in_spec(specs,  &cea_modes[05]) ||
+	      check_mode_in_spec(specs,  &cea_modes[19]) ||
+	      check_mode_in_spec(specs,  &cea_modes[20]) ||
+	      check_mode_in_spec(specs,  &cea_modes[32]) ||
+	      check_mode_in_spec(specs,  &cea_modes[33]) ||
+	      check_mode_in_spec(specs,  &cea_modes[34]))
+	) return;
+
+	mode = kzalloc(MAX_FB_MODE * sizeof(struct fb_videomode), GFP_KERNEL);
+	memcpy(mode, specs->modedb, specs->modedb_len * sizeof(struct fb_videomode));
+	fb_destroy_modedb(specs->modedb);
+	specs->modedb = mode;
+	for(i = 0; i < CEA_MODEDB_SIZE; i++) {
+		if (!check_mode_in_spec(specs, &cea_modes[i]) && check_mode_in_range(specs, &cea_modes[i]) && specs->modedb_len < MAX_FB_MODE) {
+			mode[specs->modedb_len++] = cea_modes[i];
+		}
+	}
+	for(i = 0; i < VESA_MODEDB_SIZE; i++) {
+		if (!check_mode_in_spec(specs,&vesa_modes[i]) && check_mode_in_range(specs, &vesa_modes[i]) && specs->modedb_len < MAX_FB_MODE) {
+			mode[specs->modedb_len++] = vesa_modes[i];
+		}
+	}
+
+	mode = kzalloc(specs->modedb_len * sizeof(struct fb_videomode), GFP_KERNEL);
+	memcpy(mode, specs->modedb, specs->modedb_len * sizeof(struct fb_videomode));
+	fb_destroy_modedb(specs->modedb);
+	specs->modedb = mode;
+}
+#endif
 
 /**
  * fb_create_modedb - create video mode database
@@ -1002,7 +1081,13 @@ void fb_edid_add_monspecs(unsigned char *edid, struct fb_monspecs *specs)
 	if (!edid_checksum(edid))
 		return;
 
-	if (edid[0] != 0x2 ||
+	if ((edid[3] & 0x80)) {
+	    specs->misc |= FB_MISC_UNDERSCAN;
+	}
+	if ((edid[3] & 0x40))
+	    specs->misc |= FB_MISC_HDMI;
+
+	if (!extension_is_cea_block(edid) ||
 	    edid[2] < 4 || edid[2] > 128 - DETAILED_TIMING_DESCRIPTION_SIZE)
 		return;
 

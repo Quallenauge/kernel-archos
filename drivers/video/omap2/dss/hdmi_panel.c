@@ -37,6 +37,7 @@ static int overscan_percent = 10;
 static struct {
 	struct mutex hdmi_lock;
 	struct switch_dev hdmi_switch;
+	struct switch_dev underscan_switch;
 	spinlock_t phy_lock;
 	int connected;
 	int initialized;
@@ -324,6 +325,7 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 	mutex_lock(&hdmi.hdmi_lock);
 	if (state == HPD_STATE_OFF) {
 		switch_set_state(&hdmi.hdmi_switch, HDMI_NOT_AVAILABLE);
+		switch_set_state(&hdmi.underscan_switch, 0);
 		if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE) {
 			mutex_unlock(&hdmi.hdmi_lock);
 			dssdev->driver->disable(dssdev);
@@ -364,6 +366,7 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 			dssdev->panel.height_in_um =
 					dssdev->panel.monspecs.max_y * 10000;
 			switch_set_state(&hdmi.hdmi_switch, HDMI_EDID_AVAILABLE);
+			switch_set_state(&hdmi.underscan_switch, (dssdev->panel.monspecs.misc & FB_MISC_UNDERSCAN)?1:0);
 			goto done;
 		} else if (state == HPD_STATE_EDID_TRYLAST){
 			pr_info("Failed to read EDID after %d times. Giving up.", state - HPD_STATE_START);
@@ -469,7 +472,9 @@ int hdmi_panel_init(void)
 	init_completion(&hdmi.phy_completion);
 	mutex_init(&hdmi.hdmi_lock);
 	hdmi.hdmi_switch.name = "hdmi";
+	hdmi.underscan_switch.name = "underscan";
 	switch_dev_register(&hdmi.hdmi_switch);
+	switch_dev_register(&hdmi.underscan_switch);
 
 	my_workq = create_singlethread_workqueue("hdmi_hotplug");
 	INIT_DELAYED_WORK(&hpd_work.dwork, hdmi_hotplug_detect_worker);
@@ -483,6 +488,7 @@ void hdmi_panel_exit(void)
 	destroy_workqueue(my_workq);
 	omap_dss_unregister_driver(&hdmi_driver);
 
+	switch_dev_unregister(&hdmi.underscan_switch);
 	switch_dev_unregister(&hdmi.hdmi_switch);
 }
 

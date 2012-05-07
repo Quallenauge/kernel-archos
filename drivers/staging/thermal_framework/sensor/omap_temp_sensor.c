@@ -349,23 +349,16 @@ static int omap_set_thresholds(struct omap_temp_sensor *temp_sensor,
 
 	curr_temp = temp_to_adc_conversion(temp_sensor->therm_fw->current_temp);
 
+	reg_val = omap_temp_sensor_readl(temp_sensor, BGAP_CTRL_OFFSET);
+	reg_val &= ~(OMAP4_MASK_HOT_MASK | OMAP4_MASK_COLD_MASK);
 	if (new_hot >= curr_temp) {
-		reg_val = omap_temp_sensor_readl(temp_sensor, BGAP_CTRL_OFFSET);
 		reg_val |= OMAP4_MASK_HOT_MASK;
-		omap_temp_sensor_writel(temp_sensor, reg_val, BGAP_CTRL_OFFSET);
 	}
 
 	if (new_cold <= curr_temp) {
-		reg_val = omap_temp_sensor_readl(temp_sensor, BGAP_CTRL_OFFSET);
 		reg_val |= OMAP4_MASK_COLD_MASK;
-		omap_temp_sensor_writel(temp_sensor, reg_val, BGAP_CTRL_OFFSET);
 	}
-
-	if (curr_temp > new_cold && curr_temp < new_hot) {
-		reg_val = omap_temp_sensor_readl(temp_sensor, BGAP_CTRL_OFFSET);
-		reg_val |= (OMAP4_MASK_COLD_MASK | OMAP4_MASK_HOT_MASK);
-		omap_temp_sensor_writel(temp_sensor, reg_val, BGAP_CTRL_OFFSET);
-	}
+	omap_temp_sensor_writel(temp_sensor, reg_val, BGAP_CTRL_OFFSET);
 
 	return 0;
 }
@@ -529,7 +522,9 @@ static int omap_temp_sensor_read_temp(struct device *dev,
 		goto out;
 	}
 #endif
+	mutex_lock(&temp_sensor->sensor_mutex);
 	temp = omap_read_current_temp(temp_sensor);
+	mutex_unlock(&temp_sensor->sensor_mutex);
 out:
 	return sprintf(buf, "%d\n", temp);
 }
@@ -862,6 +857,9 @@ static irqreturn_t omap_talert_irq_handler(int irq, void *data)
 	struct omap_temp_sensor *temp_sensor = (struct omap_temp_sensor *)data;
 	int t_hot, t_cold, temp_offset, temp;
 
+	/* this is a threaded IRQ, we can use the mutex */
+	mutex_lock(&temp_sensor->sensor_mutex);
+
 	t_hot = omap_temp_sensor_readl(temp_sensor, BGAP_STATUS_OFFSET)
 	    & OMAP4_HOT_FLAG_MASK;
 	t_cold = omap_temp_sensor_readl(temp_sensor, BGAP_STATUS_OFFSET)
@@ -876,22 +874,19 @@ static irqreturn_t omap_talert_irq_handler(int irq, void *data)
 	}
 
 	omap_temp_sensor_writel(temp_sensor, temp_offset, BGAP_CTRL_OFFSET);
-	temp = omap_temp_sensor_readl(temp_sensor, TEMP_SENSOR_CTRL_OFFSET);
-	temp &= (OMAP4_BGAP_TEMP_SENSOR_DTEMP_MASK);
 
-	if (!temp_sensor->is_efuse_valid)
-		pr_err_once("Non-trimmed BGAP, Temp not accurate\n");
-
-	/* look up for temperature in the table and return the
-	   temperature */
-	if (temp < OMAP_ADC_START_VALUE || temp > OMAP_ADC_END_VALUE) {
-		pr_err("invalid adc code reported by the sensor %d", temp);
-	} else {
-		temp_sensor->therm_fw->current_temp =
-				adc_to_temp[temp - OMAP_ADC_START_VALUE];
-		thermal_sensor_set_temp(temp_sensor->therm_fw);
-		kobject_uevent(&temp_sensor->dev->kobj, KOBJ_CHANGE);
+	while(1) {
+		temp = omap_read_current_temp(temp_sensor);
+		mutex_unlock(&temp_sensor->sensor_mutex);
+		if ( temp != -EINVAL)
+			break;
+		pr_err("%s: temp read fail, retry\n", __FUNCTION__);
+		msleep(1);
+		mutex_lock(&temp_sensor->sensor_mutex);
 	}
+	temp_sensor->therm_fw->current_temp = temp;
+	thermal_sensor_set_temp(temp_sensor->therm_fw);
+	kobject_uevent(&temp_sensor->dev->kobj, KOBJ_CHANGE);
 
 	return IRQ_HANDLED;
 }
@@ -1039,7 +1034,7 @@ static int __devinit omap_temp_sensor_probe(struct platform_device *pdev)
 
 	ret = request_threaded_irq(temp_sensor->irq, NULL,
 			omap_talert_irq_handler,
-			IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+			IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
 			"temp_sensor", (void *)temp_sensor);
 	if (ret) {
 		dev_err(&pdev->dev, "Request threaded irq failed.\n");
