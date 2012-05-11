@@ -1513,8 +1513,8 @@ int omap4_dpll_cascading_blocker_hold(struct device *dev)
 
 	list_add(&blocker->node, &dpll_cascading_blocker_list);
 
-	if (list_was_empty && omap4_is_in_dpll_cascading()) {
-		//TODO: Archos: Re-Enable DPLL Cascading for abe sound
+	if (list_was_empty && omap4_is_in_dpll_cascading() &&
+		omap4_abe_can_enter_dpll_cascading()) {
 		// && omap4_abe_can_enter_dpll_cascading()
 
 		/* exit point of DPLL cascading */
@@ -1563,8 +1563,8 @@ int omap4_dpll_cascading_blocker_release(struct device *dev)
 	list_del(&blocker->node);
 
 	if (list_empty(&dpll_cascading_blocker_list)
-		&& !omap4_is_in_dpll_cascading()) {
-		//TODO Archos: Re-Enable DPLL cascading for abe sound device
+		&& !omap4_is_in_dpll_cascading()
+		&& omap4_abe_can_enter_dpll_cascading()) {
 		// && omap4_abe_can_enter_dpll_cascading()
 
 		cpufreq_interactive_set_timer_rate(200 * USEC_PER_MSEC, 0);
