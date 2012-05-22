@@ -1890,15 +1890,15 @@ static struct clk gpmc_ick = {
 };
 
 static const struct clksel sgx_clk_mux_sel[] = {
-	{ .parent = &dpll_per_m7x2_ck, .rates = div_1_0_rates },
-	{ .parent = &dpll_core_m7x2_ck, .rates = div_1_1_rates },
+	{ .parent = &dpll_core_m7x2_ck, .rates = div_1_0_rates },
+	{ .parent = &dpll_per_m7x2_ck, .rates = div_1_1_rates },
 	{ .parent = NULL },
 };
 
 /* Merged sgx_clk_mux into gpu */
 static struct clk gpu_fck = {
 	.name		= "gpu_fck",
-	.parent		= &dpll_per_m7x2_ck,
+	.parent		= &dpll_core_m7x2_ck,
 	.clksel		= sgx_clk_mux_sel,
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_GFX_GFX_CLKCTRL,

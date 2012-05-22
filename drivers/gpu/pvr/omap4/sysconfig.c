@@ -287,8 +287,35 @@ static IMG_CHAR *SysCreateVersionString(void)
 PVRSRV_ERROR SysInitialise(IMG_VOID)
 {
 	IMG_UINT32			i;
-	PVRSRV_ERROR 		eError;
+	PVRSRV_ERROR 		eError = PVRSRV_OK;
 	PVRSRV_DEVICE_NODE	*psDeviceNode;
+
+	struct clk *gpu_clk;
+	struct clk *gpu_parent_clk;
+	static const char *gpu_clk_name = "gpu_fck";
+	static const char *gpu_parent_clk_name = "dpll_per_m7x2_ck";
+	
+	gpu_clk = clk_get(NULL, gpu_clk_name);
+	if (IS_ERR(gpu_clk)) {
+		pr_err("%s: gpu_clk not available\n", __func__);
+		eError = PVRSRV_ERROR_INIT_FAILURE;
+		goto exit;
+	}
+
+	gpu_parent_clk = clk_get(NULL, gpu_parent_clk_name);
+	if (IS_ERR(gpu_parent_clk)) {
+		pr_err("%s: %s is not available\n", __func__, gpu_parent_clk_name);
+	        clk_put(gpu_clk);
+		eError = PVRSRV_ERROR_INIT_FAILURE;
+		goto exit;
+	}
+
+        if (IS_ERR_VALUE(clk_set_parent(gpu_clk, gpu_parent_clk))) {
+		pr_err("%s: cannot set gpu_clk clock parent\n", __func__);
+		eError = PVRSRV_ERROR_INIT_FAILURE;
+		goto err;
+	}
+
 #if !defined(PVR_NO_OMAP_TIMER)
 	IMG_CPU_PHYADDR		TimerRegPhysBase;
 #endif
@@ -309,7 +336,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to setup env structure"));
 		(IMG_VOID)SysDeinitialise(gpsSysData);
 		gpsSysData = IMG_NULL;
-		return eError;
+		goto err;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_ENVDATA);
 
@@ -331,7 +358,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed in SysInitialiseCommon"));
 		(IMG_VOID)SysDeinitialise(gpsSysData);
 		gpsSysData = IMG_NULL;
-		return eError;
+		goto err;
 	}
 
 #if !defined(SGX_DYNAMIC_TIMING_INFO)
@@ -362,7 +389,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to locate devices"));
 		(IMG_VOID)SysDeinitialise(gpsSysData);
 		gpsSysData = IMG_NULL;
-		return eError;
+		goto err;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LOCATEDEV);
 
@@ -372,7 +399,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to register with OSPM!"));
 		(IMG_VOID)SysDeinitialise(gpsSysData);
 		gpsSysData = IMG_NULL;
-		return eError;
+		goto err;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_PM_RUNTIME);
 
@@ -382,7 +409,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to initialize DVFS"));
 		(IMG_VOID)SysDeinitialise(gpsSysData);
 		gpsSysData = IMG_NULL;
-		return eError;
+		goto err;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_DVFS_INIT);
 
@@ -393,7 +420,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to register device!"));
 		(IMG_VOID)SysDeinitialise(gpsSysData);
 		gpsSysData = IMG_NULL;
-		return eError;
+		goto err;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_REGDEV);
 
@@ -447,7 +474,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to Enable system clocks (%d)", eError));
 		(IMG_VOID)SysDeinitialise(gpsSysData);
 		gpsSysData = IMG_NULL;
-		return eError;
+		goto err;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_SYSCLOCKS);
 #if defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
@@ -457,7 +484,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to Enable SGX clocks (%d)", eError));
 		(IMG_VOID)SysDeinitialise(gpsSysData);
 		gpsSysData = IMG_NULL;
-		return eError;
+		goto err;
 	}
 #endif	
 
@@ -467,7 +494,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to initialise device!"));
 		(IMG_VOID)SysDeinitialise(gpsSysData);
 		gpsSysData = IMG_NULL;
-		return eError;
+		goto err;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_INITDEV);
 
@@ -495,7 +522,11 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 #endif 
 
 	sgx_idle_init();
-	return PVRSRV_OK;
+err:
+	clk_put(gpu_clk);
+	clk_put(gpu_parent_clk);
+exit:
+	return eError;
 }
 
 
