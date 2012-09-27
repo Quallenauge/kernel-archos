@@ -418,6 +418,15 @@ void dsi_bus_unlock(struct omap_dss_device *dssdev)
 }
 EXPORT_SYMBOL(dsi_bus_unlock);
 
+bool dsi_bus_was_unlocked(struct omap_dss_device *dssdev)
+{
+	struct platform_device *dsidev = dsi_get_dsidev_from_dssdev(dssdev);
+	struct dsi_data *dsi = dsi_get_dsidrv_data(dsidev);
+
+	return dsi->bus_lock.count == 1;
+}
+EXPORT_SYMBOL(dsi_bus_was_unlocked);
+
 static bool dsi_bus_is_locked(struct platform_device *dsidev)
 {
 	struct dsi_data *dsi = dsi_get_dsidrv_data(dsidev);
@@ -2999,8 +3008,13 @@ int dsi_vc_send_bta_sync(struct omap_dss_device *dssdev, int channel)
 {
 	struct platform_device *dsidev = dsi_get_dsidev_from_dssdev(dssdev);
 	DECLARE_COMPLETION_ONSTACK(completion);
-	int r = 0, i = 0;
+	int r = 0;
 	u32 err;
+
+	r = dsi_register_isr_vc(dsidev, channel, dsi_completion_handler,
+			&completion, DSI_VC_IRQ_BTA);
+	if (r)
+		goto err0;
 
 	r = dsi_register_isr(dsidev, dsi_completion_handler, &completion,
 			DSI_IRQ_ERROR_MASK);
@@ -3009,33 +3023,33 @@ int dsi_vc_send_bta_sync(struct omap_dss_device *dssdev, int channel)
 
 	r = dsi_vc_send_bta(dsidev, channel);
 	if (r)
-		goto err1;
+		goto err2;
 
-	/* wait for BTA ACK */
-	while (i < 500) {
-		if (REG_GET(dsidev, DSI_VC_IRQSTATUS(channel), 5, 5)) {
-			DSSDBG("BTA recieved\n");
-			REG_FLD_MOD(dsidev, DSI_VC_IRQSTATUS(channel), 1, 5, 5);
-			break;
-		}
-		i++;
-		mdelay(1);
+	if (wait_for_completion_timeout(&completion,
+				msecs_to_jiffies(500)) == 0) {
+		DSSERR("Failed to receive BTA\n");
+		r = -EIO;
+		goto err2;
 	}
-
-	if (i >= 500)
-		DSSERR("sending BTA failed\n");
 
 	err = dsi_get_errors(dsidev);
 	if (err) {
 		DSSERR("Error while sending BTA: %x\n", err);
 		r = -EIO;
+		goto err2;
 	}
-
-err1:
+err2:
 	dsi_unregister_isr(dsidev, dsi_completion_handler, &completion,
 			DSI_IRQ_ERROR_MASK);
-	return 0;
+err1:
+	dsi_unregister_isr_vc(dsidev, channel, dsi_completion_handler,
+			&completion, DSI_VC_IRQ_BTA);
+err0:
+	return r;
 }
+
+
+
 EXPORT_SYMBOL(dsi_vc_send_bta_sync);
 
 static inline void dsi_vc_write_long_header(struct platform_device *dsidev,
@@ -3266,7 +3280,7 @@ int dsi_vc_dcs_read(struct omap_dss_device *dssdev, int channel, u8 dcs_cmd,
 	int r;
 
 	if (dsi->debug_read)
-		DSSDBG("dsi_vc_dcs_read(ch%d, dcs_cmd %x)\n", channel, dcs_cmd);
+		DSSDBG("%s(ch%d, dcs_cmd %x)\n", __func__, channel, dcs_cmd);
 
 	r = dsi_vc_send_short(dsidev, channel, DSI_DT_DCS_READ, dcs_cmd, 0);
 	if (r)
@@ -3360,8 +3374,8 @@ int dsi_vc_dcs_read(struct omap_dss_device *dssdev, int channel, u8 dcs_cmd,
 
 	BUG();
 err:
-	DSSERR("dsi_vc_dcs_read(ch %d, cmd 0x%02x) failed\n",
-			channel, dcs_cmd);
+	DSSERR("%s(ch %d, cmd 0x%02x) failed\n",
+			__func__, channel, dcs_cmd);
 	return r;
 
 }
@@ -3471,7 +3485,7 @@ int dsi_vc_gen_read_2(struct omap_dss_device *dssdev, int channel, u16 cmd,
 	int r;
 
 	if (dsi->debug_read)
-		DSSDBG("dsi_vc_dcs_read(ch%d, dcs_cmd %x)\n", channel, cmd);
+		DSSDBG("%s(ch%d, cmd %x)\n", __func__, channel, cmd);
 
 	r = dsi_vc_send_short(dsidev, channel, DSI_DT_GENERIC_READ_2, cmd, 0);
 	if (r)
@@ -3565,8 +3579,8 @@ int dsi_vc_gen_read_2(struct omap_dss_device *dssdev, int channel, u16 cmd,
 
 	BUG();
 err:
-	DSSERR("dsi_vc_dcs_read(ch %d, cmd 0x%02x) failed\n",
-			channel, cmd);
+	DSSERR("%s(ch %d, cmd 0x%02x) failed\n",
+			__func__, channel, cmd);
 	return r;
 
 }
@@ -3834,9 +3848,9 @@ static int dsi_cmd_proto_config(struct omap_dss_device *dssdev)
 	return 0;
 }
 
-static int dispc_to_dsi_clock(int val, int bytes_per_pixel, int lanes)
+static int dispc_to_dsi_clock(int val, int pixel_size, int lanes)
 {
-	return (val * bytes_per_pixel) / lanes;
+	return (val * pixel_size / 8) / lanes;
 }
 
 static int dsi_video_proto_config(struct omap_dss_device *dssdev)
@@ -3845,7 +3859,6 @@ static int dsi_video_proto_config(struct omap_dss_device *dssdev)
 	struct omap_video_timings *timings = &dssdev->panel.timings;
 	int buswidth = 0;
 	u32 r;
-	int bytes_per_pixel;
 	int hbp, hfp, hsa, tl, line;
 	int lanes;
 
@@ -3867,15 +3880,12 @@ static int dsi_video_proto_config(struct omap_dss_device *dssdev)
 	switch (dssdev->ctrl.pixel_size) {
 	case 16:
 		buswidth = 0;
-		bytes_per_pixel = 2;
 		break;
 	case 18:
 		buswidth = 1;
-		bytes_per_pixel = 3;
 		break;
 	case 24:
 		buswidth = 2;
-		bytes_per_pixel = 3;
 		break;
 	default:
 		BUG();
@@ -3911,15 +3921,16 @@ static int dsi_video_proto_config(struct omap_dss_device *dssdev)
 	lanes = dsi_get_num_data_lanes_dssdev(dssdev);
 
 	hbp = dispc_to_dsi_clock((timings->hsw - 1) + (timings->hbp - 1),
-				bytes_per_pixel, lanes);
-	hfp = dispc_to_dsi_clock(timings->hfp - 1, bytes_per_pixel, lanes);
+				dssdev->ctrl.pixel_size, lanes);
+	hfp = dispc_to_dsi_clock(timings->hfp - 1,
+		dssdev->ctrl.pixel_size, lanes);
 	hsa = 0;
 
 	line = timings->hbp + timings->hfp + timings->hsw + timings->x_res;
-	WARN((line * bytes_per_pixel) % lanes != 0, "TL should be an exact "
+	WARN((line * dssdev->ctrl.pixel_size / 8) % lanes != 0, "TL should be an exact "
 			"integer, try changing DISPC horizontal blanking parameters");
 
-	tl =  dispc_to_dsi_clock(line, bytes_per_pixel, lanes);
+	tl =  dispc_to_dsi_clock(line, dssdev->ctrl.pixel_size, lanes);
 
 	r = dsi_read_reg(dsidev, DSI_VM_TIMING1);
 	r = FLD_MOD(r, hbp, 11, 0);   /* HBP */
@@ -3984,7 +3995,7 @@ int dsi_video_mode_enable(struct omap_dss_device *dssdev, u8 data_type)
 	dsi_write_reg(dsidev, DSI_VC_CTRL(0), r);
 	dsi_write_reg(dsidev, DSI_VC_CTRL(0) , 0x20800790);
 
-	word_count = dssdev->panel.timings.x_res * 3;
+	word_count = dssdev->panel.timings.x_res * dssdev->ctrl.pixel_size / 8;
 	header = FLD_VAL(0, 31, 24) | /* ECC */
 		FLD_VAL(word_count, 23, 8) | /* WORD_COUNT */
 		FLD_VAL(0, 7, 6) | /* VC_ID */
@@ -4722,10 +4733,11 @@ int omapdss_dsi_display_enable(struct omap_dss_device *dssdev)
 	if(!dssdev->skip_init)
 		dsi_enable_pll_clock(dsidev, 1);
 
-	/* Soft reset */
 	REG_FLD_MOD(dsidev, DSI_SYSCONFIG, 1, 1, 1);
 	_dsi_wait_reset(dsidev);
 
+	/* ENWAKEUP */
+	REG_FLD_MOD(dsidev, DSI_SYSCONFIG, 1, 2, 2);
 
 	_dsi_initialize_irq(dsidev);
 

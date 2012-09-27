@@ -36,7 +36,7 @@
 
 /* OMAP4 modulemode control */
 #define OMAP4430_MODULEMODE_SWCTRL			1
-#define OMAP4430_USBHOST_CTX_NUM			8
+#define OMAP4430_USBHOST_CTX_NUM			9
 
 static void __iomem *sar_ram_base;
 static void __iomem *omap4_sar_modules[MAX_SAR_MODULES];
@@ -242,8 +242,6 @@ static const u32 omap443x_sar_ram1_layout[][4] = {
 	{L3_CLK3_INDEX, 0x208, 1, 0x000002E4},
 	{L3_CLK3_INDEX, 0x210, 1, 0x000002E8},
 	{CM2_INDEX, OMAP4430_CM2_RESTORE_INST +
-		OMAP4_CM_SDMA_STATICDEP_RESTORE_OFFSET, 1, 0x000002F4},
-	{CM2_INDEX, OMAP4430_CM2_RESTORE_INST +
 		OMAP4_CM_SDMA_STATICDEP_RESTORE_OFFSET, 1, 0x00000924},
 	/* Due to errata i719 (Multiple OFF Mode Transitions Introduce
 	 * Corruption) the USB host context must only be saved if the USB host
@@ -256,6 +254,8 @@ static const u32 omap443x_sar_ram1_layout[][4] = {
 	OMAP4_CM_L3INIT_USB_HOST_CLKCTRL_RESTORE_OFFSET, 1, 0x000002EC},
 	{CM2_INDEX, OMAP4430_CM2_RESTORE_INST +
 	OMAP4_CM_L3INIT_USB_TLL_CLKCTRL_RESTORE_OFFSET, 1, 0x000002F0},
+	{CM2_INDEX, OMAP4430_CM2_RESTORE_INST +
+		OMAP4_CM_SDMA_STATICDEP_RESTORE_OFFSET, 1, 0x000002F4},
 	{USBTLL_INDEX, 0x400, 7, 0x000002F8},
 	{UHH_INDEX, 0x10, 1, 0x00000314},
 	{UHH_INDEX, 0x40, 1, 0x00000318},
@@ -603,13 +603,11 @@ static const u32 omap446x_sar_ram1_layout[][4] = {
 	{L3_CLK3_INDEX, 0x208, 1, 0x000002E8},
 	{L3_CLK3_INDEX, 0x210, 1, 0x000002EC},
 	{CM2_INDEX, OMAP4430_CM2_RESTORE_INST +
-		OMAP4_CM_SDMA_STATICDEP_RESTORE_OFFSET, 1, 0x000002F8},
-	{CM2_INDEX, OMAP4430_CM2_RESTORE_INST +
-		OMAP4_CM_SDMA_STATICDEP_RESTORE_OFFSET, 1, 0x00000928},
-	{CM2_INDEX, OMAP4430_CM2_RESTORE_INST +
 	OMAP4_CM_L3INIT_USB_HOST_CLKCTRL_RESTORE_OFFSET, 1, 0x000002F0},
 	{CM2_INDEX, OMAP4430_CM2_RESTORE_INST +
 	OMAP4_CM_L3INIT_USB_TLL_CLKCTRL_RESTORE_OFFSET, 1, 0x000002F4},
+	{CM2_INDEX, OMAP4430_CM2_RESTORE_INST +
+		OMAP4_CM_SDMA_STATICDEP_RESTORE_OFFSET, 1, 0x000002F8},
 	{USBTLL_INDEX, 0x400, 7, 0x000002FC},
 	{UHH_INDEX, 0x10, 1, 0x00000318},
 	{UHH_INDEX, 0x40, 1, 0x0000031C},
@@ -618,6 +616,8 @@ static const u32 omap446x_sar_ram1_layout[][4] = {
 	OMAP4_CM_L3INIT_USB_HOST_CLKCTRL_RESTORE_OFFSET, 1, 0x00000920},
 	{CM2_INDEX, OMAP4430_CM2_RESTORE_INST +
 	OMAP4_CM_L3INIT_USB_TLL_CLKCTRL_RESTORE_OFFSET, 1, 0x00000924},
+	{CM2_INDEX, OMAP4430_CM2_RESTORE_INST +
+		OMAP4_CM_SDMA_STATICDEP_RESTORE_OFFSET, 1, 0x00000928},
 };
 
 
@@ -1160,6 +1160,7 @@ static void sar_save(u32 nb_regs, u32 sar_bank, const u32 sar_layout_table[][4])
 static void save_sar_bank3(void)
 {
 	struct clockdomain *l4_secure_clkdm;
+	struct clockdomain *l3_2_clkdm;
 
 	/*
 	 * Not supported on ES1.0 silicon
@@ -1170,7 +1171,10 @@ static void save_sar_bank3(void)
 	}
 
 	l4_secure_clkdm = clkdm_lookup("l4_secure_clkdm");
+	l3_2_clkdm = clkdm_lookup("l3_2_clkdm");
 	clkdm_wakeup(l4_secure_clkdm);
+	clkdm_deny_idle(l3_2_clkdm);
+	clkdm_wakeup(l3_2_clkdm);
 
 	if (cpu_is_omap446x())
 		sar_save(ARRAY_SIZE(omap446x_sar_ram3_layout), SAR_BANK3_OFFSET,
@@ -1183,6 +1187,7 @@ static void save_sar_bank3(void)
 			 omap443x_sar_ram3_layout);
 
 	clkdm_allow_idle(l4_secure_clkdm);
+	clkdm_allow_idle(l3_2_clkdm);
 }
 
 static int omap4_sar_not_accessible(void)
@@ -1219,7 +1224,7 @@ static int omap4_sar_not_accessible(void)
   */
 int omap4_sar_save(void)
 {
-	int usbhost_skip_save = OMAP4430_USBHOST_CTX_NUM;
+	unsigned uhh_save = 1;
 
 	/*
 	 * Not supported on ES1.0 silicon
@@ -1235,36 +1240,35 @@ int omap4_sar_save(void)
 		return -EBUSY;
 	}
 
-	if ((cpu_is_omap443x() && omap44x0_usbhs_update_sar()) ||
-			(cpu_is_omap446x() && omap44x0_usbhs_update_sar())){
-		pr_debug("%s: saving USB SAR context!\n", __func__);
-		usbhost_skip_save = 0;
+	if (cpu_is_omap443x() && !omap4430_usbhs_update_sar()) {
+		pr_debug("%s: NOT saving USB SAR context!\n", __func__);
+		uhh_save = 0;
 	}
-
 
 	/*
 	 * SAR bits and clocks needs to be enabled
 	 */
 	clkdm_wakeup(l3init_clkdm);
-	if (!usbhost_skip_save)
+	if (uhh_save)
 		pwrdm_enable_hdwr_sar(l3init_pwrdm);
 	clk_enable(usb_tll_ck);
 	clk_enable(usb_host_ck);
 
 	/* Save SAR BANK1 */
 	if (cpu_is_omap446x())
-		sar_save((ARRAY_SIZE(omap446x_sar_ram1_layout) - usbhost_skip_save),
-			 SAR_BANK1_OFFSET, omap446x_sar_ram1_layout);
+		sar_save(ARRAY_SIZE(omap446x_sar_ram1_layout), SAR_BANK1_OFFSET,
+			 omap446x_sar_ram1_layout);
 	else if (cpu_is_omap447x())
 		sar_save(ARRAY_SIZE(omap447x_sar_ram1_layout), SAR_BANK1_OFFSET,
 			 omap447x_sar_ram1_layout);
 	else
-		sar_save((ARRAY_SIZE(omap443x_sar_ram1_layout) - usbhost_skip_save),
-			 SAR_BANK1_OFFSET, omap443x_sar_ram1_layout);
+		sar_save((ARRAY_SIZE(omap443x_sar_ram1_layout) -
+			(uhh_save ? 0 : OMAP4430_USBHOST_CTX_NUM)),
+			SAR_BANK1_OFFSET, omap443x_sar_ram1_layout);
 
 	clk_disable(usb_host_ck);
 	clk_disable(usb_tll_ck);
-	if (!usbhost_skip_save)
+	if (uhh_save)
 		pwrdm_disable_hdwr_sar(l3init_pwrdm);
 	clkdm_allow_idle(l3init_clkdm);
 

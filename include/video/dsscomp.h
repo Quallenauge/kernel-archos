@@ -592,6 +592,7 @@ struct dsscomp_display_info {
 	struct dss2_mgr_info mgr;	/* manager information */
 	__u16 width_in_mm;		/* screen dimensions */
 	__u16 height_in_mm;
+	__u16 is_virtual;
 
 	__u32 modedb_len;		/* number of video timings */
 	__u32 support_underscan;	/* support underscan property*/

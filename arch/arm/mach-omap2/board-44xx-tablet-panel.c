@@ -135,22 +135,23 @@ static void tablet_hdmi_mux_init(void)
 	status = gpio_request_array(tablet_hdmi_gpios,
 			ARRAY_SIZE(tablet_hdmi_gpios));
 	if (status)
-		pr_err("%s: Cannot request HDMI GPIOs %x \n", __func__, status);
+		pr_err("%s: Cannot request HDMI GPIOs %x\n", __func__, status);
 }
 
-
-
 static struct tc358765_board_data tablet_dsi_panel = {
-	.x_res		= 1280,
-	.y_res		= 800,
-	.reset_gpio     = 102,
+	.lp_time	= 0x4,
+	.clrsipo	= 0x3,
+	.lv_is		= 0x1,
+	.lv_nd		= 0x6,
+	.vtgen		= 0x1,
+	.vsdelay	= 0xf,
 };
 
 static struct omap_dss_device tablet_lcd_device = {
 	.name                   = "lcd",
 	.driver_name            = "tc358765",
 	.type                   = OMAP_DISPLAY_TYPE_DSI,
-	.data                   = &tablet_dsi_panel,
+	.data			= &tablet_dsi_panel,
 	.phy.dsi                = {
 		.clk_lane       = 1,
 		.clk_pol        = 0,
@@ -178,7 +179,7 @@ static struct omap_dss_device tablet_lcd_device = {
 
 		.dsi = {
 			.regn           = 38,
-			.regm           = 394,
+			.regm           = 441,
 			.regm_dispc     = 6,
 			.regm_dsi       = 9,
 			.lp_clk_div     = 5,
@@ -187,6 +188,25 @@ static struct omap_dss_device tablet_lcd_device = {
 		},
 	},
 
+	.panel = {
+		.timings = {
+			.x_res		= 1280,
+			.y_res		= 800,
+			.pixel_clock	= 65183,
+			.hfp		= 10,
+			.hsw		= 20,
+			.hbp		= 10,
+			.vfp		= 4,
+			.vsw		= 4,
+			.vbp		= 4,
+		},
+	},
+
+	.ctrl = {
+		.pixel_size = 24,
+	},
+
+	.reset_gpio     = 102,
 	.channel = OMAP_DSS_CHANNEL_LCD,
 	.skip_init = false,
 
@@ -205,6 +225,7 @@ static struct omap_dss_device tablet_hdmi_device = {
 		.hdmi	= {
 			.regn	= 15,
 			.regm2	= 1,
+			.max_pixclk_khz = 148500,
 		},
 	},
 	.hpd_gpio = HDMI_GPIO_HPD,
@@ -235,7 +256,7 @@ static void tablet_lcd_init(void)
 	reg |= 0x1f << OMAP4_DSI1_PIPD_SHIFT;
 	omap4_ctrl_pad_writel(reg, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_DSIPHY);
 
-	status = gpio_request_one(tablet_dsi_panel.reset_gpio,
+	status = gpio_request_one(tablet_lcd_device.reset_gpio,
 				GPIOF_OUT_INIT_LOW, "lcd_reset_gpio");
 	if (status)
 		pr_err("%s: Could not get lcd_reset_gpio\n", __func__);
@@ -253,13 +274,19 @@ static struct omapfb_platform_data tablet_fb_pdata = {
 	},
 };
 
+static struct i2c_board_info __initdata omap4xx_i2c_bus2_d2l_info[] = {
+	{
+		I2C_BOARD_INFO("tc358765_i2c_driver", 0x0f),
+	},
+};
+
 int __init tablet_panel_init(void)
 {
 	if (omap_is_board_version(OMAP4_TABLET_1_0) ||
 	    omap_is_board_version(OMAP4_TABLET_1_1) ||
 	    omap_is_board_version(OMAP4_TABLET_1_2)) {
-		tablet_dsi_panel.x_res	= 1024;
-		tablet_dsi_panel.y_res	= 768;
+		tablet_lcd_device.panel.timings.x_res	= 1024;
+		tablet_lcd_device.panel.timings.y_res	= 768;
 	}
 
 	tablet_lcd_init();
@@ -270,6 +297,9 @@ int __init tablet_panel_init(void)
 
 	omap_display_init(&tablet_dss_data);
 	platform_device_register(&omap4_tablet_disp_led);
+
+	i2c_register_board_info(2, omap4xx_i2c_bus2_d2l_info,
+		ARRAY_SIZE(omap4xx_i2c_bus2_d2l_info));
 
 	return 0;
 }

@@ -416,6 +416,7 @@ static void calc_mode_timings(int xres, int yres, int refresh,
 	}
 }
 
+#ifdef CONFIG_SUPPORT_PANEL_EXTRA_MODE
 static int check_mode_in_spec(struct fb_monspecs *specs, const struct fb_videomode* mode) {
 	int j;
 	if (!specs || !mode || (mode->pixclock == 0)) return 0;
@@ -426,6 +427,7 @@ static int check_mode_in_spec(struct fb_monspecs *specs, const struct fb_videomo
 	}
 	return 0;
 }
+#endif
 
 static int get_est_timing(unsigned char *block, struct fb_videomode *mode)
 {

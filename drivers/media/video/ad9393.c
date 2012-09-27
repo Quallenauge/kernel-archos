@@ -90,7 +90,7 @@ static const struct ad9393_config default_ad9393_config = {
   .reg[6] =  { .addr = 0x23, .mask = 0xFF, .value = 32,},
   .reg[7] =  { .addr = 0x24, .mask = 0xFF, .value = (1 << 7) | (1 << 6) | (1 << 5) | (1 << 4),},
   .reg[8] =  { .addr = 0x25, .mask = 0xFF, .value = (1 << 6) | (3 << 4) | (1 << 1),},
-  .reg[9] =  { .addr = 0x26, .mask = 0xFF, .value = (1 << 3),},
+  .reg[9] =  { .addr = 0x26, .mask = 0xFF, .value = (0 << 3),},
   .reg[10] =  { .addr = 0x27, .mask = 0xFF, .value = (1 << 7),},
   .reg[11] =  { .addr = 0x28, .mask = 0xFF, .value = (24 << 2) | (1 << 0),},
   .reg[12] =  { .addr = 0x29, .mask = 0xFF, .value = 4,},
@@ -176,11 +176,35 @@ AD9393['CSC Coef C4'].setValue(-1792) # 0x-700
   .reg[13] =  { .addr = 0x58, .mask = (0x7 << 0), .value = (0x1 << 0),},
   .reg[14] =  { .addr = 0x59, .mask = (0x1 << 6), .value = (0x0 << 6),},
   .reg[15] =  { .addr = 0x25, .mask = (0x3 << 2), .value = (0x0 << 2),},
-  .reg[16] =  { .addr = 0x7B, .mask = 0xFF, .value = (140625 >> 12),},
-  .reg[17] =  { .addr = 0x7C, .mask = 0xFF, .value = (140625 >> 4) & 0xFF,},
-  .reg[18] =  { .addr = 0x7D, .mask = 0xFF, .value = ((140625  & 0xF) << 4) | ((11648 >> 16) & 0xF) ,},
-  .reg[19] =  { .addr = 0x7E, .mask = 0xFF, .value = (11648 >> 8) & 0xFF,},
-  .reg[20] =  { .addr = 0x7F, .mask = 0xFF, .value = (11648 & 0xFF),},
+};
+
+static const struct ad9393_config configTest = {
+  .nb_reg = 21,
+
+   //fixed register
+  .reg[0] =  { .addr = 0x11, .mask = 0xFF, .value = 0x3,},
+  .reg[1] =  { .addr = 0x4D, .mask = 0xFF, .value = 0x3B,},
+  .reg[2] =  { .addr = 0x4E, .mask = 0xFF, .value = 0x6D,},
+  .reg[3] =  { .addr = 0x4F, .mask = 0xFF, .value = 0x54,},
+  .reg[4] =  { .addr = 0x50, .mask = 0xFF, .value = 0x90,},
+  .reg[5] =  { .addr = 0x53, .mask = 0xFF, .value = 0x3F,},
+  
+  //variable register
+  .reg[6] =  { .addr = 0x01, .mask = 0xFF, .value = 0x00,},
+  .reg[7] =  { .addr = 0x02, .mask = 0xF0, .value = 0x00,},  
+  .reg[8] =  { .addr = 0x03, .mask = 0xFF, .value = 0x00,},
+  .reg[9] =  { .addr = 0x25, .mask = (0x3 << 4), .value = (2 << 4),},
+  .reg[10] =  { .addr = 0x58, .mask = (0x1 << 7) | (0x7 << 4), .value = (1 << 7) | (1 << 4),},
+  .reg[11] =  { .addr = 0x34, .mask = (0x3 << 4) | (0x1 << 1), .value = (0x3 << 4) | (0x1 << 1),},
+  .reg[12] =  { .addr = 0x59, .mask = (0x1 << 5), .value = (0x1 << 5),},
+  .reg[13] =  { .addr = 0x58, .mask = (0x7 << 0), .value = (0x1 << 0),},
+  .reg[14] =  { .addr = 0x59, .mask = (0x1 << 6), .value = (0x0 << 6),},
+  .reg[15] =  { .addr = 0x25, .mask = (0x3 << 2), .value = (0x0 << 2),},
+};
+
+static const struct ad9393_config hdcp_status = {
+  .nb_reg = 1,
+  .reg[0] = { .addr = 0x2F, .mask = 0x08, .value = 0x0,},
 };
 
 static int load_default_control_config(struct ad9393_config *config) 
@@ -196,16 +220,77 @@ static int load_control_config(struct ad9393_config *dst, const struct ad9393_co
 {
 	int i;
 	if (!dst || !src) return -1;
-	memset(dst->reg, 0, sizeof(dst->reg));
-	dst->nb_reg = src->nb_reg;
+	memcpy(dst, src, sizeof(*src));
 	for (i = 0; i < src->nb_reg; i++) {
-		dst->reg[i].addr = src->reg[i].addr;
 		dst->reg[i].value = ad9393_read(src->reg[i].addr);
 		if (dst->reg[i].value == -1) return -1;
 		dst->reg[i].value = (dst->reg[i].value & ~src->reg[i].mask) | src->reg[i].value;
 	}
 	return 0;
 }
+
+static int load_status_config(struct ad9393_config *dst, const struct ad9393_config *src)
+{
+	int i;
+	if (!dst || !src) return -1;
+	memset(dst->reg, 0, sizeof(dst->reg));
+	dst->nb_reg = src->nb_reg;
+	for (i = 0; i < src->nb_reg; i++) {
+		dst->reg[i].addr = src->reg[i].addr;
+		dst->reg[i].value = ad9393_read(src->reg[i].addr);
+		if (dst->reg[i].value == -1) return -1;
+		dst->reg[i].value = (dst->reg[i].value & src->reg[i].mask);
+	}
+	return 0;
+}
+
+static int get_hdcp_status(void) 
+{
+	struct ad9393_config hdcp_reg;
+	int r = 0;
+
+	r = load_status_config(&hdcp_reg, &hdcp_status);
+
+	return r?0:(hdcp_reg.reg[0].value >> 3);
+}
+
+static ssize_t show_hdcp_status(struct device *cd,
+			 struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", get_hdcp_status());
+}
+static DEVICE_ATTR(hdcp_status, S_IRUGO, show_hdcp_status, NULL);
+
+static ssize_t show_ad9393_reg(struct device *cd,
+			 struct device_attribute *attr, const char *buf, size_t len)
+{
+	u8 value;
+	ssize_t count;
+	char str[5];
+	char* endp;
+
+	if (!buf) {
+	  printk("AD9393: Bad parameter\n");
+	  return -EINVAL;
+	} 
+
+	if (len < 4) {
+		strncpy(str, buf, len);
+		str[len] = '\0';
+	} else {
+		strncpy(str, buf, 4);
+		str[len] = '\0';
+	}
+	value = simple_strtoul(str, &endp, 0);
+	count = (ssize_t)(endp - str);
+	if (!count) {
+		printk("Error, can not parse register address\n");
+		return -EINVAL;
+	}
+	printk("AD9393: Register 0x%x = 0x%x\n", value, ad9393_read(value));
+	return count;
+}
+static DEVICE_ATTR(ad9393_read, S_IWUSR, NULL, show_ad9393_reg);
 
 int __init ad9393_set_platform_data(const struct ad9393_platform_data *data)
 {
@@ -242,6 +327,16 @@ static int ad9393_probe(struct i2c_client *pdev,
 	hdmi.connection_state = HDMI_DISCONNECT;
 
 	hdmi.pdata = (struct ad9393_platform_data*)pdev->dev.platform_data;
+	
+	if (device_create_file(&pdev->dev, &dev_attr_hdcp_status)<0) {
+		printk(KERN_ERR "ad9393: device_create_file 'hdcp_status'failed\n");
+		goto out;
+	}
+	
+	if (device_create_file(&pdev->dev, &dev_attr_ad9393_read)<0) {
+		printk(KERN_ERR "ad9393: device_create_file 'ad9393_read'failed\n");
+		goto out;
+	}
 
 	if (IS_ERR_OR_NULL(hdmi.pdata)) {
 		r = PTR_ERR(hdmi.pdata);
@@ -282,20 +377,24 @@ static int ad9393_probe(struct i2c_client *pdev,
 
 	r = write_config(&current_config);
 
-	load_control_config(&current_config, &config2);
+	load_control_config(&current_config, &configTest);
 
 	r = write_config(&current_config);
+
+	printk("AD9393: HDCP status %d\n",get_hdcp_status());
 
 	return 0;
 out:
 	return r;
 }
 
-static int __exit ad9393_remove(struct i2c_client *client)
+static int __exit ad9393_remove(struct i2c_client *pdev)
 {
 	gpio_set_value(hdmi.pdata->power_enable,0);
 	if (hdmi.vcc_reg) regulator_put(hdmi.vcc_reg);
 	if (hdmi.v1_8_reg) regulator_put(hdmi.v1_8_reg);
+	device_remove_file(&pdev->dev, &dev_attr_hdcp_status);
+	device_remove_file(&pdev->dev, &dev_attr_ad9393_read);
 	return 0;
 }
 
@@ -326,6 +425,7 @@ static __init int init_ad9393(void)
 		printk("ad9393: I2C driver registration failed, module not inserted.\n");
 		return ret;
 	}
+
 	return 0;
 }
 

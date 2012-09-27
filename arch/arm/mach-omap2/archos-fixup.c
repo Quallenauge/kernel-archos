@@ -80,7 +80,7 @@ void __init fixup_archos(struct machine_desc *desc,
 	omapfb_set_platform_data(&tablet_fb_pdata);
 
 	if (machine_is_archos_a80s() || machine_is_archos_a101s()
-	 || machine_is_archos_a80h() || machine_is_archos_a101h() 
+	 || machine_is_archos_a80h() || machine_is_archos_a101h()
 	) {
 		*cmdline = command_line[0];
 	} else {

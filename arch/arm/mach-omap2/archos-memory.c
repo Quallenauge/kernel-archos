@@ -23,7 +23,7 @@
 static struct emif_device_details *emif_config;
 
 
-#define ARCHOS_PHYS_ADDR_DUCATI_SIZE		(SZ_1M * 55)
+#define ARCHOS_PHYS_ADDR_DUCATI_SIZE		(SZ_1M * 25)
 
 #define ARCHOS_OMAP4_ION_HEAP_TILER_SIZE	(SZ_512K)
 #define ARCHOS_OMAP4_ION_HEAP_SECURE_SIZE       (SZ_512K)
@@ -206,6 +206,12 @@ static void __init board_memory_prepare(void)
 			emif_config = &emif_devices[3];
 		} else	if (!strcmp(sdram->product, "EDB8164B3PF")) {		// Elpida 1Go
 			printk(KERN_INFO "DDR type elpida 1Go\n");
+			emif_config = &emif_devices[4];
+		} else	if (!strcmp(sdram->product, "H9TKNNN8KDMPQR")) {	// HYNIX 1Go
+			printk(KERN_INFO "DDR type hynix 1Go\n");
+			emif_config = &emif_devices[4];
+		} else	if (!strcmp(sdram->product, "MT42L128M64D2")) {		// MICRON 1Go
+			printk(KERN_INFO "DDR type micron 1Go\n");
 			emif_config = &emif_devices[4];
 		} else {
 			printk(KERN_INFO "DDR type default\n");

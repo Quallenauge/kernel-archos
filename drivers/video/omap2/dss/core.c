@@ -32,6 +32,8 @@
 #include <linux/io.h>
 #include <linux/device.h>
 #include <linux/regulator/consumer.h>
+#include <plat/omap_hwmod.h>
+#include <plat/omap-pm.h>
 
 #include <video/omapdss.h>
 
@@ -49,7 +51,7 @@ static char *def_disp_name;
 module_param_named(def_disp, def_disp_name, charp, 0);
 MODULE_PARM_DESC(def_disp, "default display name");
 
-#ifdef DEBUG
+#ifdef DSS_DEBUG
 unsigned int dss_debug;
 module_param_named(debug, dss_debug, bool, 0644);
 #endif
@@ -167,6 +169,24 @@ static inline void dss_uninitialize_debugfs(void)
 }
 #endif /* CONFIG_DEBUG_FS && CONFIG_OMAP2_DSS_DEBUG_SUPPORT */
 
+void omap_dss_request_bandwidth(int bandwidth)
+{
+	struct device *dss_dev;
+	dss_dev = omap_hwmod_name_get_dev("dss_core");
+	if (dss_dev) {
+		if (bandwidth > 0) {
+			omap_pm_set_min_bus_tput(dss_dev,
+					OCP_INITIATOR_AGENT,
+					bandwidth);
+		}
+		else
+			omap_pm_set_min_bus_tput(dss_dev,
+				 OCP_INITIATOR_AGENT, -1);
+	}
+	else
+		DSSDBG("Failed to set L3 bus speed\n");
+}
+
 /* PLATFORM DEVICE */
 static int omap_dss_probe(struct platform_device *pdev)
 {
@@ -180,6 +200,9 @@ static int omap_dss_probe(struct platform_device *pdev)
 
 	dss_init_overlay_managers(pdev);
 	dss_init_overlays(pdev);
+
+	if (dss_has_feature(FEAT_OVL_WB))
+		dss_init_writeback(pdev);
 
 	r = dss_init_platform_driver();
 	if (r) {
@@ -274,6 +297,8 @@ static int omap_dss_remove(struct platform_device *pdev)
 	hdmi_uninit_platform_driver();
 	dss_uninit_platform_driver();
 
+	if (dss_has_feature(FEAT_OVL_WB))
+		dss_uninit_writeback(pdev);
 	dss_uninit_overlays(pdev);
 	dss_uninit_overlay_managers(pdev);
 
@@ -425,19 +450,45 @@ static int dss_driver_remove(struct device *dev)
 
 static void omap_dss_driver_disable(struct omap_dss_device *dssdev)
 {
+	mutex_lock(&dssdev->state_lock);
 	if (dssdev->state != OMAP_DSS_DISPLAY_DISABLED)
 		blocking_notifier_call_chain(&dssdev->state_notifiers,
 					OMAP_DSS_DISPLAY_DISABLED, dssdev);
 	dssdev->driver->disable_orig(dssdev);
 	dssdev->first_vsync = false;
+	mutex_unlock(&dssdev->state_lock);
 }
 
 static int omap_dss_driver_enable(struct omap_dss_device *dssdev)
 {
-	int r = dssdev->driver->enable_orig(dssdev);
+	int r;
+	mutex_lock(&dssdev->state_lock);
+	omap_dss_request_bandwidth((dssdev->panel.timings.x_res * dssdev->panel.timings.y_res * 4 * 62)/1000); //Request a default minimum bandwidth for one plane full screen in ARGB @ 62 fps
+	r = dssdev->driver->enable_orig(dssdev);
 	if (!r && dssdev->state == OMAP_DSS_DISPLAY_ACTIVE)
 		blocking_notifier_call_chain(&dssdev->state_notifiers,
 					OMAP_DSS_DISPLAY_ACTIVE, dssdev);
+	mutex_unlock(&dssdev->state_lock);
+	return r;
+}
+
+static int omap_dss_driver_suspend(struct omap_dss_device *dssdev)
+{
+	int r;
+	mutex_lock(&dssdev->state_lock);
+	r = dssdev->driver->suspend_orig(dssdev);
+	omap_dss_request_bandwidth(0);
+	mutex_unlock(&dssdev->state_lock);
+	return r;
+}
+
+static int omap_dss_driver_resume(struct omap_dss_device *dssdev)
+{
+	int r = 0;
+	mutex_lock(&dssdev->state_lock);
+	if (dssdev->driver->resume_orig)
+		r = dssdev->driver->resume_orig(dssdev);
+	mutex_unlock(&dssdev->state_lock);
 	return r;
 }
 
@@ -457,6 +508,12 @@ int omap_dss_register_driver(struct omap_dss_driver *dssdriver)
 	dssdriver->disable = omap_dss_driver_disable;
 	dssdriver->enable_orig = dssdriver->enable;
 	dssdriver->enable = omap_dss_driver_enable;
+
+	dssdriver->suspend_orig = dssdriver->suspend;
+	dssdriver->suspend = omap_dss_driver_suspend;
+
+	dssdriver->resume_orig = dssdriver->resume;
+	dssdriver->resume = omap_dss_driver_resume;
 
 	return driver_register(&dssdriver->driver);
 }

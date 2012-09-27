@@ -798,6 +798,28 @@ config TOUCHSCREEN_GOODIX_GT80x
 	  To compile this driver as a module, choose M here: the
 	  module will be called goodix-gt80x.
 
+config TOUCHSCREEN_GOODIX_GT8105
+	tristate "Goodix GT8105 i2c touchscreen"
+	help
+	  Say Y here to enable support for I2C connected Goodix
+	  GT8105 touch panel.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called goodix_gt8105.
+
+config TOUCHSCREEN_GOODIX_GT8105_DFU
+	bool "Goodix GT8105 DFU mecanism"
+	depends on TOUCHSCREEN_GOODIX_GT8105
+	default n
+	help
+	  Say Y here to enable support for I2C connected Goodix
+	  GT8105 touch panel firmware upgrade mecanism
+
+	  If unsure, say N.
+
+
 config TOUCHSCREEN_TR16C0
 	tristate "TR16C0"
 	help
@@ -820,4 +842,80 @@ config TOUCHSCREEN_CPT_I2C_TSP
 	  To compile this driver as a module, choose M here: the
 	  module will be called cpt_i2c_tsp.
 
+config TOUCHSCREEN_BYD_I2C_TSP
+	tristate "BYD i2c touchscreen"
+	help
+	  Say Y here to enable support for I2C connected BYD
+	  touch panel.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called byd_i2c_tsp.
+
+config TOUCHSCREEN_FT5606
+	tristate "Focaltech FT5606 i2c touchscreen"
+	help
+	  Say Y here to enable support for I2C connected FT5606
+	  touch panel.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ft5606.
+
+config TOUCHSCREEN_FT5606_DFU
+	bool "Focaltech FT5606 DFU mecanism"
+	depends on TOUCHSCREEN_FT5606
+	default n
+	help
+	  Say Y here to enable support for I2C connected Focaltech
+	  FT5606 touch panel firmware upgrade mecanism
+
+	  If unsure, say N.
+
+
+config TOUCHSCREEN_CYTTSP4_I2C
+	default n
+	tristate "Cypress TTSP4 i2c touchscreen"
+	depends on I2C
+	help
+	 Say Y here if you have a Cypress TTSP4 touchscreen
+	 connected to your system's i2c bus.
+
+	 If unsure, say N.
+
+	 To compile this driver as a module, choose M here: the
+	 module will be called cyttsp_i2c.
+
+config TOUCHSCREEN_CYTTSP4_SPI
+	default n
+	tristate "Cypress TTSP spi touchscreen"
+	depends on SPI_MASTER
+	help
+	 Say Y here if you have a Cypress TTSP4 touchscreen
+	 connected to your system's spi bus.
+
+	 If unsure, say N.
+
+	 To compile this driver as a module, choose M here: the
+	 module will be called cyttsp_spi.
+
+config TOUCHSCREEN_CYTTSP4_CORE
+	default y
+	tristate "Cypress TTSP touchscreen core"
+	depends on TOUCHSCREEN_CYTTSP4_I2C || TOUCHSCREEN_CYTTSP4_SPI
+	help
+	 Always activated for Cypress TTSP touchscreen
+
+config TOUCHSCREEN_NT11003
+	tristate "Novatek NT11003 i2c touchscreen"
+	help
+	  Say Y here to enable support for I2C connected Novatek
+	  NT11003 touch panel.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called nt11003.
 endif

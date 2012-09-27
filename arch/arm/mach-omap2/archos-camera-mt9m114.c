@@ -9,6 +9,8 @@
 #include <linux/init.h>
 #include <linux/clk.h>
 #include <linux/err.h>
+#include <linux/delay.h>
+#include <linux/regulator/machine.h>
 #include <asm/mach-types.h>
 #include <linux/module.h>
 
@@ -18,6 +20,10 @@
 
 #include "mux.h"
 
+#define DEVICE_NAME	"archos_camera_glue"
+
+static struct regulator *cam_vdd;
+static struct regulator *cam_1v8;
 static int reset_gpio;
 
 static void __init init_cam_clk(void)
@@ -100,29 +106,109 @@ static void auxclk2_en(int enable)
 }
 #endif
 
+
+static void enable(int on_off)
+{
+	static int state = 0;
+
+	if (state == on_off)
+		return;
+
+	if (on_off) {
+
+		regulator_enable(cam_vdd);
+
+		if (!IS_ERR(cam_1v8)) {
+			regulator_enable(cam_1v8);
+		}
+
+		msleep(10);
+
+		init_cam_clk();
+
+	} else {
+		if (!IS_ERR(cam_1v8))
+			regulator_disable(cam_1v8);
+
+		regulator_disable(cam_vdd);
+	}
+
+	state = on_off;
+}
+
+static int archos_camera_glue_probe(struct platform_device * pdev)
+{
+	cam_vdd = regulator_get(&pdev->dev, "cam_vdd");
+	if (IS_ERR(cam_vdd)) {
+		dev_err(&pdev->dev, "no cam_vdd rail, abort.\n");
+		return -ENODEV;
+	}
+
+	regulator_force_disable(cam_vdd);
+
+	cam_1v8 = regulator_get(&pdev->dev, "cam_1v8");
+	if (IS_ERR(cam_1v8))
+		dev_info(&pdev->dev, "no cam_1v8 rail, skip.\n");
+	else
+		regulator_force_disable(cam_1v8);
+
+	// assert that power rails are low
+	msleep(20);
+
+	enable(1);
+
+	return 0;
+}
+
+static struct platform_driver archos_camera_glue_driver= {
+	.probe = archos_camera_glue_probe,
+	.driver = {
+		.name = DEVICE_NAME,
+		.owner = THIS_MODULE,
+	}
+};
+
 int __init archos_camera_mt9m114_init(void)
 {
 	const struct archos_camera_config *camera_cfg;
+	struct platform_device *pdev;
+	int ret;
 
 	pr_debug("%s\n", __FUNCTION__);
 
 	camera_cfg = omap_get_config( ARCHOS_TAG_CAMERA, struct archos_camera_config );
 	if (camera_cfg == NULL) {
-		printk(KERN_DEBUG "archos_camera_init: no board configuration found\n");
+		printk(KERN_ERR "archos_camera_init: no board configuration found\n");
 		return -ENODEV;
 	}
 	if ( system_rev >= camera_cfg->nrev ) {
-		printk(KERN_DEBUG "archos_camera_init: system_rev (%i) >= nrev (%i)\n",
+		printk(KERN_ERR "archos_camera_init: system_rev (%i) >= nrev (%i)\n",
 			system_rev, camera_cfg->nrev);
 		return -ENODEV;
 	}
 
-	reset_gpio = camera_cfg->rev[system_rev].reset;
+	if (gpio_is_valid(camera_cfg->rev[system_rev].reset)) {
+		reset_gpio = camera_cfg->rev[system_rev].reset;
+		omap_mux_init_gpio(reset_gpio, OMAP_PIN_INPUT);
+		gpio_set_value(reset_gpio, 0);
+	} else {
+		ret = -ENODEV;
+		return ret;
+	}
 
-	omap_mux_init_gpio(reset_gpio, OMAP_PIN_INPUT);
-	gpio_set_value(reset_gpio, 0);
+	ret = platform_driver_register(&archos_camera_glue_driver);
+	if (ret)
+		return ret;
 
-	init_cam_clk();
+	pdev = platform_device_alloc(DEVICE_NAME, -1);
+	if (!pdev) {
+		ret = -ENOMEM;
+		return ret;
+	}
+
+	ret = platform_device_add(pdev);
+	if (ret)
+		return ret;
 
 	omap_mux_init_signal("fref_clk2_out", OMAP_PIN_OUTPUT);
 	
@@ -133,3 +219,5 @@ int __init archos_camera_mt9m114_init(void)
 
 	return 0;
 }
+
+device_initcall(archos_camera_mt9m114_init);

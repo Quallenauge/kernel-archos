@@ -28,6 +28,8 @@
  */
 struct pcb_temp_sensor_pdata {
 	char *name;
+	int gpadc_channel;
+	int (*adc_to_temp_conversion)(int);
 };
 
 #endif

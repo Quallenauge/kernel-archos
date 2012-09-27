@@ -417,6 +417,20 @@ config ARCHOS_UART3_ON_DPDM
 	depends on ARCH_OMAP4
 	default n
 
+config ARCHOS_HUB_OFF
+	bool "Force the hub to be off when EHCI is runtime suspended"
+	default n
+	help
+	  When the EHCI bus is suspended at runtime, the hub will be turned off since
+	  there obviously is nothing connected to it. This will help to preserve battery power. 
+
+config ARCHOS_PHY_POWERSAVE
+	bool "Hold the Phy in reset while the bus is suspended"
+	default n
+	help
+	   When the ehci bus is unused, it will runtime-suspend. Holding the phy in reset will save some power,
+	   however it will make remote-wakeups impossible.
+
 config CMDLINE_DEFAULT
 	string "Kernel command line for Archos G9 NAND based devices"
 	depends on MACH_ARCHOS
@@ -425,6 +439,7 @@ config CMDLINE_DEFAULT
 config OMAP3_EMU
 	bool "OMAP3 debugging peripherals"
 	depends on ARCH_OMAP3
+	select ARM_AMBA
 	select OC_ETM
 	help
 	  Say Y here to enable debugging hardware of omap3
@@ -517,6 +532,15 @@ config OMAP4_ARM_ERRATA_743622
 	  This involves setting bit 6 of the CP15 diagnostic control register.
 	  This is handled for HS devices in the PPA code and does not need to be
 	  enabled."
+
+config OMAP4_HSOTG_ED_CORRECTION
+	bool "OMAP 44XX HSOTG Eye diagram correction"
+	depends on ARCH_OMAP4
+	default y
+	help
+	  Select this option to overrive HSOTG PHY settings in
+	  order to improve Eye Diagramm. On 4430 CPUs this should
+	  improve Eye Diagram at least 8%.
 
 endmenu
 

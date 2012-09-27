@@ -55,4 +55,20 @@ config PANEL_TC358765
 	select BACKLIGHT_CLASS_DEVICE
 	help
 	  Toshiba TC358765 DSI-2-LVDS chip with 1024x768 panel
+config TC358765_DEBUG
+	bool "Toshiba TC358765 DSI-2-LVDS chip debug"
+	depends on PANEL_TC358765 && DEBUG_FS
+	help
+	  Support of TC358765 DSI-2-LVDS chip register access via debugfs
+config PANEL_TC358766
+	tristate "Toshiba TC358766 DSI-2-DP chip"
+	depends on OMAP2_DSS_DSI && SPI
+	select BACKLIGHT_CLASS_DEVICE
+	help
+	  Toshiba TC358766 DSI-2-DP chip with 1920x1080 panel
+config TC358766_DEBUG
+	bool "Toshiba TC358766 DSI-2-DP chip debug"
+	depends on PANEL_TC358766 && DEBUG_FS
+	help
+	  Support of TC358766 DSI-2-DP chip register access via debugfs
 endmenu

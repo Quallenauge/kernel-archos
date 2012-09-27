@@ -32,13 +32,7 @@
 #include "../mach-omap2/dvfs.h"
 #include "omap-pm-helper.h"
 
-struct omap_opp *dsp_opps;
-struct omap_opp *mpu_opps;
-struct omap_opp *l3_opps;
-
 static DEFINE_MUTEX(bus_tput_mutex);
-static DEFINE_MUTEX(mpu_tput_mutex);
-static DEFINE_MUTEX(mpu_lat_mutex);
 
 /* Used to model a Interconnect Throughput */
 static struct interconnect_tput {
@@ -175,16 +169,16 @@ static int __init omap_bus_tput_init(void)
  * Multiple calls to this function by the same device will
  * replace the previous level requested
  * Returns the updated level of interconnect throughput.
- * In case of Invalid dev or user pointer, it returns 0.
+ * In case of Invalid dev or user pointer, it returns 0xffffffff.
  */
 static unsigned long add_req_tput(struct device *dev, unsigned long level)
 {
-	int ret;
+	unsigned long ret;
 	struct users *user;
 
 	if (!dev) {
 		pr_err("Invalid dev pointer\n");
-		ret = 0;
+		return (unsigned long)-1;
 	}
 	mutex_lock(&bus_tput->throughput_mutex);
 	user = user_lookup(dev);
@@ -193,7 +187,7 @@ static unsigned long add_req_tput(struct device *dev, unsigned long level)
 		if (IS_ERR(user)) {
 			pr_err("Couldn't get user from the list to"
 			       "add new throughput constraint");
-			ret = 0;
+			ret = (unsigned long)-1;
 			goto unlock;
 		}
 		bus_tput->target_level += level;
@@ -220,14 +214,14 @@ unlock:
  * This function recomputes the target level of the interconnect
  * throughput after removing
  * the level requested by the user.
- * Returns 0, if the dev structure is invalid
+ * Returns 0xffffffff, if the dev structure is invalid
  * else returns modified interconnect throughput rate.
  */
 static unsigned long remove_req_tput(struct device *dev)
 {
 	struct users *user;
 	int found = 0;
-	int ret;
+	unsigned long ret;
 
 	mutex_lock(&bus_tput->throughput_mutex);
 	list_for_each_entry(user, &bus_tput->users_list, node) {
@@ -239,9 +233,10 @@ static unsigned long remove_req_tput(struct device *dev)
 	if (!found) {
 		/* No such user exists */
 		pr_err("Invalid Device Structure\n");
-		ret = 0;
+		ret = (unsigned long)-1;
 		goto unlock;
 	}
+
 	bus_tput->target_level -= user->level;
 	bus_tput->no_of_users--;
 	list_del(&user->node);
@@ -261,6 +256,7 @@ int omap_pm_set_min_bus_tput_helper(struct device *dev, u8 agent_id, long r)
 		.init_name = "omap_pm_set_min_bus_tput",
 	};
 	unsigned long target_level = 0;
+	u64 target_rate;
 
 	mutex_lock(&bus_tput_mutex);
 
@@ -276,13 +272,26 @@ int omap_pm_set_min_bus_tput_helper(struct device *dev, u8 agent_id, long r)
 	else
 		target_level = add_req_tput(dev, r);
 
-	/* Convert the throughput(in KiB/s) into Hz. */
-	target_level = (target_level * 1000) / 4;
+	if (target_level == (unsigned long)-1) {
+		pr_err("update target_level failed\n");
+		ret = -EINVAL;
+		goto unlock;
+	}
 
-	ret = omap_device_scale(&dummy_l3_dev, l3_dev, target_level);
+	/* Convert the throughput(in KiBytes/s) into Hz. */
+	/*
+	   128bit L3 bus width, 233MHz - opp119
+	   L3 clock 233MHz -> 233 * (128/8) = 3728000KiBytes/s
+	   L3 clock 400MHz -> 400 * (128/8) = 6400000KiBytes/s
+	*/
+	target_rate = ((u64)target_level) * 1000 >> 4;
+
+	//target_rate = 130000000; /* hack: more than the l3 speed of lower opp to force maximum l3 speed */
+
+	ret = omap_device_scale(&dummy_l3_dev, l3_dev, (unsigned long)target_rate);
 	if (ret)
-		pr_err("Failed: change interconnect bandwidth to %ld\n",
-		     target_level);
+		pr_err("Failed: change interconnect bandwidth to %llu\n",
+		     target_rate);
 unlock:
 	mutex_unlock(&bus_tput_mutex);
 	return ret;

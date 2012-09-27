@@ -50,8 +50,6 @@
 #define MCU_TYPE_R8C3GA_I2C   0x0411
 #define MCU_TYPE_R8C3MU_I2C   0x0412
 
-#define MAX_FINGERS           4
-
 #define MIN(a,b) 	(((a) < (b)) ? (a) : (b))
 
 static const struct register_map_m48 {
@@ -119,6 +117,28 @@ static const struct register_map_m45 {
 	.maint_cmd = 247,
 };
 
+static const struct register_map_ab70 {
+	u8 touch;
+	u8 power_mode;
+	u8 int_mode;
+	u8 int_width;
+	u8 scan_rate;
+	u8 max_point;
+	u8 firmware_version_base;
+	u8 maint_end;
+	u8 maint_cmd;
+} map_ab70 = {
+	.touch = 0x00,
+	.power_mode = 0xaf,
+	.int_mode = 0xb0,
+	.int_width = 0xb1,
+	.scan_rate = 0xb2,
+	.max_point = 0xe3,
+	.firmware_version_base = 0xd1,
+	.maint_end = 0xf6,
+	.maint_cmd = 0xf7,
+};
+
 enum {
 	APP_MODE = 0,
 	BOOT_MODE = 1,
@@ -145,11 +165,13 @@ enum {
 struct pixcir_priv {
 	struct i2c_client *client;
 	struct input_dev *input_dev;
+	struct platform_device *pdev;
+
 	struct completion irq_trigged;
 	struct regulator *regulator;
 	struct regulator *regulator_supply;
 
-	int is_m45;
+	int type;
 
 #ifdef CONFIG_TOUCHSCREEN_ARCHOS_TS_MONOTOUCH_COMPAT
 	int down;
@@ -218,21 +240,26 @@ static void pixcir_power(struct i2c_client *client, int on_off)
 static int pixcir_write(struct i2c_client * client, u8 addr, u8 *value, u8 len)
 {
 	struct i2c_msg msg;
+	struct pixcir_priv *priv = i2c_get_clientdata(client);
+	int page_len = (priv->type == TYPE_AB70) ? 1 : 0;
 	int ret;
 
-	char *buff = kzalloc(sizeof(addr) + len, GFP_KERNEL);
+	char *buff = kzalloc(sizeof(addr) + len + page_len, GFP_KERNEL);
 
 	if (!buff)
 		return -ENOMEM;
 
-	*buff = addr;
+	if (page_len)
+		*buff = 0;	// page 0
 
-	memcpy(buff + sizeof(addr), value, len);
+	*(buff + page_len) = addr;
+
+	memcpy(buff + sizeof(addr) + page_len, value, len);
 
 	msg.addr = client->addr;
 	msg.flags = 0;
 	msg.buf = buff;
-	msg.len = sizeof(addr) + len;
+	msg.len = sizeof(addr) + len + page_len;
 
 	ret = i2c_transfer(client->adapter, &msg, 1);
 
@@ -255,12 +282,24 @@ static inline int pixcir_write_u16(struct i2c_client * client, u8 addr, u16 valu
 static int pixcir_read(struct i2c_client * client, u8 addr, u8 *value, u8 len)
 {
 	struct i2c_msg msg[2];
+	struct pixcir_priv *priv = i2c_get_clientdata(client);
+	int page_len = (priv->type == TYPE_AB70) ? 1 : 0;
 	int ret;
+
+	char *buff = kzalloc(sizeof(addr) + page_len, GFP_KERNEL);
+
+	if (!buff)
+		return -ENOMEM;
+
+	if (page_len)
+		*buff = 0;	// page 0
+
+	*(buff + page_len) = addr;
 
 	msg[0].addr = client->addr;
 	msg[0].flags = 0;
-	msg[0].buf = &addr;
-	msg[0].len = sizeof(addr);
+	msg[0].buf = buff;
+	msg[0].len = sizeof(addr) + page_len;
 
 	msg[1].addr = client->addr;
 	msg[1].flags = I2C_M_RD;
@@ -268,6 +307,8 @@ static int pixcir_read(struct i2c_client * client, u8 addr, u8 *value, u8 len)
 	msg[1].len = len;
 
 	ret = i2c_transfer(client->adapter, msg, ARRAY_SIZE(msg));
+
+	kfree(buff);
 
 	if (ret == 2)
 		return len;
@@ -293,7 +334,8 @@ static int pixcir_cmd(struct i2c_client * client, u8 cmd, int wait_irq_timeout)
 
 	dev_dbg(&client->dev, "%s %d\n", __FUNCTION__, cmd);
 
-	if (priv->is_m45) {
+	switch (priv->type) {
+	case TYPE_M45:
 		pixcir_write_u8(client, map_m45.maint_cmd, cmd);
 
 		INIT_COMPLETION(priv->irq_trigged);
@@ -313,8 +355,30 @@ static int pixcir_cmd(struct i2c_client * client, u8 cmd, int wait_irq_timeout)
 
 		return stat;
 
-	} else {
+	case TYPE_AB70:
+		pixcir_write_u8(client, map_ab70.maint_cmd, cmd);
+
+		INIT_COMPLETION(priv->irq_trigged);
+
+		if (wait_irq_timeout && wait_for_completion_interruptible_timeout(
+					&priv->irq_trigged,
+					msecs_to_jiffies(wait_irq_timeout)) <= 0) {
+			dev_err(&client->dev, "missed irq pulse ?\n");
+		}
+
+		pixcir_read_u8(client, map_ab70.maint_end, &stat);
+
+		pixcir_write_u8(client, map_ab70.maint_end, 0x00);
+		pixcir_write_u8(client, map_ab70.maint_cmd, 0xff);
+
+		dev_dbg(&client->dev, "%s stat : %d\n", __FUNCTION__, stat);
+
+		return stat;
+
+	case TYPE_M48:
+	default:
 		return pixcir_write_u8(client, map_m48.specop, cmd);
+
 	}
 }
 
@@ -413,7 +477,6 @@ static irqreturn_t pixcir_m48_irq(int irq, void *p)
 	input_sync(priv->input_dev);
 
 exit_work:
-	//enable_irq(priv->irq);
 	return IRQ_HANDLED;
 }
 
@@ -507,7 +570,100 @@ static irqreturn_t pixcir_m45_irq(int irq, void *p)
 	priv->finger_cnt = data[0];
 
 exit_work:
-	//enable_irq(priv->irq);
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t pixcir_ab70_irq(int irq, void *p)
+{
+	struct finger {
+		u8 status;
+		u16 x;
+		u16 y;
+		u8 xw;
+		u8 yw;
+		u8 xz;
+		u8 yz;
+	} __attribute__ ((packed));
+
+	struct pixcir_priv *priv = p;
+	u8 data[5 * sizeof(struct finger) + 1];
+	int read_len, i;
+
+	// force full read
+	priv->finger_cnt = 5;
+
+	read_len = 1 + (priv->finger_cnt * sizeof(struct finger));
+
+	if (pixcir_read(priv->client, 0, data, read_len) != read_len) {
+		dev_err(&priv->client->dev, "%s FAIL\n", __FUNCTION__);
+		goto exit_work;
+	}
+#ifdef LOW_BAT_WA
+	if (unlikely(!data[0])) {
+		dev_err(&priv->client->dev, "%s DEAAAAD !\n", __FUNCTION__);
+
+		priv->state = ST_IDLING;
+
+		if (pixcir_cycle_and_startup_sequence(priv->client, APP_MODE, 5) < 0)
+			dev_err(&priv->client->dev, "%s __DEAD__ ?!\n", __FUNCTION__);
+
+		if (priv->state == ST_IDLING)
+			priv->state = ST_RUNNING;
+
+		goto exit_work;
+	}
+#endif
+#ifdef DEBUG
+	print_hex_dump_bytes(KERN_ERR, 0, data, read_len);
+#endif
+
+	for (i = 0; i < MIN(priv->finger_cnt, data[0]); i++) {
+		struct finger * f = (struct finger *) (data + i * sizeof(*f) + 1);
+		int id = (f->status >> 4);
+		int up = (f->status & 1);
+		int dw = (f->status & 2);
+
+#ifdef CONFIG_TOUCHSCREEN_ARCHOS_TS_MONOTOUCH_COMPAT
+		if (id)
+			break;
+#endif
+
+		if (dw) {
+#ifdef CONFIG_TOUCHSCREEN_ARCHOS_TS_MONOTOUCH_COMPAT
+			input_report_abs(priv->input_dev, ABS_X, f->x);
+			input_report_abs(priv->input_dev, ABS_Y, f->y);
+			input_report_abs(priv->input_dev, ABS_PRESSURE, f->xz);
+
+			if (priv->down) {
+				input_report_key(priv->input_dev, BTN_TOUCH, 1);
+				priv->down=1;
+			}
+#else
+			input_mt_slot(priv->input_dev, id);
+			input_mt_report_slot_state(priv->input_dev, MT_TOOL_FINGER, true);
+			input_report_abs(priv->input_dev, ABS_MT_POSITION_X, f->x);
+			input_report_abs(priv->input_dev, ABS_MT_POSITION_Y, f->y);
+			input_report_abs(priv->input_dev, ABS_MT_TOUCH_MAJOR, f->xz);
+			input_report_abs(priv->input_dev, ABS_MT_WIDTH_MAJOR, f->xw);
+#endif
+		} else if (up) {
+#ifdef CONFIG_TOUCHSCREEN_ARCHOS_TS_MONOTOUCH_COMPAT
+			input_report_abs(priv->input_dev, ABS_PRESSURE, 0);
+			input_report_key(priv->input_dev, BTN_TOUCH, 0);
+			priv->down=0;
+#else
+			input_mt_slot(priv->input_dev, id);
+			input_mt_report_slot_state(priv->input_dev, MT_TOOL_FINGER, false);
+#endif
+		}
+	}
+
+	if (data[0])
+		input_sync(priv->input_dev);
+
+	priv->finger_cnt = data[0];
+
+exit_work:
 	return IRQ_HANDLED;
 }
 
@@ -591,8 +747,8 @@ static int pixcir_startup_sequence(struct i2c_client *client, int mode)
 	}
 
 	if (mode == APP_MODE) {
-		if (priv->is_m45) {
-
+		switch (priv->type) {
+		case TYPE_M45:
 			if (1) {
 				u8 buf[255];
 
@@ -607,7 +763,25 @@ static int pixcir_startup_sequence(struct i2c_client *client, int mode)
 						map_m45.int_mode,
 						(1<<4) | (1<<3) | (1<<2)) < 1)
 				goto fail;
-		} else {
+			break;
+		case TYPE_AB70:
+			if (1) {
+				u8 buf[255];
+
+				if (pixcir_read(client, 0, buf, sizeof(buf)) < sizeof(buf))
+					goto fail;
+
+				print_hex_dump_bytes(KERN_ERR, 0, buf, sizeof(buf));
+			}
+
+			// irq active low, it mode enabled, report enabled
+			if (pixcir_write_u8(client,
+						map_ab70.int_mode,
+						(1<<4) | (1<<3)) < 1)
+				goto fail;
+			break;
+		case TYPE_M48:
+		default:
 #ifdef ALLOW_PM
 			pixcir_read_u8(client, map_m48.power_mode, &stat);
 			printk("PM:%02x\n", stat);
@@ -622,6 +796,7 @@ static int pixcir_startup_sequence(struct i2c_client *client, int mode)
 						map_m48.int_mode,
 						(1<<3) | (1<<2) | (1<<0)) < 1)
 				goto fail;
+			break;
 		}
 
 		priv->state = ST_IDLING;
@@ -697,11 +872,13 @@ static ssize_t _store_calibration(struct device *dev, struct device_attribute *a
 
 		ret = pixcir_cmd(client, DFUCMD_CALIBRATION, 10000);
 
-		if (!priv->is_m45) {
+		if (priv->type == TYPE_M45 || priv->type == TYPE_AB70) {
+			if (ret == 0x01) {
+				// ack from tsp
+				break;
+			}
+		} else {
 			// no way to check calibration.
-			break;
-		} else if (ret == 0x01) {
-			// ack from tsp
 			break;
 		}
 
@@ -717,7 +894,7 @@ static ssize_t _store_calibration(struct device *dev, struct device_attribute *a
 
 	return count;
 }
-static DEVICE_ATTR(calibration_trigger, S_IWUSR | S_IRUGO, NULL, _store_calibration);
+static DEVICE_ATTR(calibration_trigger, S_IRUGO | S_IWUGO, NULL, _store_calibration);
 
 static struct attribute *sysfs_attrs[] = {
 	&dev_attr_state.attr,
@@ -749,6 +926,8 @@ static int pixcir_probe(struct i2c_client *client, const struct i2c_device_id *i
 	if (pdata) {
 		priv->irq = pdata->irq;
 		priv->flags = pdata->flags;
+
+		priv->type = pdata->type;
 
 		priv->x_min = pdata->x_min;
 		priv->x_max = (pdata->x_max) ? pdata->x_max : 1280;
@@ -783,11 +962,18 @@ static int pixcir_probe(struct i2c_client *client, const struct i2c_device_id *i
 		goto err_regulator_get;
 	}
 
-	ret = pixcir_cycle_and_startup_sequence(priv->client, BOOT_MODE, 1);
+	if (priv->type != TYPE_AB70) {
+		/* If the controller is not supposed to be an AB70 (no I2C page),
+		 * we can detect if it is an M48 or an M45, so let's do it...
+		 */
+		ret = pixcir_cycle_and_startup_sequence(priv->client, BOOT_MODE, 1);
 
-	if (ret < 0) {
-		dev_err(&client->dev, "could not detect tsp in boot mode.\n");
-		priv->is_m45 = 1;
+		if (ret < 0) {
+			dev_err(&client->dev, "could not detect tsp in boot mode.\n");
+			priv->type = TYPE_M45;
+		} else {
+			priv->type = TYPE_M48;
+		}
 	}
 
 	ret = pixcir_cycle_and_startup_sequence(priv->client, APP_MODE, 5);
@@ -798,24 +984,41 @@ static int pixcir_probe(struct i2c_client *client, const struct i2c_device_id *i
 		goto err_detect_failed;
 	}
 
-	if (priv->is_m45) {
+	switch (priv->type) {
+	case TYPE_M45:
 		dev_info(&client->dev, "M45!\n");
 		pixcir_thread_fn =  pixcir_m45_irq;
-	} else {
+		break;
+	case TYPE_M48:
 		pixcir_read(client, map_m48.firmware_version_base, tsp_version, sizeof(tsp_version));
 		dev_info(&client->dev, "M8 fw version %x:%x:%x - rev r%d\n",
 				tsp_version[2], tsp_version[1], tsp_version[0], tsp_version[3]);
 
 		pixcir_thread_fn = pixcir_m48_irq;
+		break;
+	case TYPE_AB70:
+		dev_info(&client->dev, "AB70!\n");
+		pixcir_thread_fn =  pixcir_ab70_irq;
+		break;
+	default:
+		dev_err(&client->dev, "Unknown controller type: %d\n", priv->type);
+		goto err_detect_failed;
 	}
 
-	ret = request_threaded_irq(priv->irq, pixcir_hardirq, pixcir_thread_fn,
-			IRQF_TRIGGER_RISING, client->name, priv);
+	if (priv->type == TYPE_AB70) {
+	    ret = request_threaded_irq(priv->irq, pixcir_hardirq, pixcir_thread_fn,
+			    IRQF_TRIGGER_FALLING, client->name, priv);
+	} else {
+	    ret = request_threaded_irq(priv->irq, pixcir_hardirq, pixcir_thread_fn,
+			    IRQF_TRIGGER_RISING, client->name, priv);
+	}
+
 	if (ret) {
 		ret = -ENODEV;
 		dev_err(&client->dev, "request_irq failed\n");
 		goto err_irq_request_failed;
 	}
+
 	enable_irq_wake(priv->irq);
 	device_init_wakeup(&client->dev, true);
 	
@@ -843,10 +1046,13 @@ static int pixcir_probe(struct i2c_client *client, const struct i2c_device_id *i
 	set_bit(ABS_MT_WIDTH_MAJOR, priv->input_dev->absbit);
 
 
-	if (!priv->is_m45)
+	if (priv->type == TYPE_M48)
 		set_bit(ABS_MT_TOUCH_MINOR, priv->input_dev->absbit);
 
-	input_mt_init_slots(priv->input_dev, MAX_FINGERS);
+	if (priv->type == TYPE_AB70)
+		input_mt_init_slots(priv->input_dev, 5);
+	else
+		input_mt_init_slots(priv->input_dev, 4);
 #endif
 
 #ifdef CONFIG_TOUCHSCREEN_ARCHOS_TS_MONOTOUCH_COMPAT
@@ -860,7 +1066,7 @@ static int pixcir_probe(struct i2c_client *client, const struct i2c_device_id *i
 	input_set_abs_params(priv->input_dev, ABS_MT_TOUCH_MAJOR, 0, 0x80, 0, 0);
 	input_set_abs_params(priv->input_dev, ABS_MT_WIDTH_MAJOR, 0, 0x80, 0, 0);
 
-	if (!priv->is_m45)
+	if (priv->type == TYPE_M48)
 		input_set_abs_params(priv->input_dev, ABS_MT_TOUCH_MINOR, 0, 0x80, 0, 0);
 #endif
 
@@ -873,6 +1079,12 @@ static int pixcir_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 
 	ret = sysfs_create_group(&client->dev.kobj, &attr_group);
+
+	priv->pdev = platform_device_register_simple("archos_touchscreen", -1, NULL, 0);
+	if (IS_ERR(priv->pdev))
+		return ret;
+
+	ret = sysfs_create_link(&priv->pdev->dev.kobj, &client->dev.kobj, "tsp");
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	priv->early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
@@ -919,6 +1131,10 @@ static int pixcir_remove(struct i2c_client *client)
 {
 	struct pixcir_priv *priv = i2c_get_clientdata(client);
 
+	sysfs_remove_link(&priv->pdev->dev.kobj, "tsp");
+
+	platform_device_unregister(priv->pdev);
+
 	sysfs_remove_group(&client->dev.kobj, &attr_group);
 
 #ifdef BENCH
@@ -928,7 +1144,12 @@ static int pixcir_remove(struct i2c_client *client)
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	unregister_early_suspend(&priv->early_suspend);
 #endif
-	disable_irq_wake(priv->irq);
+
+	if (priv->state != ST_SUSPEND) {
+		disable_irq_wake(priv->irq);
+		disable_irq(priv->irq);
+	}
+
 	free_irq(priv->irq, priv);
 
 	input_unregister_device(priv->input_dev);
@@ -948,6 +1169,7 @@ static int pixcir_suspend(struct i2c_client *client, pm_message_t mesg)
 
 	priv->state = ST_SUSPEND;
 
+	disable_irq_wake(priv->irq);
 	disable_irq(priv->irq);
 
 	pixcir_power(client, 0);
@@ -960,6 +1182,7 @@ static int pixcir_resume(struct i2c_client *client)
 	struct pixcir_priv *priv = i2c_get_clientdata(client);
 
 	enable_irq(priv->irq);
+	enable_irq_wake(priv->irq);
 
 	if (pixcir_cycle_and_startup_sequence(priv->client, APP_MODE, 5) < 0)
 		dev_err(&client->dev, "%s: failed ?\n", __FUNCTION__);

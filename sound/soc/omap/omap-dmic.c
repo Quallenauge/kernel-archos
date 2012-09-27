@@ -282,9 +282,7 @@ static int omap_dmic_dai_hw_params(struct snd_pcm_substream *substream,
 	int ret = 0;
 
 	channels = params_channels(params);
-#ifdef LIMIT_ABE_CHANNELS
 	if (dai->id == OMAP4_LEGACY_DMIC0) {
-#endif
 		switch (channels) {
 		case 2:
 		case 4:
@@ -295,14 +293,12 @@ static int omap_dmic_dai_hw_params(struct snd_pcm_substream *substream,
 			dev_err(dmic->dev, "invalid number of legacy channels\n");
 			return -EINVAL;
 		}
-#ifdef LIMIT_ABE_CHANNELS
 	} else {
 		if (channels != 2) {
 			dev_err(dmic->dev, "invalid number of ABE channels\n");
 			return -EINVAL;
 		}
 	}
-#endif
 
 	rate = params_rate(params);
 	switch (rate) {

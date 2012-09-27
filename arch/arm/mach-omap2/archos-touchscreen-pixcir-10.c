@@ -113,15 +113,17 @@ int __init archos_touchscreen_pixcir_init(struct pixcir_platform_data *pdata)
 	pr_debug("%s: irq_gpio %d - irq %d, pwr_gpio %d\n",
 			__FUNCTION__, pdata->irq, conf->irq_gpio, conf->pwr_gpio);
 
+#ifdef CONFIG_MACH_ARCHOS_A101S
 	// dvt/mtu units used to need one axis inverted
 	// and some geometry tweaking..
-	if (system_rev < 2) {
+	if ((machine_is_archos_a101s() || machine_is_archos_a101h()) && (system_rev < 2)) {
 		pdata->flags |= PIXCIR_FLAGS_INV_X;
 		pdata->x_scale = 60;	// +6.0%
 		pdata->y_scale = 40;	// +4.0%
 		pdata->x_offset = 25;	// +25 pix
 		pdata->y_offset = 10;	// +10 pix 
 	}
+#endif
 
 	return 0;
 }

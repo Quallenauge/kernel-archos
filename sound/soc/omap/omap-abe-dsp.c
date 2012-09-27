@@ -60,6 +60,7 @@
 #include "omap-abe.h"
 #include "abe/abe_main.h"
 #include "abe/port_mgr.h"
+#include "omap-abe-equalizers.h"
 
 #define OMAP_ABE_HS_DC_OFFSET_STEP	(1800 / 8)
 #define OMAP_ABE_HF_DC_OFFSET_STEP	(4600 / 8)
@@ -852,17 +853,30 @@ static int abe_dsp_set_equalizer(unsigned int id, unsigned int profile)
 {
 	abe_equ_t equ_params;
 	int len;
+	int i, nb_add = 0;
+	struct abe_eq_profile *eq_profile;
 
 	if (id >= the_abe->hdr.num_equ)
 		return -EINVAL;
 
-	if (profile >= the_abe->equ_texts[id].count)
-		return -EINVAL;
+	if (profile >= the_abe->equ_texts[id].count) {
+		for (i = 0; i < ARRAY_SIZE(abe_add_eq) &&
+		    strcmp(the_abe->equ_texts[id].name, abe_add_eq[i].name) != 0; i++);
+		nb_add = i < ARRAY_SIZE(abe_add_eq) ? abe_add_eq[i].count : 0;
+		if (profile >= the_abe->equ_texts[id].count + nb_add)
+			return -EINVAL;
+	}
 
-	len = the_abe->equ_texts[id].coeff;
+	if (profile >= the_abe->equ_texts[id].count) {
+		eq_profile = &abe_add_eq[i].profiles[profile - the_abe->equ_texts[id].count];
+		len = eq_profile->length;
+		memcpy(equ_params.coef.type1, eq_profile->coeffs, len * sizeof(u32));
+	} else {
+		len = the_abe->equ_texts[id].coeff;
+		memcpy(equ_params.coef.type1, the_abe->equ[id] + profile * len,
+			len * sizeof(u32));
+	}
 	equ_params.equ_length = len;
-	memcpy(equ_params.coef.type1, the_abe->equ[id] + profile * len,
-		len * sizeof(u32));
 	the_abe->equ_profile[id] = profile;
 
 	pm_runtime_get_sync(the_abe->dev);
@@ -1088,10 +1102,10 @@ static const struct snd_kcontrol_new abe_controls[] = {
 		MIX_VXREC_INPUT_TONES, 0, 149, 0,
 		volume_get_vxrec_mixer, volume_put_vxrec_mixer, vxrec_tones_tlv),
 	SOC_SINGLE_EXT_TLV("VXREC Voice DL Volume",
-		MIX_VXREC_INPUT_VX_UL, 0, 149, 0,
+		MIX_VXREC_INPUT_VX_DL, 0, 149, 0,
 		volume_get_vxrec_mixer, volume_put_vxrec_mixer, vxrec_vx_dl_tlv),
 	SOC_SINGLE_EXT_TLV("VXREC Voice UL Volume",
-		MIX_VXREC_INPUT_VX_DL, 0, 149, 0,
+		MIX_VXREC_INPUT_VX_UL, 0, 149, 0,
 		volume_get_vxrec_mixer, volume_put_vxrec_mixer, vxrec_vx_ul_tlv),
 
 	/* AUDUL mixer gains */
@@ -1187,12 +1201,16 @@ static const struct snd_soc_dapm_widget abe_dapm_widgets[] = {
 			W_AIF_MM_EXT_UL, ABE_OPP_50, 0),
 	SND_SOC_DAPM_AIF_OUT("MM_EXT_DL", "FM Playback", 0,
 			W_AIF_MM_EXT_DL, ABE_OPP_25, 0),
+	SND_SOC_DAPM_AIF_IN("MM_EXT_UL", "HDMI-IN Capture", 0,
+			W_AIF_MM_EXT_UL, ABE_OPP_50, 0),
 	SND_SOC_DAPM_AIF_IN("DMIC0", "DMIC0 Capture", 0,
 			W_AIF_DMIC0, ABE_OPP_50, 0),
 	SND_SOC_DAPM_AIF_IN("DMIC1", "DMIC1 Capture", 0,
 			W_AIF_DMIC1, ABE_OPP_50, 0),
 	SND_SOC_DAPM_AIF_IN("DMIC2", "DMIC2 Capture", 0,
 			W_AIF_DMIC2, ABE_OPP_50, 0),
+	SND_SOC_DAPM_AIF_IN("VXREC", "VXREC Capture", 0,
+			W_AIF_VXREC, ABE_OPP_50, 0),
 
 	/* ROUTE_UL Capture Muxes */
 	SND_SOC_DAPM_MUX("MUX_UL00",
@@ -1522,10 +1540,10 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"PDM_DL2", NULL, "DL2 Mixer"},
 
 	/* VxREC Mixer */
-	{"Capture Mixer", "Tones", "TONES_DL"},
-	{"Capture Mixer", "Voice Playback", "VX DL VMixer"},
-	{"Capture Mixer", "Voice Capture", "VX UL VMixer"},
-	{"Capture Mixer", "Media Playback", "MM_DL VMixer"},
+	{"Capture Mixer", "Tones", "VXREC"},
+	{"Capture Mixer", "Voice Playback", "VXREC"},
+	{"Capture Mixer", "Voice Capture", "VXREC"},
+	{"Capture Mixer", "Media Playback", "VXREC"},
 	{"MM_DL VMixer", NULL, "MM_DL"},
 	{"MM_DL VMixer", NULL, "MM_DL_LP"},
 
@@ -1562,6 +1580,7 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"DMIC0", NULL, "BE_IN"},
 	{"DMIC1", NULL, "BE_IN"},
 	{"DMIC2", NULL, "BE_IN"},
+	{"VXREC", NULL, "BE_IN"},
 };
 
 #ifdef CONFIG_DEBUG_FS
@@ -2388,6 +2407,7 @@ static int abe_add_widgets(struct snd_soc_platform *platform)
 	struct abe_data *abe = snd_soc_platform_get_drvdata(platform);
 	struct fw_header *hdr = &abe->hdr;
 	int i, j;
+	int k, l, nb_add;
 
 	/* create equalizer controls */
 	for (i = 0; i < hdr->num_equ; i++) {
@@ -2395,10 +2415,16 @@ static int abe_add_widgets(struct snd_soc_platform *platform)
 		struct snd_kcontrol_new *equalizer_control =
 				&abe->equalizer_control[i];
 
+		for (k = 0; k < ARRAY_SIZE(abe_add_eq) &&
+		    strcmp(abe->equ_texts[i].name, abe_add_eq[k].name) != 0; k++);
+		nb_add = k < ARRAY_SIZE(abe_add_eq) ? abe_add_eq[k].count : 0;
+
 		equalizer_enum->reg = i;
-		equalizer_enum->max = abe->equ_texts[i].count;
+		equalizer_enum->max = abe->equ_texts[i].count + nb_add;
 		for (j = 0; j < abe->equ_texts[i].count; j++)
 			equalizer_enum->dtexts[j] = abe->equ_texts[i].texts[j];
+		for (l = 0; l < nb_add; l++)
+			equalizer_enum->dtexts[j+l] = abe_add_eq[k].profiles[l].name;
 
 		equalizer_control->name = abe->equ_texts[i].name;
 		equalizer_control->private_value = (unsigned long)equalizer_enum;
@@ -2408,10 +2434,12 @@ static int abe_add_widgets(struct snd_soc_platform *platform)
 		equalizer_control->iface = SNDRV_CTL_ELEM_IFACE_MIXER;
 
 		dev_dbg(platform->dev, "added EQU mixer: %s profiles %d\n",
-				abe->equ_texts[i].name, abe->equ_texts[i].count);
+				abe->equ_texts[i].name, abe->equ_texts[i].count + nb_add);
 
 		for (j = 0; j < abe->equ_texts[i].count; j++)
 			dev_dbg(platform->dev, " %s\n", equalizer_enum->dtexts[j]);
+		for (l = 0; l < nb_add; l++)
+			dev_dbg(platform->dev, " %s\n", equalizer_enum->dtexts[j+l]);
 	}
 
 	snd_soc_add_platform_controls(platform, abe->equalizer_control,
@@ -2578,6 +2606,7 @@ static int abe_probe(struct snd_soc_platform *platform)
 	const u8 *fw_data;
 	unsigned long freq = ULONG_MAX;
 	int ret = 0, i, opp_count, offset = 0;
+	int j, nb_add;
 #if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	const struct firmware *fw;
 #endif
@@ -2645,16 +2674,22 @@ static int abe_probe(struct snd_soc_platform *platform)
 	/* allocate coefficient mixer texts */
 	dev_dbg(abe->dev, "loaded %d equalizers\n", abe->hdr.num_equ);
 	for (i = 0; i < abe->hdr.num_equ; i++) {
+
+		/* get the number of additional equalizers */
+		for (j = 0; j < ARRAY_SIZE(abe_add_eq) &&
+		    strcmp(abe->equ_texts[i].name, abe_add_eq[j].name) != 0; j++);
+		nb_add = j < ARRAY_SIZE(abe_add_eq) ? abe_add_eq[j].count : 0;
+
 		dev_dbg(abe->dev, "equ %d: %s profiles %d\n", i,
-				abe->equ_texts[i].name, abe->equ_texts[i].count);
-		if (abe->equ_texts[i].count >= ABE_MAX_PROFILES) {
+				abe->equ_texts[i].name, abe->equ_texts[i].count + nb_add);
+		if (abe->equ_texts[i].count + nb_add >= ABE_MAX_PROFILES) {
 			dev_err(abe->dev, "Too many profiles got %d for equ %d\n",
-					abe->equ_texts[i].count, i);
+					abe->equ_texts[i].count + nb_add, i);
 			ret = -EINVAL;
 			goto err_texts;
 		}
 		abe->equalizer_enum[i].dtexts =
-				kzalloc(abe->equ_texts[i].count * sizeof(char *), GFP_KERNEL);
+				kzalloc((abe->equ_texts[i].count + nb_add) * sizeof(char *), GFP_KERNEL);
 		if (abe->equalizer_enum[i].dtexts == NULL) {
 			ret = -ENOMEM;
 			goto err_texts;

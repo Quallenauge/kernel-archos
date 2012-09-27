@@ -128,6 +128,34 @@ static ssize_t overlay_input_size_show(struct omap_overlay *ovl, char *buf)
 			ovl->info.width, ovl->info.height);
 }
 
+static ssize_t overlay_input_size_store(struct omap_overlay *ovl,
+		const char *buf, size_t size)
+{
+	int r;
+	char *last;
+	struct omap_overlay_info info;
+
+	ovl->get_overlay_info(ovl, &info);
+
+	info.width = simple_strtoul(buf, &last, 10);
+	++last;
+	if (last - buf >= size)
+		return -EINVAL;
+
+	info.height = simple_strtoul(last, &last, 10);
+
+	r = ovl->set_overlay_info(ovl, &info);
+	if (r)
+		return r;
+
+	if (ovl->manager) {
+		r = ovl->manager->apply(ovl->manager);
+		if (r)
+			return r;
+	}
+	return size;
+}
+
 static ssize_t overlay_screen_width_show(struct omap_overlay *ovl, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", ovl->info.screen_width);
@@ -446,7 +474,7 @@ struct overlay_attribute {
 static OVERLAY_ATTR(name, S_IRUGO, overlay_name_show, NULL);
 static OVERLAY_ATTR(manager, S_IRUGO|S_IWUSR,
 		overlay_manager_show, overlay_manager_store);
-static OVERLAY_ATTR(input_size, S_IRUGO, overlay_input_size_show, NULL);
+static OVERLAY_ATTR(input_size, S_IRUGO|S_IWUSR, overlay_input_size_show, overlay_input_size_store);
 static OVERLAY_ATTR(screen_width, S_IRUGO, overlay_screen_width_show, NULL);
 static OVERLAY_ATTR(position, S_IRUGO|S_IWUSR,
 		overlay_position_show, overlay_position_store);
@@ -708,10 +736,17 @@ void dss_overlay_setup_l4_manager(struct omap_overlay_manager *mgr)
 void dss_init_overlays(struct platform_device *pdev)
 {
 	int i, r;
+#if 0
+	/* BT.601_5 is for SD TV, BT.709 is for HDTV*/
 	const struct omap_dss_cconv_coefs ctbl_bt601_5 = {
 		298,  409,    0,  298, -208, -100,  298,    0,  517, 0,
 	};
-
+#else	
+	/* extracted from TI OMAP3630 TRM */
+	const struct omap_dss_cconv_coefs ctbl_bt709 = {
+		298,  459,    0,  298, -137, -55,  298,    0,  541, 0,
+	};
+#endif
 	INIT_LIST_HEAD(&overlay_list);
 
 	num_overlays = 0;
@@ -766,8 +801,11 @@ void dss_init_overlays(struct platform_device *pdev)
 		ovl->info.min_x_decim = ovl->info.min_y_decim = 1;
 		ovl->info.max_x_decim = ovl->info.max_y_decim =
 			cpu_is_omap44xx() ? 16 : 1;
+#if 0
 		ovl->info.cconv = ctbl_bt601_5;
-
+#else
+		ovl->info.cconv = ctbl_bt709;
+#endif
 		ovl->set_manager = &omap_dss_set_manager;
 		ovl->unset_manager = &omap_dss_unset_manager;
 		ovl->set_overlay_info = &omap_dss_ovl_set_info;

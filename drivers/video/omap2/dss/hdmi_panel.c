@@ -25,6 +25,7 @@
 #include <linux/mutex.h>
 #include <linux/module.h>
 #include <video/omapdss.h>
+#include <linux/omapfb.h>
 #include <linux/switch.h>
 #include <linux/spinlock.h>
 
@@ -42,6 +43,7 @@ static struct {
 	int connected;
 	int initialized;
 	struct completion phy_completion;
+	bool edid_valid;
 } hdmi;
 
 enum hdmi_switch_value{
@@ -254,6 +256,19 @@ static void hdmi_panel_disable(struct omap_dss_device *dssdev)
 	mutex_unlock(&hdmi.hdmi_lock);
 }
 
+void hdmi_panel_early_resume(struct omap_dss_device *dssdev)
+{
+	hdmi_panel_enable(dssdev);
+        if (hdmi.edid_valid)
+		switch_set_state(&hdmi.hdmi_switch, HDMI_EDID_AVAILABLE);
+}
+
+void hdmi_panel_early_suspend(struct omap_dss_device *dssdev)
+{
+	hdmi_panel_disable(dssdev);
+}
+
+
 static int hdmi_panel_suspend(struct omap_dss_device *dssdev)
 {
 	int r = 0;
@@ -324,6 +339,7 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 
 	mutex_lock(&hdmi.hdmi_lock);
 	if (state == HPD_STATE_OFF) {
+		hdmi.edid_valid = false;
 		switch_set_state(&hdmi.hdmi_switch, HDMI_NOT_AVAILABLE);
 		switch_set_state(&hdmi.underscan_switch, 0);
 		if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE) {
@@ -365,6 +381,7 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 					dssdev->panel.monspecs.max_x * 10000;
 			dssdev->panel.height_in_um =
 					dssdev->panel.monspecs.max_y * 10000;
+			hdmi.edid_valid = true;
 			switch_set_state(&hdmi.hdmi_switch, HDMI_EDID_AVAILABLE);
 			switch_set_state(&hdmi.underscan_switch, (dssdev->panel.monspecs.misc & FB_MISC_UNDERSCAN)?1:0);
 			goto done;
@@ -393,21 +410,6 @@ static void hdmi_get_timings(struct omap_dss_device *dssdev,
 	mutex_lock(&hdmi.hdmi_lock);
 
 	*timings = dssdev->panel.timings;
-
-	mutex_unlock(&hdmi.hdmi_lock);
-}
-
-static void hdmi_set_timings(struct omap_dss_device *dssdev,
-			struct omap_video_timings *timings)
-{
-	DSSDBG("hdmi_set_timings\n");
-
-	mutex_lock(&hdmi.hdmi_lock);
-
-	dssdev->panel.timings = *timings;
-
-	if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE)
-		omapdss_hdmi_display_set_timing(dssdev);
 
 	mutex_unlock(&hdmi.hdmi_lock);
 }
@@ -443,9 +445,21 @@ static int hdmi_get_modedb(struct omap_dss_device *dssdev,
 
 int omapdss_hdmi_panel_display_set_mode(struct omap_dss_device *dssdev,
 				  struct fb_videomode *vm) {
-	if (!omapdss_hdmi_display_set_mode(dssdev, vm))
+	if (!omapdss_hdmi_display_set_mode(dssdev, vm)) {
 		switch_set_state(&hdmi.hdmi_switch, HDMI_AVAILABLE);
+		return 0;
+	}
+	return -1;
 }
+
+static void hdmi_set_timings(struct omap_dss_device *dssdev,
+			struct omap_video_timings *timings)
+{
+	struct fb_videomode t;
+	omapfb_dss2fb_timings(timings, &t);
+	omapdss_hdmi_panel_display_set_mode(dssdev, &t);
+}
+
 
 static struct omap_dss_driver hdmi_driver = {
 	.probe		= hdmi_panel_probe,
@@ -473,6 +487,7 @@ int hdmi_panel_init(void)
 	mutex_init(&hdmi.hdmi_lock);
 	hdmi.hdmi_switch.name = "hdmi";
 	hdmi.underscan_switch.name = "underscan";
+	hdmi.edid_valid = false;
 	switch_dev_register(&hdmi.hdmi_switch);
 	switch_dev_register(&hdmi.underscan_switch);
 

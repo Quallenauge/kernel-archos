@@ -46,7 +46,7 @@ static int __init panel_init(void)
 	pr_debug("panel_init\n");
 	
 	archos_gpio_init_output( display_gpio.lcd_pwon, "lcd_pwon" );
-	archos_gpio_init_output( display_gpio.lvds_en, "lvds_en" );
+	archos_gpio_init_output( display_gpio.bridge_en, "bridge_en" );
 
 	if (gpio_is_valid(display_gpio.lcd_stdby)){
 		if (gpio_request(display_gpio.lcd_stdby, "dc_en") < 0) {
@@ -72,8 +72,8 @@ static int __init panel_init(void)
 
 	if (gpio_is_valid(display_gpio.lcd_pwon))
 		gpio_set_value( display_gpio.lcd_pwon, 0);
-	if (gpio_is_valid(display_gpio.lvds_en))
-		gpio_set_value( display_gpio.lvds_en, 0);
+	if (gpio_is_valid(display_gpio.bridge_en))
+		gpio_set_value( display_gpio.bridge_en, 0);
 	if (gpio_is_valid(display_gpio.lcd_stdby))
 		gpio_set_value( display_gpio.lcd_stdby, 1);
 	if (gpio_is_valid(display_gpio.lcd_avdd_en))
@@ -112,8 +112,8 @@ static int panel_enable(struct omap_dss_device *disp)
 
 	msleep(10);
 
-	if (gpio_is_valid(display_gpio.lvds_en))
-		gpio_set_value( display_gpio.lvds_en, 1);
+	if (gpio_is_valid(display_gpio.bridge_en))
+		gpio_set_value( display_gpio.bridge_en, 1);
 
 	msleep(200);
 
@@ -134,6 +134,9 @@ static int panel_enable(struct omap_dss_device *disp)
 
 static void panel_disable(struct omap_dss_device *disp)
 {
+	if (panel_state == 0)
+		return;
+
 	pr_debug("panel_disable [%s]\n", disp->name);
 
 	if (display_gpio.use_fixed_bkl) {
@@ -147,10 +150,10 @@ static void panel_disable(struct omap_dss_device *disp)
 	if (gpio_is_valid(display_gpio.lcd_avdd_en))		// bkl_en/
 		gpio_set_value( display_gpio.lcd_avdd_en, 1);
 
-	msleep(200);
+	msleep(500);
 
-	if (gpio_is_valid(display_gpio.lvds_en))
-		gpio_set_value( display_gpio.lvds_en, 0);
+	if (gpio_is_valid(display_gpio.bridge_en))
+		gpio_set_value( display_gpio.bridge_en, 0);
 
 	msleep(10);
 	if (gpio_is_valid(display_gpio.lcd_stdby))		//dc en/
@@ -196,7 +199,6 @@ struct omap_dss_device auo_wxga_10_dss_device = {
 	.data			= &auo_wxga_10_panel,
 	.phy.dpi.data_lines	= 18,
 	.phy.dpi.dither 	= OMAP_DSS_DITHER_SPATIAL,
-	.phy.dpi.gamma_correction = gamma_table,
 	.reset_gpio		= -1,
 	.channel		= OMAP_DSS_CHANNEL_LCD2,
 	.clocks = {
@@ -206,7 +208,7 @@ struct omap_dss_device auo_wxga_10_dss_device = {
 				.pck_div        = 2,
 				.lcd_clk_src    = OMAP_DSS_CLK_SRC_DSI2_PLL_HSDIV_DISPC,
 			},
-			.dispc_fclk_src = OMAP_DSS_CLK_SRC_DSI2_PLL_HSDIV_DISPC,
+			.dispc_fclk_src = OMAP_DSS_CLK_SRC_FCK,
 		},
 	},
 };
@@ -239,7 +241,11 @@ int __init panel_auo_wxga_10_init(struct omap_dss_device *disp_data)
 	if (IS_ERR_VALUE(platform_device_register(&lcd_device)))
 		pr_info("%s: cannot register lcd_panel device\n", __func__);
 
-	gamma_tab_init(gamma_table);
+	if (conf->do_gamma_fix) {
+		gamma_tab_init(gamma_table);
+		auo_wxga_10_dss_device.phy.dpi.gamma_correction = gamma_table;
+	}
+
 	*disp_data = auo_wxga_10_dss_device;
 	if (conf->do_not_use_pll)
 		disp_data->clocks.dispc.dispc_fclk_src = 

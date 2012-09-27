@@ -38,7 +38,7 @@ obj-$(CONFIG_OMAP_MCBSP) += mcbsp.o
 obj-$(CONFIG_TWL4030_CORE) += omap_twl.o
 obj-$(CONFIG_OMAP_TPS6236X) += omap_tps6236x.o
 obj-$(CONFIG_OMAP_TEMP_SENSOR) +=temp_sensor_device.o
-obj-$(CONFIG_OMAP4_PCB_SENSOR) += pcb_temp_sensor_device.o
+#obj-$(CONFIG_OMAP4_PCB_SENSOR) += pcb_temp_sensor_device.o
 
 # SMP support ONLY available for OMAP4
 obj-$(CONFIG_SMP)			+= omap-smp.o omap-headsmp.o
@@ -274,11 +274,15 @@ obj-$(CONFIG_MACH_OMAP_4430SDP)		+= board-4430sdp.o \
 					   board-blaze-sensors.o \
 					   board-blaze-modem.o \
 					   board-44xx-identity.o \
+					   board-44xx-power.o \
+					   board-44xx-serial.o \
 					   hsmmc.o \
 					   omap_phy_internal.o \
 					   omap4_apps_brd_id.o
 obj-$(CONFIG_MACH_OMAP_BLAZE)		+= board-44xx-tablet.o \
 					   board-44xx-identity.o \
+					   board-44xx-power.o \
+					   board-44xx-serial.o \
 					   board-44xx-tablet-touch.o \
 					   board-44xx-tablet-sensors.o \
 					   board-44xx-tablet-panel.o \
@@ -362,7 +366,8 @@ obj-$(CONFIG_MACH_ARCHOS)		+= archos-fixup.o \
 					   archos-battery.o \
 					   archos-leds.o \
 					   archos-memory.o \
-					   archos-die_id.o
+					   archos-die_id.o \
+					   board-archos-identity.o
 
 obj-$(CONFIG_MACH_OMAP3517EVM)		+= board-am3517evm.o \
 					   omap_phy_internal.o \
@@ -411,3 +416,4 @@ obj-$(CONFIG_ARCH_OMAP4)		+= omap4-reboot-reason.o
 endif
 
 obj-$(CONFIG_OMAP_RAM_CONSOLE)		+= omap_ram_console.o
+obj-$(CONFIG_ARCH_OMAP4)		+= omap_gcxxx.o

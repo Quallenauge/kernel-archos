@@ -181,54 +181,55 @@ static struct snd_soc_ops archos_omap4_modem_ops = {
 	.hw_free = archos_omap4_modem_hw_free,
 };
 
-static int archos_omap4_mcpdm_hw_params(struct snd_pcm_substream *substream,
-	struct snd_pcm_hw_params *params)
+static int archos_omap4_mcpdm_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct twl6040 *twl6040 = codec->control_data;
 	int clk_id, freq, ret = 0;
 
-	switch (twl6040_power_mode) {
-		case 1:
-			clk_id = TWL6040_SYSCLK_SEL_HPPLL;
-			freq = 19200000;
-			_enable_master_clock();
-			/* set the codec mclk */
-			ret = snd_soc_dai_set_sysclk(codec_dai, clk_id, freq,
-						SND_SOC_CLOCK_IN);
-			break;
-#if 0
-		case 2:
-			/* 
-			 * The clock used will be the 32KHz one, but
-			 * the DAC will work in High-Performance mode.
-			 */
-			clk_id = TWL6040_SYSCLK_SEL_HPDAC_LPPLL;
-			freq = 32768;
-			/* set the codec mclk */
-			ret = snd_soc_dai_set_sysclk(codec_dai, clk_id, freq,
-						SND_SOC_CLOCK_IN);
-			_disable_master_clock();
-			break;
-#endif
-		case 0:
-			clk_id = TWL6040_SYSCLK_SEL_LPPLL;
-			freq = 32768;
-			/* set the codec mclk */
-			ret = snd_soc_dai_set_sysclk(codec_dai, clk_id, freq,
-						SND_SOC_CLOCK_IN);
-			_disable_master_clock();
-			break;
+	/* TWL6040 supplies McPDM PAD_CLKS */
+	ret = twl6040_enable(twl6040);
+	if (ret) {
+		printk(KERN_ERR "failed to enable TWL6040\n");
+		return ret;
 	}
 
+	if (twl6040_power_mode) {
+		clk_id = TWL6040_HPPLL_ID;
+		freq = 19200000;
+		_enable_master_clock();
+		ret = snd_soc_dai_set_sysclk(codec_dai, clk_id, freq,
+					SND_SOC_CLOCK_IN);		
+	} else {
+		clk_id = TWL6040_LPPLL_ID;
+		freq = 32768;
+		/* set the codec mclk */
+		ret = snd_soc_dai_set_sysclk(codec_dai, clk_id, freq,
+					SND_SOC_CLOCK_IN);
+		_disable_master_clock();		
+	}
+	
 	if (ret)
 		printk(KERN_ERR "can't set codec system clock\n");
 
 	return ret;
 }
 
+static void archos_omap4_mcpdm_shutdown(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_codec *codec = rtd->codec;
+	struct twl6040 *twl6040 = codec->control_data;
+
+	/* TWL6040 supplies McPDM PAD_CLKS */
+	twl6040_disable(twl6040);
+}
+
 static struct snd_soc_ops archos_omap4_mcpdm_ops = {
-	.hw_params = archos_omap4_mcpdm_hw_params,
+	.startup = archos_omap4_mcpdm_startup,
+	.shutdown = archos_omap4_mcpdm_shutdown,
 };
 
 static int archos_omap4_mcbsp_hw_params(struct snd_pcm_substream *substream,
@@ -246,6 +247,11 @@ static int archos_omap4_mcbsp_hw_params(struct snd_pcm_substream *substream,
 			SND_SOC_DAIFMT_DSP_B |
 			SND_SOC_DAIFMT_NB_IF |
 			SND_SOC_DAIFMT_CBM_CFM);
+	} else if (be_id == OMAP_ABE_DAI_HDMI_IN) {
+		ret = snd_soc_dai_set_fmt(cpu_dai,
+				  SND_SOC_DAIFMT_I2S |
+				  SND_SOC_DAIFMT_NB_NF |
+				  SND_SOC_DAIFMT_CBS_CFS);
 	} else {
 		/* Set cpu DAI configuration */
 		ret = snd_soc_dai_set_fmt(cpu_dai,
@@ -289,6 +295,20 @@ static struct snd_soc_ops archos_omap4_mcbsp_ops = {
 	.hw_params = archos_omap4_mcbsp_hw_params,
 };
 
+static int archos_omap4_dmic_startup(struct snd_pcm_substream *substream)
+{
+	if (!IS_ERR(dmic_1v8) && ++dmic_1v8_active == 1)
+		regulator_enable(dmic_1v8);
+	
+	return 0;
+}
+
+static void archos_omap4_dmic_shutdown(struct snd_pcm_substream *substream)
+{
+	if (!IS_ERR(dmic_1v8) && --dmic_1v8_active == 0)
+		regulator_disable(dmic_1v8);
+}
+
 static int archos_omap4_dmic_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params)
 {
@@ -297,12 +317,12 @@ static int archos_omap4_dmic_hw_params(struct snd_pcm_substream *substream,
 	int ret = 0;
 
 	ret = snd_soc_dai_set_sysclk(cpu_dai, OMAP_DMIC_SYSCLK_SYNC_MUX_CLKS,
-				     24000000, SND_SOC_CLOCK_IN);
+				     24576000, SND_SOC_CLOCK_IN);
 	if (ret < 0) {
 		printk(KERN_ERR "can't set DMIC cpu system clock\n");
 		return ret;
 	}
-	ret = snd_soc_dai_set_clkdiv(cpu_dai, OMAP_DMIC_CLKDIV, 10);
+	ret = snd_soc_dai_set_clkdiv(cpu_dai, OMAP_DMIC_CLKDIV, 8);
 	if (ret < 0) {
 		printk(KERN_ERR "can't set DMIC cpu clock divider\n");
 		return ret;
@@ -311,6 +331,8 @@ static int archos_omap4_dmic_hw_params(struct snd_pcm_substream *substream,
 }
 
 static struct snd_soc_ops archos_omap4_dmic_ops = {
+	.startup = archos_omap4_dmic_startup,
+	.shutdown = archos_omap4_dmic_shutdown,
 	.hw_params = archos_omap4_dmic_hw_params,
 };
 
@@ -460,39 +482,6 @@ static int archos_omap4_set_pdm_dl1_gains(struct snd_soc_dapm_context *dapm)
 	}
 
 	return omap_abe_set_dl1_output(output);
-}
-
-static int archos_omap4_mcpdm_twl6040_pre(struct snd_pcm_substream *substream)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
-	struct twl6040 *twl6040 = codec->control_data;
-
-	/* TWL6040 supplies McPDM PAD_CLKS */
-	return twl6040_enable(twl6040);
-}
-
-static void archos_omap4_mcpdm_twl6040_post(struct snd_pcm_substream *substream)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
-	struct twl6040 *twl6040 = codec->control_data;
-
-	/* TWL6040 supplies McPDM PAD_CLKS */
-	twl6040_disable(twl6040);
-}
-
-static int archos_omap4_dmic_pre(struct snd_pcm_substream *substream)
-{
-	if (!IS_ERR(dmic_1v8) && ++dmic_1v8_active == 1)
-		regulator_enable(dmic_1v8);
-	return 0;
-}
-
-static void archos_omap4_dmic_post(struct snd_pcm_substream *substream)
-{
-	if (!IS_ERR(dmic_1v8) && --dmic_1v8_active == 0)
-		regulator_disable(dmic_1v8);
 }
 
 static int archos_omap4_twl6040_init(struct snd_soc_pcm_runtime *rtd)
@@ -700,6 +689,16 @@ static struct snd_soc_dai_driver dai[] = {
 		.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE,
 	},
 },
+{
+	.name = "HDMI-IN Digital",
+	.capture = {
+		.stream_name = "HDMI-IN Capture",
+		.channels_min = 1,
+		.channels_max = 2,
+		.rates = SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000,
+		.formats = SNDRV_PCM_FMTBIT_S32_LE,
+	},
+},
 };
 
 struct snd_soc_dsp_link fe_media = {
@@ -856,8 +855,6 @@ static struct snd_soc_dai_link archos_omap4_dai[] = {
 		.codec_dai_name =  "twl6040-dl1",
 		.codec_name = "twl6040-codec",
 
-		.pre = archos_omap4_mcpdm_twl6040_pre,
-		.post = archos_omap4_mcpdm_twl6040_post,
 		.ops = &archos_omap4_mcpdm_ops,
 		.ignore_suspend = 1,
 	},
@@ -897,8 +894,6 @@ static struct snd_soc_dai_link archos_omap4_dai[] = {
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
 		.init = archos_omap4_twl6040_init,
-		.pre = archos_omap4_mcpdm_twl6040_pre,
-		.post = archos_omap4_mcpdm_twl6040_post,
 		.ops = &archos_omap4_mcpdm_ops,
 		.be_id = OMAP_ABE_DAI_PDM_DL1,
 		.ignore_suspend = 1,
@@ -917,8 +912,6 @@ static struct snd_soc_dai_link archos_omap4_dai[] = {
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
 		.ops = &archos_omap4_mcpdm_ops,
-		.pre = archos_omap4_mcpdm_twl6040_pre,
-		.post = archos_omap4_mcpdm_twl6040_post,
 		.be_id = OMAP_ABE_DAI_PDM_UL,
 		.ignore_suspend = 1,
 	},
@@ -936,8 +929,6 @@ static struct snd_soc_dai_link archos_omap4_dai[] = {
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
 		.init = archos_omap4_twl6040_dl2_init,
-		.pre = archos_omap4_mcpdm_twl6040_pre,
-		.post = archos_omap4_mcpdm_twl6040_post,
 		.ops = &archos_omap4_mcpdm_ops,
 		.be_id = OMAP_ABE_DAI_PDM_DL2,
 		.ignore_suspend = 1,
@@ -955,8 +946,6 @@ static struct snd_soc_dai_link archos_omap4_dai[] = {
 		.codec_name = "twl6040-codec",
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
-		.pre = archos_omap4_mcpdm_twl6040_pre,
-		.post = archos_omap4_mcpdm_twl6040_post,
 		.ops = &archos_omap4_mcpdm_ops,
 		.be_id = OMAP_ABE_DAI_PDM_VIB,
 	},
@@ -1046,8 +1035,6 @@ static struct snd_soc_dai_link archos_omap4_dai[] = {
 		.ops = &archos_omap4_dmic_ops,
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
-		.pre = archos_omap4_dmic_pre,
-		.post = archos_omap4_dmic_post,
 		.be_hw_params_fixup = dmic_be_hw_params_fixup,
 		.be_id = OMAP_ABE_DAI_DMIC0,
 	},
@@ -1065,8 +1052,6 @@ static struct snd_soc_dai_link archos_omap4_dai[] = {
 		.ops = &archos_omap4_dmic_ops,
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
-		.pre = archos_omap4_dmic_pre,
-		.post = archos_omap4_dmic_post,
 		.be_hw_params_fixup = dmic_be_hw_params_fixup,
 		.be_id = OMAP_ABE_DAI_DMIC1,
 	},
@@ -1084,8 +1069,6 @@ static struct snd_soc_dai_link archos_omap4_dai[] = {
 		.ops = &archos_omap4_dmic_ops,
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
-		.pre = archos_omap4_dmic_pre,
-		.post = archos_omap4_dmic_post,
 		.be_hw_params_fixup = dmic_be_hw_params_fixup,
 		.be_id = OMAP_ABE_DAI_DMIC2,
 	},
@@ -1105,6 +1088,33 @@ static struct snd_soc_dai_link archos_omap4_no_twl6040_dai[] = {
 		.init = archos_omap4_twl6040_fe_init,
 		.dsp_link = &fe_media_capture,
 	},
+	{
+		.name = "Archos Media Capture",
+		.stream_name = "Multimedia Capture",
+
+		/* ABE components - MM-UL2 */
+		.cpu_dai_name = "MultiMedia2",
+		.platform_name = "omap-pcm-audio",
+
+		.dynamic = 1, /* BE is dynamic */
+		.dsp_link = &fe_media_capture,
+	},
+	{
+		.name = "HDMI-IN",
+		.stream_name = "HDMI-IN Capture",
+
+		/* components - MCBSP2 - OMAP PCM */
+		.cpu_dai_name = "omap-mcbsp-dai.1",
+		.platform_name = "omap-pcm-audio",
+
+		/* HDMI-IN */
+		.codec_dai_name = "HDMI-IN Digital",
+
+		.no_codec = 1, /* TODO: have a dummy CODEC */
+		.ops = &archos_omap4_mcbsp_ops,
+		.ignore_suspend = 1,
+		.be_id = OMAP_ABE_DAI_HDMI_IN,
+	},
 	/* Backends */
 	{
 		.name = OMAP_ABE_BE_DMIC0,
@@ -1120,8 +1130,6 @@ static struct snd_soc_dai_link archos_omap4_no_twl6040_dai[] = {
 		.ops = &archos_omap4_dmic_ops,
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
-		.pre = archos_omap4_dmic_pre,
-		.post = archos_omap4_dmic_post,
 		.be_hw_params_fixup = dmic_be_hw_params_fixup,
 		.be_id = OMAP_ABE_DAI_DMIC0,
 	},
@@ -1139,8 +1147,6 @@ static struct snd_soc_dai_link archos_omap4_no_twl6040_dai[] = {
 		.ops = &archos_omap4_dmic_ops,
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
-		.pre = archos_omap4_dmic_pre,
-		.post = archos_omap4_dmic_post,
 		.be_hw_params_fixup = dmic_be_hw_params_fixup,
 		.be_id = OMAP_ABE_DAI_DMIC1,
 	},
@@ -1158,8 +1164,6 @@ static struct snd_soc_dai_link archos_omap4_no_twl6040_dai[] = {
 		.ops = &archos_omap4_dmic_ops,
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
-		.pre = archos_omap4_dmic_pre,
-		.post = archos_omap4_dmic_post,
 		.be_hw_params_fixup = dmic_be_hw_params_fixup,
 		.be_id = OMAP_ABE_DAI_DMIC2,
 	},

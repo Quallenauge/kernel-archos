@@ -13,8 +13,8 @@
 static bool blanked;
 
 struct tiler1d_slot {
-	tiler_blk_handle slot;
 	struct list_head q;
+	tiler_blk_handle slot;
 	u32 phys;
 	u32 size;
 	u32 *page_map;
@@ -33,6 +33,9 @@ struct dsscomp_gralloc_t {
 	bool early_callback;
 	bool programmed;
 };
+
+/* local cache */
+static struct kmem_cache *gsync_cachep;
 
 /* queued gralloc compositions */
 static LIST_HEAD(flip_queue);
@@ -62,6 +65,15 @@ void allocate_tiler_1d_slot(struct tiler1d_slot **p_slots, int size) {
 	}
 	INIT_LIST_HEAD(&slots->q);
 }
+
+/*
+static unsigned int tiler1d_slot_size(struct dsscomp_dev *cdev)
+{
+	struct dsscomp_platform_data *pdata;
+	pdata = (struct dsscomp_platform_data *)cdev->pdev->platform_data;
+	return pdata->tiler1d_slotsz;
+}
+*/
 
 void free_tiler_1d_slot(struct tiler1d_slot *slots) {
 	if (slots == NULL) return;
@@ -135,7 +147,8 @@ static void dsscomp_gralloc_cb(void *data, int status)
 
 		if (gsync->cb_fn)
 			gsync->cb_fn(gsync->cb_arg, 1);
-		kfree(gsync);
+
+		kmem_cache_free(gsync_cachep, gsync);
 	}
 }
 
@@ -214,8 +227,16 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 
 	mutex_lock(&mtx);
 
-	/* create sync object with 1 temporary ref */
-	gsync = kzalloc(sizeof(*gsync), GFP_KERNEL);
+	/* allocate sync object with 1 temporary ref */
+	gsync = kmem_cache_zalloc(gsync_cachep, GFP_KERNEL);
+	if (!gsync) {
+		mutex_unlock(&mtx);
+		mutex_unlock(&local_mtx);
+		pr_err("DSSCOMP: %s: can't allocate object from cache\n",
+								__func__);
+		BUG();
+	}
+
 	gsync->cb_arg = cb_arg;
 	gsync->cb_fn = cb_fn;
 	gsync->refs.counter = 1;
@@ -348,8 +369,34 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 			oi->uv = d->ovls[j].uv;
 			goto skip_map1d;
 		} else if (oi->addressing == OMAP_DSS_BUFADDR_FB) {
+			/* get fb */
+			int fb_ix = (oi->ba >> 28);
+			int fb_uv_ix = (oi->uv >> 28);
+			struct fb_info *fbi = NULL, *fbi_uv = NULL;
+			size = oi->cfg.height * oi->cfg.stride;
+			if (fb_ix >= num_registered_fb ||
+			    (oi->cfg.color_mode == OMAP_DSS_COLOR_NV12 &&
+			     fb_uv_ix >= num_registered_fb)) {
+				WARN(1, "display has no framebuffer");
+				goto skip_buffer;
+			}
+
+			fbi = fbi_uv = registered_fb[fb_ix];
+			if (oi->cfg.color_mode == OMAP_DSS_COLOR_NV12)
+				fbi_uv = registered_fb[fb_uv_ix];
+
+			if (size + oi->ba > fbi->fix.smem_len ||
+			    (oi->cfg.color_mode == OMAP_DSS_COLOR_NV12 &&
+			     (size >> 1) + oi->uv > fbi_uv->fix.smem_len)) {
+				WARN(1, "image outside of framebuffer memory");
+				goto skip_buffer;
+			}
+
+			oi->ba += fbi->fix.smem_start;
+			oi->uv += fbi_uv->fix.smem_start;
 			goto skip_map1d;
 		}
+
 		/* map non-TILER buffers to 1D */
 
 		/* skip 2D and disabled layers */
@@ -491,8 +538,9 @@ void dsscomp_dbg_gralloc(struct seq_file *s)
 	struct dsscomp_gralloc_t *g;
 	struct tiler1d_slot *t;
 	dsscomp_t c;
+#ifdef CONFIG_DSSCOMP_DEBUG_LOG
 	int i;
-
+#endif
 	mutex_lock(&dbg_mtx);
 	seq_printf(s, "ACTIVE GRALLOC FLIPS\n\n");
 	list_for_each_entry(g, &flip_queue, q) {
@@ -554,10 +602,18 @@ void dsscomp_gralloc_init(struct dsscomp_dev *cdev_)
 	/* save at least cdev pointer */
 	if (!cdev && cdev_) {
 		cdev = cdev_;
-
 #ifdef CONFIG_HAS_EARLYSUSPEND
 		register_early_suspend(&early_suspend_info);
 #endif
+	}
+
+	/* create cache at first time */
+	if (!gsync_cachep) {
+		gsync_cachep = kmem_cache_create("gsync_cache",
+					sizeof(struct dsscomp_gralloc_t), 0,
+						SLAB_HWCACHE_ALIGN, NULL);
+		if (!gsync_cachep)
+			pr_err("DSSCOMP: %s: can't create cache\n", __func__);
 	}
 }
 

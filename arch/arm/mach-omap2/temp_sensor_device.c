@@ -30,7 +30,7 @@
 
 void omap_temp_sensor_resume_idle(void)
 {
-	if (cpu_is_omap446x())
+	if (cpu_is_omap446x() || cpu_is_omap447x())
 		omap_temp_sensor_idle(0);
 	if (cpu_is_omap443x())
 		omap443x_temp_sensor_idle(0);
@@ -38,7 +38,7 @@ void omap_temp_sensor_resume_idle(void)
 
 void omap_temp_sensor_prepare_idle(void)
 {
-	if (cpu_is_omap446x())
+	if (cpu_is_omap446x() || cpu_is_omap447x())
 		omap_temp_sensor_idle(1);
 	if (cpu_is_omap443x())
 		omap443x_temp_sensor_idle(1);

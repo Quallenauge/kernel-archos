@@ -93,6 +93,8 @@ static void timer_trig_activate(struct led_classdev *led_cdev)
 	if (rc)
 		goto err_out_delayon;
 
+	kobject_uevent(&led_cdev->dev->kobj, KOBJ_ADD);
+
 	led_blink_set(led_cdev, &led_cdev->blink_delay_on,
 		      &led_cdev->blink_delay_off);
 

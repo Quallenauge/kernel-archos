@@ -23,8 +23,6 @@ source "drivers/gpu/drm/Kconfig"
 
 source "drivers/gpu/stub/Kconfig"
 
-source "drivers/gpu/pvr/Kconfig"
-
 source "drivers/gpu/ion/Kconfig"
 
 config VGASTATE
@@ -2398,13 +2396,6 @@ config HDMI_TI_4XXX_IP
 	help
 	  HDMI Library Interface , for TI OMAP4/Netra IP.
 	  See http://www.hdmi.org/ for HDMI specification.
-
-config HDMI_TI_4XXX_ACRWA
-	bool "HDMI audio workaround"
-	depends on HDMI_TI_4XXX_IP
-	default n
-	help
-	  HDMI audio workaround
 
 source "drivers/video/omap/Kconfig"
 source "drivers/video/omap2/Kconfig"

@@ -16,12 +16,29 @@ static struct clk *aux_clk;
 static int hub_rst = UNUSED_GPIO;
 static int husb1_pwron = UNUSED_GPIO;
 static int pwron_5v = UNUSED_GPIO;
+#ifdef CONFIG_ARCHOS_HUB_OFF
+	static int hub_pwron = UNUSED_GPIO;
+#endif
 static bool suspended;
 
-int archos_ehci_bus_suspend(void)
+void archos_ehci_bus_suspend(void)
 {
 	pr_debug("%s\n", __FUNCTION__);
-	return 0;
+
+#ifdef CONFIG_ARCHOS_HUB_OFF
+
+	if (gpio_is_valid(hub_rst)) {
+		gpio_set_value(hub_rst, 1);
+		pr_debug("Hub held in reset\n");
+	}
+	if (gpio_is_valid(hub_pwron)){
+		gpio_set_value(hub_pwron, 0);
+		pr_debug("Hub powered down\n");
+	}
+
+#endif
+
+	return;
 
 	if (aux_clk && !suspended) {
 		pr_debug("Disabling aux_clk\n");
@@ -31,13 +48,27 @@ int archos_ehci_bus_suspend(void)
 
 	suspended = true;
 
-	return 0;
 }
 
-int archos_ehci_bus_resume(void)
+void archos_ehci_bus_resume(void)
 {
 	pr_debug("%s\n", __FUNCTION__);
-	return 0;
+
+#ifdef CONFIG_ARCHOS_HUB_OFF
+
+	if (gpio_is_valid(hub_pwron)){
+		gpio_set_value(hub_pwron, 1);
+		msleep(100);
+		pr_debug("Hub powered up\n");
+	}
+
+	if (gpio_is_valid(hub_rst)) {
+		gpio_set_value(hub_rst, 0);
+		pr_debug("Hub out of reset\n");
+	}
+#endif
+
+	return;
 
 	if (suspended) {
 		if (aux_clk) {
@@ -47,22 +78,21 @@ int archos_ehci_bus_resume(void)
 	}
 
 	/* hard reset of phy (still more safe than stp wakeup) */
-	if ((husb1_pwron > 0)) {
+	if ((gpio_is_valid(husb1_pwron))) {
 		msleep(100);
 		gpio_set_value(husb1_pwron, 0);
 		msleep(100);
 		gpio_set_value(husb1_pwron, 1);
-		pr_err("Phy is now ON\n");
+		pr_debug("Phy is now ON\n");
 	}
 
 	suspended = false;
 
 	msleep(100);
 
-	return 0;
 }
 
-int archos_ehci_bus_disable(void)
+void archos_ehci_bus_disable(void)
 {
 	pr_debug("%s\n", __FUNCTION__);
 
@@ -77,7 +107,7 @@ int archos_ehci_bus_disable(void)
 		gpio_set_value(husb1_pwron, 0);
 		pr_debug("Phy is now OFF\n");
 	}
-#if 0
+#ifdef CONFIG_ARCHOS_HUB_OFF
 	if (gpio_is_valid(hub_pwron))
 		gpio_set_value(hub_pwron, 0);
 #endif
@@ -87,10 +117,9 @@ int archos_ehci_bus_disable(void)
 	if (gpio_is_valid(pwron_5v))
 		gpio_set_value(pwron_5v, 0);
 
-	return 0;
 }
 
-int archos_ehci_bus_enable(void)
+void archos_ehci_bus_enable(void)
 {
 	pr_debug("%s\n", __FUNCTION__);
 
@@ -110,7 +139,7 @@ int archos_ehci_bus_enable(void)
 	}
 
 	msleep(100);
-#if 0
+#ifdef CONFIG_ARCHOS_HUB_OFF
 	if (gpio_is_valid(hub_pwron)){
 		gpio_set_value(hub_pwron, 1);
 		msleep(100);
@@ -125,7 +154,6 @@ int archos_ehci_bus_enable(void)
 
 	suspended = false;
 
-	return 0;
 }
 
 #if 0
@@ -163,6 +191,9 @@ static struct usbhs_omap_board_data usbhs_board_data __initconst = {
 		.port_mode[1] = OMAP_USBHS_PORT_MODE_UNUSED,
 		.port_mode[2] = OMAP_USBHS_PORT_MODE_UNUSED,
 		.phy_reset = false,
+		.reset_gpio_port[0]  = UNUSED_GPIO,
+		.reset_gpio_port[1]  = UNUSED_GPIO,
+		.reset_gpio_port[2]  = UNUSED_GPIO,
 		.platform_bus_suspend = archos_ehci_bus_suspend,
 		.platform_bus_resume = archos_ehci_bus_resume,
 		.platform_bus_disable = archos_ehci_bus_disable,
@@ -174,6 +205,9 @@ static struct usbhs_omap_board_data usbhs_board_data_omap3 __initconst = {
 		.port_mode[1] = OMAP_EHCI_PORT_MODE_PHY,
 		.port_mode[2] = OMAP_USBHS_PORT_MODE_UNUSED,
 		.phy_reset = false,
+		.reset_gpio_port[0]  = UNUSED_GPIO,
+		.reset_gpio_port[1]  = UNUSED_GPIO,
+		.reset_gpio_port[2]  = UNUSED_GPIO,
 		.es2_compatibility = true,
 };
 
@@ -267,7 +301,7 @@ void __init archos_omap3_ehci_init(void)
 		return;
 	}
 
-#if 0
+#ifdef CONFIG_ARCHOS_HUB_OFF
 	// hub power
 	if (gpio_is_valid((hub_pwron = cfg->enable_usb_hub))) {
 		ret = gpio_request(hub_pwron, "HUB_PWRON");
@@ -323,7 +357,7 @@ void __init archos_omap3_ehci_init(void)
 		usbhs_init(&usbhs_board_data);
 	else
 		usbhs_init(&usbhs_board_data_omap3);
-#if 0
+#ifdef CONFIG_ARCHOS_HUB_OFF
 	if (gpio_is_valid(hub_pwron))
 		gpio_set_value(hub_pwron, 1);
 #endif
@@ -352,7 +386,7 @@ void __init archos_omap4_ehci_init(void)
 				__func__, system_rev);
 		return;
 	}
-#if 0
+#ifdef CONFIG_ARCHOS_HUB_OFF
 	// hub pwr
 	if (gpio_is_valid(hub_pwron = cfg->enable_usb_hub)) {
 		ret = gpio_request(hub_pwron, "HUB_PWRON");
@@ -417,7 +451,7 @@ void __init archos_omap4_ehci_init(void)
 	usbhs_board_data.transceiver_clk[0] = aux_clk;
 
 	usbhs_init(&usbhs_board_data);
-#if 0
+#ifdef CONFIG_ARCHOS_HUB_OFF
 	if (gpio_is_valid(hub_pwron))
 		gpio_set_value(hub_pwron, 1);
 #endif

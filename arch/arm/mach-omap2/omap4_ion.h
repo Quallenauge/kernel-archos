@@ -29,14 +29,21 @@
 #define PHYS_ADDR_DUCATI_MEM	(PHYS_ADDR_SMC_MEM - PHYS_ADDR_DUCATI_SIZE - \
 				OMAP4_ION_HEAP_SECURE_INPUT_SIZE)
 
+#ifdef CONFIG_OMAP_REMOTE_PROC_DSP
+#define PHYS_ADDR_TESLA_SIZE	(SZ_1M * 4)
+#define PHYS_ADDR_TESLA_MEM	(PHYS_ADDR_DUCATI_MEM - \
+					OMAP4_ION_HEAP_TILER_SIZE - \
+					PHYS_ADDR_TESLA_SIZE)
+#endif
+
 #ifdef CONFIG_ION_OMAP
 void omap_ion_set_platform_data(struct ion_platform_data *ion_heap_data);
 void omap_ion_init(void);
 void omap4_register_ion(void);
 #else
-inline void omap_ion_set_platform_data(struct ion_platform_data *ion_heap_data) { return; }
-inline void omap_ion_init(void) { return; }
-inline void omap4_register_ion(void) { return; }
+static inline void omap_ion_set_platform_data(struct ion_platform_data *ion_heap_data) { return; }
+static inline void omap_ion_init(void) { return; }
+static inline void omap4_register_ion(void) { return; }
 #endif
 
 #endif

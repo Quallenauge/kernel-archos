@@ -135,7 +135,7 @@ long isr_start( struct dsscomp_dev *cdev, void __user *ptr )
 	struct omap_dss_device *dev;
 	struct omap_video_timings *t;
 	struct dsscomp_isr_cfg isr_cfg;
-	int r, i;
+	int r;
 
 	if( (r=copy_from_user(&isr_cfg, ptr, sizeof(isr_cfg))) ) {
 		return r;

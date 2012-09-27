@@ -29,16 +29,15 @@
 #include <linux/delay.h>
 #include <linux/string.h>
 #include <linux/omapfb.h>
-#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
+#if defined(CONFIG_OMAP_REMOTE_PROC_IPU) && defined(CONFIG_RPMSG)
 #include <linux/rpmsg.h>
 #include <linux/remoteproc.h>
 #include <linux/pm_runtime.h>
 #include <linux/clk.h>
 #endif
-
 #include "hdmi_ti_4xxx_ip.h"
 
-#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
+#if defined(CONFIG_OMAP_REMOTE_PROC_IPU) && defined(CONFIG_RPMSG)
 static bool hdmi_acrwa_registered;
 struct omap_chip_id audio_must_use_tclk;
 
@@ -178,8 +177,10 @@ void hdmi_lib_stop_acr_wa(void)
 		}
 	}
 }
+#else
+int hdmi_lib_start_acr_wa(void) { return 0; }
+void hdmi_lib_stop_acr_wa(void) { }
 #endif
-
 static inline void hdmi_write_reg(void __iomem *base_addr,
 				const struct hdmi_reg idx, u32 val)
 {
@@ -272,9 +273,9 @@ static int hdmi_pll_init(struct hdmi_ip_data *ip_data,
 	/* go now */
 	REG_FLD_MOD(hdmi_pll_base(ip_data), PLLCTRL_PLL_GO, 0x1, 0, 0);
 
-	/* wait for bit change */
+	/* wait for PLL opertation to be over */
 	if (hdmi_wait_for_bit_change(hdmi_pll_base(ip_data), PLLCTRL_PLL_GO,
-							0, 0, 1) != 1) {
+							0, 0, 0)) {
 		pr_err("PLL GO bit not set\n");
 		return -ETIMEDOUT;
 	}
@@ -319,11 +320,15 @@ int hdmi_get_phy_pwr(struct hdmi_ip_data *ip_data) {
 
 /* PHY_PWR_CMD */
 static int hdmi_set_phy_pwr(struct hdmi_ip_data *ip_data,
-				enum hdmi_phy_pwr val, bool set_mode)
+				enum hdmi_phy_pwr val,
+				enum hdmi_pwrchg_reasons reason)
 {
 	/* FIXME audio driver should have already stopped, but not yet */
-	if ((val == HDMI_PHYPWRCMD_OFF || val == HDMI_PHYPWRCMD_LDOON) &&
-						!set_mode)
+
+	bool wait_for_audio_stop = !(reason &
+		(HDMI_PWRCHG_MODE_CHANGE | HDMI_PWRCHG_RESYNC));
+
+	if ((val == HDMI_PHYPWRCMD_OFF || val == HDMI_PHYPWRCMD_LDOON) && wait_for_audio_stop)
 		hdmi_wait_for_audio_stop(ip_data);
 
 	/* Command for power control of HDMI PHY */
@@ -402,17 +407,16 @@ static void hdmi_wp_core_interrupt_set(struct hdmi_ip_data *ip_data, u32 val);
 int hdmi_ti_4xxx_phy_init(struct hdmi_ip_data *ip_data, int tmds)
 {
 	u16 r = 0;
-	u32 val = 0;
 
 	/*
 	 * Call LDO ON when PHY in OFF state
 	 */
 	if (!REG_GET(hdmi_wp_base(ip_data), HDMI_WP_PWR_CTRL, 5, 4))
-		if (hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_LDOON, false))
+		if (hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_LDOON, HDMI_PWRCHG_DEFAULT))
 			return r;
 
 	if (tmds) {
-		r = hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_TXON, false);
+		r = hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_TXON, HDMI_PWRCHG_DEFAULT);
 		if (r)
 			return r;
 
@@ -445,17 +449,18 @@ int hdmi_ti_4xxx_phy_init(struct hdmi_ip_data *ip_data, int tmds)
 	return 0;
 }
 
-void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data, bool set_mode)
+void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data,
+			enum hdmi_pwrchg_reasons reason)
 {
-#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
 	hdmi_lib_stop_acr_wa();
-#endif
+
 	/*
 	 * HDMI PHY should always be LDOON to avoid condition of HDMI Tx
 	 * Lanes being turned ON when PHY in OFF state. This is a known
 	 * Hardware limitation on OMAP4 HDMI.
 	 */
-	hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_LDOON, set_mode);
+	hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_LDOON, reason);
+
 }
 EXPORT_SYMBOL(hdmi_ti_4xxx_phy_init);
 EXPORT_SYMBOL(hdmi_ti_4xxx_phy_off);
@@ -1065,7 +1070,26 @@ void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 	avi_cfg.db2_active_fmt_ar = HDMI_INFOFRAME_AVI_DB2R_SAME;
 	avi_cfg.db3_itc = HDMI_INFOFRAME_AVI_DB3ITC_NO;
 	avi_cfg.db3_ec = HDMI_INFOFRAME_AVI_DB3EC_XVYUV601;
-	avi_cfg.db3_q_range = HDMI_INFOFRAME_AVI_DB3Q_DEFAULT;
+
+	if (cfg->cm.mode == HDMI_DVI ||
+	(cfg->cm.code == 1 && cfg->cm.mode == HDMI_HDMI)) {
+		/* setting for FULL RANGE MODE */
+		pr_debug("infoframe avi full range\n");
+		REG_FLD_MOD(hdmi_core_sys_base(ip_data),
+				HDMI_CORE_SYS_VID_ACEN, 0, 1, 1);
+		REG_FLD_MOD(hdmi_core_sys_base(ip_data),
+				HDMI_CORE_SYS_VID_MODE, 1, 4, 4);
+		avi_cfg.db3_q_range = HDMI_INFOFRAME_AVI_DB3Q_FR;
+	} else {
+		/* setting for LIMITED RANGE MODE */
+		pr_debug("infoframe avi limited range\n");
+		REG_FLD_MOD(hdmi_core_sys_base(ip_data),
+				HDMI_CORE_SYS_VID_MODE, 0, 4, 4);
+		REG_FLD_MOD(hdmi_core_sys_base(ip_data),
+				HDMI_CORE_SYS_VID_ACEN, 1, 1, 1);
+		avi_cfg.db3_q_range = HDMI_INFOFRAME_AVI_DB3Q_LR;
+	}
+
 	avi_cfg.db3_nup_scaling = HDMI_INFOFRAME_AVI_DB3SC_NO;
 	avi_cfg.db4_videocode = cfg->cm.code;
 	avi_cfg.db5_pixel_repeat = HDMI_INFOFRAME_AVI_DB5PR_NO;
@@ -1089,7 +1113,7 @@ EXPORT_SYMBOL(hdmi_ti_4xxx_basic_configure);
 u32 hdmi_ti_4xxx_irq_handler(struct hdmi_ip_data *ip_data)
 {
 	u32 val, sys_stat = 0, core_state = 0;
-	u32 intr2 = 0, intr3 = 0, r = 0;
+	u32 intr2 = 0, intr3 = 0, intr4 = 0, r = 0;
 	void __iomem *wp_base = hdmi_wp_base(ip_data);
 	void __iomem *core_base = hdmi_core_sys_base(ip_data);
 
@@ -1103,10 +1127,12 @@ u32 hdmi_ti_4xxx_irq_handler(struct hdmi_ip_data *ip_data)
 						 HDMI_CORE_SYS_SYS_STAT);
 			intr2 = hdmi_read_reg(core_base, HDMI_CORE_SYS_INTR2);
 			intr3 = hdmi_read_reg(core_base, HDMI_CORE_SYS_INTR3);
+			intr4 = hdmi_read_reg(core_base, HDMI_CORE_SYS_INTR4);
 
 			pr_debug("HDMI_CORE_SYS_SYS_STAT = 0x%x\n", sys_stat);
 			pr_debug("HDMI_CORE_SYS_INTR2 = 0x%x\n", intr2);
 			pr_debug("HDMI_CORE_SYS_INTR3 = 0x%x\n", intr3);
+			pr_debug("HDMI_CORE_SYS_INTR4 = 0x%x\n", intr4);
 
 			hdmi_write_reg(core_base, HDMI_CORE_SYS_INTR2, intr2);
 			hdmi_write_reg(core_base, HDMI_CORE_SYS_INTR3, intr3);
@@ -1128,6 +1154,13 @@ u32 hdmi_ti_4xxx_irq_handler(struct hdmi_ip_data *ip_data)
 	if (intr3 & HDMI_CORE_SYSTEM_INTR3__RI_ERR)
 		r |= HDMI_RI_ERR;
 
+	if (intr4 & HDMI_CORE_SYSTEM_INTR4__STAT3) {
+		hdmi_write_reg(core_base, HDMI_CORE_SYS_INTR4, intr4);
+		hdmi_read_reg(core_base, HDMI_CORE_SYS_INTR4);
+
+		r |= HDMI_CEC;
+	}
+
 	if (val & HDMI_WP_IRQSTATUS_PHY_LINK_CONNECT)
 		r |= HDMI_LINK_CONNECT;
 
@@ -1142,10 +1175,21 @@ u32 hdmi_ti_4xxx_irq_handler(struct hdmi_ip_data *ip_data)
 }
 EXPORT_SYMBOL(hdmi_ti_4xxx_irq_handler);
 
+void hdmi_ti_4xxx_core_cec_enable_irq(struct hdmi_ip_data *ip_data, int enable)
+{
+	u32 val;
+	val = hdmi_read_reg(hdmi_core_sys_base(ip_data), HDMI_CORE_SYS_UMASK4);
+	if (enable)
+		val |= HDMI_CORE_SYSTEM_INTR4__STAT3;
+	else
+		val &= ~HDMI_CORE_SYSTEM_INTR4__STAT3;
+	hdmi_write_reg(hdmi_core_sys_base(ip_data), HDMI_CORE_SYS_UMASK4, val);
+}
+EXPORT_SYMBOL(hdmi_ti_4xxx_core_cec_enable_irq);
+
 void hdmi_ti_4xxx_dump_regs(struct hdmi_ip_data *ip_data, struct seq_file *s)
 {
 #define DUMPREG(g, r) seq_printf(s, "%-35s %08x\n", #r, hdmi_read_reg(g, r))
-
 	void __iomem *wp_base = hdmi_wp_base(ip_data);
 	void __iomem *core_sys_base = hdmi_core_sys_base(ip_data);
 	void __iomem *phy_base = hdmi_phy_base(ip_data);
@@ -1179,6 +1223,7 @@ void hdmi_ti_4xxx_dump_regs(struct hdmi_ip_data *ip_data, struct seq_file *s)
 	DUMPREG(core_sys_base, HDMI_CORE_SYS_INTR3);
 	DUMPREG(core_sys_base, HDMI_CORE_SYS_INTR4);
 	DUMPREG(core_sys_base, HDMI_CORE_SYS_UMASK1);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_UMASK4);
 	DUMPREG(core_sys_base, HDMI_CORE_SYS_TMDS_CTRL);
 	DUMPREG(core_sys_base, HDMI_CORE_SYS_DE_DLY);
 	DUMPREG(core_sys_base, HDMI_CORE_SYS_DE_CTRL);
@@ -1271,8 +1316,8 @@ void hdmi_ti_4xxx_dump_regs(struct hdmi_ip_data *ip_data, struct seq_file *s)
 	DUMPREG(phy_base, HDMI_TXPHY_DIGITAL_CTRL);
 	DUMPREG(phy_base, HDMI_TXPHY_POWER_CTRL);
 	DUMPREG(phy_base, HDMI_TXPHY_PAD_CFG_CTRL);
-
 #undef DUMPREG
+
 }
 EXPORT_SYMBOL(hdmi_ti_4xxx_dump_regs);
 
@@ -1281,10 +1326,9 @@ int hdmi_ti_4xxx_config_audio_acr(struct hdmi_ip_data *ip_data,
 {
 	u32 r;
 	u32 deep_color = 0;
-#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
+#if defined(CONFIG_OMAP_REMOTE_PROC_IPU) && defined(CONFIG_RPMSG)
 	u32 cts_interval_qtt, cts_interval_res, n_val, cts_interval;
 #endif
-
 	if (n == NULL || cts == NULL)
 		return -EINVAL;
 	/*
@@ -1334,7 +1378,7 @@ int hdmi_ti_4xxx_config_audio_acr(struct hdmi_ip_data *ip_data,
 	/* Calculate CTS. See HDMI 1.3a or 1.4a specifications */
 	*cts = pclk * (*n / 128) * deep_color / (sample_freq / 10);
 
-#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
+#if defined(CONFIG_OMAP_REMOTE_PROC_IPU) && defined(CONFIG_RPMSG)
 	if (omap_chip_is(audio_must_use_tclk)) {
 		n_val = *n;
 		cts_interval = 0;
@@ -1351,7 +1395,6 @@ int hdmi_ti_4xxx_config_audio_acr(struct hdmi_ip_data *ip_data,
 		hdmi_payload.acr_rate = 128 * sample_freq / n_val;
 	}
 #endif
-
 	return 0;
 }
 EXPORT_SYMBOL(hdmi_ti_4xxx_config_audio_acr);
@@ -1591,12 +1634,13 @@ int hdmi_ti_4xx_check_aksv_data(struct hdmi_ip_data *ip_data)
 		(one == 0) ? HDMI_AKSV_ZERO : HDMI_AKSV_ERROR;
 
 	return ret;
+
 }
 EXPORT_SYMBOL(hdmi_ti_4xx_check_aksv_data);
 
 static int __init hdmi_ti_4xxx_init(void)
 {
-#ifdef CONFIG_HDMI_TI_4XXX_ACRWA
+#if defined(CONFIG_OMAP_REMOTE_PROC_IPU) && defined(CONFIG_RPMSG)
 	audio_must_use_tclk.oc = CHIP_IS_OMAP4430ES2 |
 			CHIP_IS_OMAP4430ES2_1 | CHIP_IS_OMAP4430ES2_2;
 	hdmi_acrwa_registered = false;

@@ -3,6 +3,11 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/machine.h>
 
+#include <plat/archos-gpio.h>
+
+#include <mach/gpio.h>
+#include <mach/board-archos.h>
+
 #include "mux.h"
 
 #define DEVICE_NAME	"archos_usb_3g"
@@ -12,10 +17,25 @@
 static struct archos_3g_rfkill_device {
 	struct platform_device *pdev;
 	struct rfkill *rfkill;
+
 	struct regulator *regulator;
 	struct regulator *hub;
+
+	int nreset_gpio;
+	int nenable_gpio;
+	int nsimdet_gpio;
+
 	bool state;
 } archos_3g_rfkill;
+
+static void archos_usb_3g_rfkill_ctrl_gpio_enable(struct archos_3g_rfkill_device *rfkill_dev, bool en)
+{
+	if (gpio_is_valid(rfkill_dev->nenable_gpio))
+		gpio_set_value(rfkill_dev->nenable_gpio, !en);
+
+	if (gpio_is_valid(rfkill_dev->nreset_gpio))
+		gpio_set_value(rfkill_dev->nreset_gpio, en);
+}
 
 static inline void archos_usb_3g_rfkill_enable(struct archos_3g_rfkill_device *rfkill_dev, bool en)
 {
@@ -24,10 +44,16 @@ static inline void archos_usb_3g_rfkill_enable(struct archos_3g_rfkill_device *r
 
 	if (en) {
 		regulator_enable(rfkill_dev->regulator);
+
 		if (rfkill_dev->hub)
 			regulator_enable(rfkill_dev->hub);
+
+		archos_usb_3g_rfkill_ctrl_gpio_enable(rfkill_dev, en);
 	} else {
+		archos_usb_3g_rfkill_ctrl_gpio_enable(rfkill_dev, en);
+
 		regulator_disable(rfkill_dev->regulator);
+
 		if (rfkill_dev->hub)
 			regulator_disable(rfkill_dev->hub);
 	}
@@ -68,6 +94,8 @@ static int archos_usb_3g_suspend(struct platform_device *pdev, pm_message_t stat
 
 #ifdef USB_OFF_WHEN_SUSPENDED
 	if (rfkill_dev->state && rfkill_dev->regulator != NULL) {
+		archos_usb_3g_rfkill_ctrl_gpio_enable(rfkill_dev, 0);
+
 		regulator_disable(rfkill_dev->regulator);
 		if (rfkill_dev->hub)
 			regulator_disable(rfkill_dev->hub);
@@ -89,6 +117,8 @@ static int archos_usb_3g_resume(struct platform_device *pdev)
 		regulator_enable(rfkill_dev->regulator);
 		if (rfkill_dev->hub)
 			regulator_enable(rfkill_dev->hub);
+
+		archos_usb_3g_rfkill_ctrl_gpio_enable(rfkill_dev, 1);
 	}
 #endif
 
@@ -110,9 +140,19 @@ static struct platform_driver archos_usb_3g_driver = {
 int __init archos_usb_3g_rfkill_init(void)
 {
 	struct archos_3g_rfkill_device *rfkill_dev = &archos_3g_rfkill;
+	const struct archos_3g_config *usb_3g_config;
+	const struct archos_3g_conf *conf;
 	struct platform_device *pdev;
 	int ret;
-	
+
+	usb_3g_config = omap_get_config(ARCHOS_TAG_3G,
+			struct archos_3g_config);
+
+	conf = hwrev_ptr(usb_3g_config, system_rev);
+
+	if (IS_ERR(conf))
+		return -EINVAL;
+
 	ret = platform_driver_register(&archos_usb_3g_driver);
 	if (ret)
 		return ret;		
@@ -126,6 +166,10 @@ int __init archos_usb_3g_rfkill_init(void)
 		goto initfail2;
 
 	rfkill_dev->pdev = pdev;
+
+	rfkill_dev->nenable_gpio = UNUSED_GPIO;
+	rfkill_dev->nreset_gpio = UNUSED_GPIO;
+	rfkill_dev->nsimdet_gpio = UNUSED_GPIO;
 
 	rfkill_dev->rfkill = rfkill_alloc("archos_usb_wwan",
 					&pdev->dev,
@@ -152,17 +196,35 @@ int __init archos_usb_3g_rfkill_init(void)
 
 	if (rfkill_register(rfkill_dev->rfkill) < 0) {
 		dev_err(&pdev->dev, "Failed to register rfkill\n");
-		goto initfail6;
+		goto initfail5;
+	}
+
+	if (gpio_is_valid((rfkill_dev->nenable_gpio = conf->nenable))) {
+		gpio_request(rfkill_dev->nenable_gpio, "usb_3g_nenable");
+		omap_mux_init_gpio(rfkill_dev->nenable_gpio, OMAP_PIN_OUTPUT);
+		gpio_direction_output(rfkill_dev->nenable_gpio, 1);
+	}
+
+	if (gpio_is_valid((rfkill_dev->nreset_gpio = conf->nreset))) {
+		gpio_request(rfkill_dev->nreset_gpio, "usb_3g_nreset");
+		omap_mux_init_gpio(rfkill_dev->nreset_gpio, OMAP_PIN_OUTPUT);
+		gpio_direction_output(rfkill_dev->nreset_gpio, 0);
+	}
+
+	if (gpio_is_valid((rfkill_dev->nsimdet_gpio = conf->nsimdet))) {
+		gpio_request(rfkill_dev->nsimdet_gpio, "usb_3g_simdet");
+		omap_mux_init_gpio(rfkill_dev->nsimdet_gpio, OMAP_PIN_INPUT_PULLUP);
+		gpio_direction_input(rfkill_dev->nsimdet_gpio);
+		gpio_export(rfkill_dev->nsimdet_gpio, false);
 	}
 
 	archos_usb_3g_rfkill_enable(rfkill_dev, true);
 	
 	return 0;
 
-initfail6:
+initfail5:
 	if (rfkill_dev->hub)
 		regulator_put(rfkill_dev->hub);
-initfail5:
 	regulator_put(rfkill_dev->regulator);
 initfail4:
 	rfkill_destroy(rfkill_dev->rfkill);
@@ -176,3 +238,4 @@ initfail1:
 }
 
 device_initcall(archos_usb_3g_rfkill_init);
+

@@ -57,6 +57,7 @@ struct panel_config {
 	 * when use generic panel driver
 	 */
 	const char *name;
+	int is_virtual;
 };
 
 /* Panel configurations */
@@ -133,6 +134,7 @@ static struct panel_config generic_dpi_panels[] = {
 		.width_in_um		= 708416,
 		.height_in_um		= 398484,
 		.name			= "generic_32_16_9_720p",
+		.is_virtual 		= 1,
 	},
 
 	/* generic 32" 16/9 TV 1080p */
@@ -141,15 +143,15 @@ static struct panel_config generic_dpi_panels[] = {
 			.x_res		= 1920,
 			.y_res		= 1080,
 
-			.pixel_clock	= 74250,
+			.pixel_clock	= 148500,
 
-			.hfp		= 110,
-			.hsw		= 40,
-			.hbp		= 20,
+			.hfp		= 148,
+			.hsw		= 44,
+			.hbp		= 88,
 
-			.vfp		= 5,
+			.vfp		= 36,
 			.vsw		= 5,
-			.vbp		= 20,
+			.vbp		= 4,
 		},
 		.acbi			= 0x0,
 		.acb			= 0x0,
@@ -159,6 +161,7 @@ static struct panel_config generic_dpi_panels[] = {
 		.width_in_um		= 708416,
 		.height_in_um		= 398484,
 		.name			= "generic_32_16_9_1080p",
+		.is_virtual 		= 1,
 	},
 	/* Sharp LQ043T1DG01 */
 	{
@@ -370,6 +373,67 @@ static struct panel_config generic_dpi_panels[] = {
 
 		.name			= "cpt_xga_8",
 	},
+
+	/* CMI BF097XN */
+	{
+		{
+			.x_res		= 1024,
+			.y_res		= 768,
+
+			.pixel_clock	= 100000,
+
+			.hsw		= 256,
+			.hfp		= 300,
+			.hbp		= 504,
+
+			.vsw		= 6,
+			.vfp		= 16,
+			.vbp		= 10,
+		},
+		.acbi			= 0x0,
+		.acb			= 0x0,
+		.config			= OMAP_DSS_LCD_TFT | OMAP_DSS_LCD_IVS |
+					  OMAP_DSS_LCD_IHS | OMAP_DSS_LCD_RF | OMAP_DSS_LCD_ONOFF,
+
+		.power_on_delay		= 0,
+		.power_off_delay	= 0,
+
+		.width_in_um		= 196000,
+		.height_in_um		= 147000,
+
+		.name			= "cmi_xga_97",
+	},
+	/* CMI B116HAn03 */
+	{
+		{
+			.x_res		= 1920,
+			.y_res		= 1080,
+
+			.pixel_clock	= 138700,
+
+			.hsw		= 20,
+			.hfp		= 70,
+			.hbp		= 70,
+
+			.vsw		= 5,
+			.vfp		= 13,
+			.vbp		= 13,
+		},
+		.acbi			= 0x0,
+		.acb			= 0x0,
+		.config			= OMAP_DSS_LCD_TFT | OMAP_DSS_LCD_IVS |
+					  OMAP_DSS_LCD_IHS | OMAP_DSS_LCD_RF | OMAP_DSS_LCD_ONOFF,
+
+		.power_on_delay		= 0,
+		.power_off_delay	= 0,
+
+		.width_in_um		= 256320,
+		.height_in_um		= 144180,
+
+		.name			= "cmi_wuxga_116",
+	},
+
+
 };
 
 struct panel_drv_data {
@@ -422,9 +486,6 @@ static void generic_dpi_panel_power_off(struct omap_dss_device *dssdev)
 	struct panel_drv_data *drv_data = dev_get_drvdata(&dssdev->dev);
 	struct panel_config *panel_config = drv_data->panel_config;
 
-	if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE)
-		return;
-
 	if (panel_data->platform_disable)
 		panel_data->platform_disable(dssdev);
 
@@ -464,6 +525,7 @@ static int generic_dpi_panel_probe(struct omap_dss_device *dssdev)
 
 	dssdev->panel.width_in_um = panel_config->width_in_um;
 	dssdev->panel.height_in_um = panel_config->height_in_um;
+	dssdev->panel.is_virtual = panel_config->is_virtual;
 
 	drv_data = kzalloc(sizeof(*drv_data), GFP_KERNEL);
 	if (!drv_data)
@@ -503,17 +565,22 @@ static int generic_dpi_panel_enable(struct omap_dss_device *dssdev)
 
 static void generic_dpi_panel_disable(struct omap_dss_device *dssdev)
 {
-	generic_dpi_panel_power_off(dssdev);
 
-	dssdev->state = OMAP_DSS_DISPLAY_DISABLED;
+	if ( dssdev->state == OMAP_DSS_DISPLAY_ACTIVE) {
+		dssdev->state = OMAP_DSS_DISPLAY_DISABLED;
+		generic_dpi_panel_power_off(dssdev);
+		
+	} else 
+		dssdev->state = OMAP_DSS_DISPLAY_DISABLED;
 }
 
 static int generic_dpi_panel_suspend(struct omap_dss_device *dssdev)
 {
-	generic_dpi_panel_power_off(dssdev);
+	if ( dssdev->state == OMAP_DSS_DISPLAY_ACTIVE) {
 
-	dssdev->state = OMAP_DSS_DISPLAY_SUSPENDED;
-
+		dssdev->state = OMAP_DSS_DISPLAY_SUSPENDED;
+		generic_dpi_panel_power_off(dssdev);
+	}
 	return 0;
 }
 

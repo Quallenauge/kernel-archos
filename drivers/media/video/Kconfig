@@ -586,6 +586,8 @@ source "drivers/media/video/omapdce/Kconfig"
 
 source "drivers/media/video/omapgfx/Kconfig"
 
+source "drivers/media/video/omapimt/Kconfig"
+
 source "drivers/media/video/bt8xx/Kconfig"
 
 config VIDEO_PMS

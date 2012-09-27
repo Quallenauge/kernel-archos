@@ -87,8 +87,10 @@ struct mma7660fc_data {
 /* I2C client handle */
 static struct i2c_client *this_client;
 
+#ifdef FILTER_ENABLED
 /* Filter coefficients */
 static int filter_coeff[FILTER_DEPTH] = {1, 1, 1, 1, 1};
+#endif
 
 /*
  * MMA7660FC stuff
@@ -390,7 +392,7 @@ static void mma7660fc_report_values(void)
 {
 	struct accel_data values;
 	struct mma7660fc_data *data = i2c_get_clientdata(this_client);
-	int i;
+
 
 	mma7660fc_get_values(&values);
 
@@ -415,6 +417,7 @@ static void mma7660fc_report_values(void)
 	data->circular_index = (data->circular_index + 1) % FILTER_DEPTH;
 
 	if (data->poll_delay < FILER_DELAY_THRESHOLD) {
+		int i;
 		values.x = 0;
 		values.y = 0;
 		values.z = 0;

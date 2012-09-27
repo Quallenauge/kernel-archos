@@ -126,9 +126,11 @@ extern int omap4430_phy_power(struct device *dev, int ID, int on);
 extern int omap4430_phy_set_clk(struct device *dev, int on);
 extern int omap4430_phy_init(struct device *dev);
 extern int omap4430_phy_exit(struct device *dev);
+extern int omap4_enable_charger_detect(void);
+extern int omap4_disable_charger_detect(void);
 extern int omap4_charger_detect(void);
 extern int omap4430_phy_suspend(struct device *dev, int suspend);
-int omap44x0_usbhs_update_sar(void);
+extern int omap4430_usbhs_update_sar(void);
 #endif
 
 extern void am35x_musb_reset(void);

@@ -50,7 +50,7 @@ static int __init panel_init(void)
 	
 	archos_gpio_init_output( display_gpio.lcd_pwon, "lcd_pwon" );
 	archos_gpio_init_output( display_gpio.lcd_rst, "lcd_rst" );
-	archos_gpio_init_output( display_gpio.lvds_en, "lvds_en" );
+	archos_gpio_init_output( display_gpio.bridge_en, "bridge_en" );
 
 	if (gpio_request(display_gpio.lcd_stdby, "lcd_stdby") < 0) {
 		pr_debug("gpio_init_output: cannot acquire GPIO%d \n", display_gpio.lcd_stdby);
@@ -76,8 +76,8 @@ static int __init panel_init(void)
 		gpio_set_value( display_gpio.lcd_rst, 1);
 	if (gpio_is_valid(display_gpio.lcd_pwon))
 		gpio_set_value( display_gpio.lcd_pwon, 0);
-	if (gpio_is_valid(display_gpio.lvds_en))
-		gpio_set_value( display_gpio.lvds_en, 0);
+	if (gpio_is_valid(display_gpio.bridge_en))
+		gpio_set_value( display_gpio.bridge_en, 0);
 	if (gpio_is_valid(display_gpio.lcd_stdby))
 		gpio_set_value( display_gpio.lcd_stdby, 1);
 	if (gpio_is_valid(display_gpio.lcd_avdd_en))
@@ -175,8 +175,8 @@ static int panel_enable(struct omap_dss_device *disp)
 		gpio_set_value( display_gpio.lcd_avdd_en, 0);
 	msleep(35);
 
-	if (gpio_is_valid(display_gpio.lvds_en))
-		gpio_set_value( display_gpio.lvds_en, 1);
+	if (gpio_is_valid(display_gpio.bridge_en))
+		gpio_set_value( display_gpio.bridge_en, 1);
 
 	msleep(10);
 
@@ -225,8 +225,8 @@ static void panel_disable(struct omap_dss_device *disp)
 		gpio_set_value( display_gpio.lcd_stdby, 1);
 	msleep(1);
 
-	if (gpio_is_valid(display_gpio.lvds_en))
-		gpio_set_value( display_gpio.lvds_en, 0);
+	if (gpio_is_valid(display_gpio.bridge_en))
+		gpio_set_value( display_gpio.bridge_en, 0);
 
 	if (gpio_is_valid(display_gpio.lcd_avdd_en))
 		gpio_set_value( display_gpio.lcd_avdd_en, 1);
@@ -281,7 +281,7 @@ struct omap_dss_device cpt_xga_8_dss_device = {
 				.pck_div        = 2,
 				.lcd_clk_src    = OMAP_DSS_CLK_SRC_DSI2_PLL_HSDIV_DISPC,
 			},
-			.dispc_fclk_src = OMAP_DSS_CLK_SRC_DSI2_PLL_HSDIV_DISPC,
+			.dispc_fclk_src = OMAP_DSS_CLK_SRC_FCK,
 		},
 	},
 };

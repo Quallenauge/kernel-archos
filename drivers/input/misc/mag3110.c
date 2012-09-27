@@ -85,9 +85,6 @@ struct mag3110_data {
 	u8 ctl_reg1;
 	int active;
 	int position;
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	struct early_suspend mag_early_suspend;
-#endif
 };
 static short MAGHAL[8][3][3] =
 {
@@ -102,9 +99,6 @@ static short MAGHAL[8][3][3] =
 	{{-1,  0,  0}, { 0,  1,  0}, {0, 0,  -1}},
 
 };
-
-static void mag3110_early_suspend(struct early_suspend *handler);
-static void mag3110_early_resume(struct early_suspend *handler);
 
 static struct regulator *compass_1v8;
 static struct regulator *compass_vcc;
@@ -519,12 +513,6 @@ static int __devinit mag3110_probe(struct i2c_client *client,
 	}
 #endif
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	data->mag_early_suspend.suspend = mag3110_early_suspend;
-	data->mag_early_suspend.resume = mag3110_early_resume;
-	register_early_suspend(&data->mag_early_suspend);
-#endif
-
 	/* Initialize mag3110 chip */
 	mag3110_init_client(client);
 	this_data = data;
@@ -559,10 +547,9 @@ static int __devexit mag3110_remove(struct i2c_client *client)
 	ret = mag3110_write_reg(client, MAG3110_CTRL_REG1,
 				    data->ctl_reg1 & ~MAG3110_AC_MASK);
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	unregister_early_suspend(&data->mag_early_suspend);
-#endif
-	free_irq(client->irq, data);
+	if (client->irq)
+		free_irq(client->irq, data);
+
 	input_unregister_polled_device(data->poll_dev);
 	input_free_polled_device(data->poll_dev);
 	hwmon_device_unregister(data->hwmon_dev);
@@ -581,39 +568,17 @@ static int __devexit mag3110_remove(struct i2c_client *client)
 	return ret;
 }
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void mag3110_early_suspend(struct early_suspend *handler)
-{
-	int ret = 0;
-	struct mag3110_data *data = this_data;
-    if(data->active == MAG_ACTIVED){
-		data->ctl_reg1 = mag3110_read_reg(data->client, MAG3110_CTRL_REG1);
-		ret = mag3110_write_reg(data->client, MAG3110_CTRL_REG1,
-					   data->ctl_reg1 & ~MAG3110_AC_MASK);
-    }
-}
-
-static void mag3110_early_resume(struct early_suspend *handler)
-{
-	int ret = 0;
-	u8 tmp_data[MAG3110_XYZ_DATA_LEN];
-	struct mag3110_data *data = this_data;
-    if(data->active == MAG_ACTIVED){
-		ret = mag3110_write_reg(data->client, MAG3110_CTRL_REG1,
-					   data->ctl_reg1);
-
-		if (data->ctl_reg1 & MAG3110_AC_MASK) {
-			/* Read out MSB data to clear interrupt flag automatically */
-			mag3110_read_block_data(data->client, MAG3110_OUT_X_MSB,
-						MAG3110_XYZ_DATA_LEN, tmp_data);
-		}
-    }
-}
-#endif				/* CONFIG_HAS_EARLYSUSPEND */
-
 #ifdef CONFIG_PM
 static int mag3110_suspend(struct i2c_client *client, pm_message_t mesg)
 {
+	struct mag3110_data *data = this_data;
+
+	if (data->active == MAG_ACTIVED){
+		data->ctl_reg1 = mag3110_read_reg(data->client, MAG3110_CTRL_REG1);
+		mag3110_write_reg(data->client, MAG3110_CTRL_REG1,
+					   data->ctl_reg1 & ~MAG3110_AC_MASK);
+	}
+
 	if (power_enabled) {
 		if (!IS_ERR(compass_1v8)) {
 			regulator_disable(compass_1v8);
@@ -628,12 +593,27 @@ static int mag3110_suspend(struct i2c_client *client, pm_message_t mesg)
 
 static int mag3110_resume(struct i2c_client *client)
 {
+	struct mag3110_data *data = this_data;
+
 	if (power_enabled) {
 		if (!IS_ERR(compass_1v8)) {
 			regulator_enable(compass_1v8);
 		}
 		if (!IS_ERR(compass_vcc)) {
 			regulator_enable(compass_vcc);
+		}
+	}
+	
+	if (data->active == MAG_ACTIVED){
+		mag3110_write_reg(data->client, MAG3110_CTRL_REG1,
+					   data->ctl_reg1);
+	
+		if (data->ctl_reg1 & MAG3110_AC_MASK) {
+			u8 tmp_data[MAG3110_XYZ_DATA_LEN];
+		
+			/* Read out MSB data to clear interrupt flag automatically */
+			mag3110_read_block_data(data->client, MAG3110_OUT_X_MSB,
+						MAG3110_XYZ_DATA_LEN, tmp_data);
 		}
 	}
 

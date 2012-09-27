@@ -133,6 +133,7 @@ struct archos_usb_xceiv {
 	struct regulator       *vbus_draw;
 	
 	struct switch_dev 	usb_switch;
+	unsigned long		features;
 };
 
 /* internal define on top of container_of */
@@ -264,6 +265,13 @@ static void archos_usb_xceiv_phy_shutdown(struct otg_transceiver *x)
 
 static int _usb_ldo_init(struct archos_usb_xceiv *xceiv)
 {
+	char *regulator_name;
+
+	if (xceiv->features & TWL6032_SUBCLASS)
+		regulator_name = "ldousb";
+	else
+		regulator_name = "vusb";
+
 	/* Set to OTG_REV 1.3 and turn on the ID_WAKEUP_COMP */
 	twl6030_writeb(xceiv, TWL6030_MODULE_ID0 , 0x1, TWL6030_BACKUP_REG);
 
@@ -274,7 +282,7 @@ static int _usb_ldo_init(struct archos_usb_xceiv *xceiv)
 	twl6030_writeb(xceiv, TWL6030_MODULE_ID0 , 0x10, TWL6030_MISC2);
 
 	if (!xceiv->usb3v3) {
-		xceiv->usb3v3 = regulator_get(xceiv->dev, "vusb");
+		xceiv->usb3v3 = regulator_get(xceiv->dev, regulator_name);
 		if (IS_ERR(xceiv->usb3v3))
 			return -ENODEV;
 	}
@@ -448,6 +456,21 @@ static int archos_usb_xceiv_set_suspend(struct otg_transceiver *x, int suspend)
 	return 0;
 }
 
+#ifdef CONFIG_PM_RUNTIME
+static int archos_usb_xceiv_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	return 0;
+}
+
+static int archos_usb_xceiv_resume(struct platform_device *pdev)
+{
+	struct archos_usb_xceiv *xceiv = (struct archos_usb_xceiv*) platform_get_drvdata(pdev);
+	/* run the xceiv->work queue in order to detect plug events which occured during off-mode */
+	schedule_work(&xceiv->work);
+	return 0;
+}
+#endif
+
 static int archos_usb_xceiv_set_peripheral(struct otg_transceiver *x,
 		struct usb_gadget *gadget)
 {
@@ -525,9 +548,9 @@ static int __devinit archos_usb_xceiv_probe(struct platform_device *pdev)
 	pdata = pdev->dev.platform_data;
 	if (!pdata || !pdata->platform)
 		return -EINVAL;
-	
+
 	xceiv->vbus_info = (struct gpio_vbus_mach_info*)pdata->platform;
-		
+
 	xceiv->dev			= &pdev->dev;
 	xceiv->otg.dev			= xceiv->dev;
 	xceiv->otg.label		= "archos_xceiv";
@@ -537,9 +560,10 @@ static int __devinit archos_usb_xceiv_probe(struct platform_device *pdev)
 	xceiv->otg.init			= archos_usb_xceiv_phy_init;
 	xceiv->otg.shutdown		= archos_usb_xceiv_phy_shutdown;
 	xceiv->otg.enable_irq		= archos_usb_xceiv_enable_irq;
-	
+	xceiv->features			= pdata->features;
+
 	xceiv->state = STATE_UNKNOWN;
-	
+
 	/* init spinlock for workqueue */
 	spin_lock_init(&xceiv->lock);
 
@@ -718,6 +742,10 @@ static int __exit archos_usb_xceiv_remove(struct platform_device *pdev)
 static struct platform_driver archos_usb_xceiv_driver = {
 	.probe		= archos_usb_xceiv_probe,
 	.remove		= __exit_p(archos_usb_xceiv_remove),
+#ifdef CONFIG_PM_RUNTIME
+	.suspend	= archos_usb_xceiv_suspend,
+	.resume		= archos_usb_xceiv_resume,
+#endif
 	.driver		= {
 		.name	= "archos_usb_xceiv",
 		.owner	= THIS_MODULE,

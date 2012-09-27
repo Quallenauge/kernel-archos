@@ -27,12 +27,19 @@
 #define HDMI_RI_ERR		0x80
 #define HDMI_LINK_DISCONNECT	0x100
 #define HDMI_LINK_CONNECT	0x200
+#define HDMI_CEC		0x400
 
 enum hdmi_pll_pwr {
 	HDMI_PLLPWRCMD_ALLOFF = 0,
 	HDMI_PLLPWRCMD_PLLONLY = 1,
 	HDMI_PLLPWRCMD_BOTHON_ALLCLKS = 2,
 	HDMI_PLLPWRCMD_BOTHON_NOPHYCLK = 3
+};
+
+enum hdmi_pwrchg_reasons {
+	HDMI_PWRCHG_DEFAULT = 0,
+	HDMI_PWRCHG_MODE_CHANGE = (1L << 0),
+	HDMI_PWRCHG_RESYNC = (1L << 1),
 };
 
 enum hdmi_core_hdmi_dvi {
@@ -380,7 +387,8 @@ enum hdmi_aksv_err {
 };
 
 int hdmi_ti_4xxx_phy_init(struct hdmi_ip_data *ip_data, int tmds);
-void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data, bool set_mode);
+void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data,
+			enum hdmi_pwrchg_reasons reason);
 int read_ti_4xxx_edid(struct hdmi_ip_data *ip_data, u8 *pedid, u16 max_length);
 void hdmi_ti_4xxx_wp_video_start(struct hdmi_ip_data *ip_data, bool start);
 int hdmi_ti_4xxx_pll_program(struct hdmi_ip_data *ip_data,
@@ -411,4 +419,6 @@ int hdmi_ti_4xxx_set_wait_soft_reset(struct hdmi_ip_data *ip_data);
 int hdmi_ti_4xx_check_aksv_data(struct hdmi_ip_data *ip_data);
 void hdmi_core_vsi_config(struct hdmi_ip_data *ip_data,
 		struct hdmi_core_vendor_specific_infoframe *config);
+void hdmi_ti_4xxx_core_cec_enable_irq(struct hdmi_ip_data *ip_data, int enable);
+
 #endif

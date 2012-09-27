@@ -68,7 +68,7 @@ struct omap_dss_device virtual_dss_device = {
 	.type			= OMAP_DISPLAY_TYPE_DPI,
 	.name			= "virtual",
 	.driver_name		= "generic_dpi_panel",
-	.data			= &virtual_720p_panel,
+	.data			= &virtual_1080p_panel,
 	.phy.dpi.data_lines	= 24,
 	.reset_gpio		= -1,
 	.channel		= OMAP_DSS_CHANNEL_LCD2,
@@ -77,7 +77,7 @@ struct omap_dss_device virtual_dss_device = {
 			 .channel = {
 				.lck_div        = 1,
 				.pck_div        = 2,
-				.lcd_clk_src    = OMAP_DSS_CLK_SRC_FCK,
+				.lcd_clk_src    = OMAP_DSS_CLK_SRC_DSI2_PLL_HSDIV_DISPC,
 			},
 			.dispc_fclk_src = OMAP_DSS_CLK_SRC_FCK,
 		},
@@ -101,6 +101,11 @@ int __init panel_virtual_init(struct omap_dss_device *disp_data)
 		pr_info("%s: cannot register lcd_panel device\n", __func__);
 
 	*disp_data = virtual_dss_device;
+
+	if (conf->do_not_use_pll) {
+		disp_data->clocks.dispc.dispc_fclk_src = disp_data->clocks.dispc.channel.lcd_clk_src = OMAP_DSS_CLK_SRC_FCK;
+		disp_data->data = &virtual_720p_panel;
+	}
 	
 	return 0;
 }

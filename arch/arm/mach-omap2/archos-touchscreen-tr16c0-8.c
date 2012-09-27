@@ -23,6 +23,8 @@
 
 static int reset_gpio = UNUSED_GPIO;
 static int irq_gpio = UNUSED_GPIO;
+static const int i2c4_scl_gpio = 132;
+static const int i2c4_sda_gpio = 133;
 
 static struct regulator_consumer_supply tsp_vcc_consumer_o4[] = {
 	REGULATOR_SUPPLY("tsp_vcc", "4-005c"),
@@ -74,6 +76,49 @@ static int tr16c0_archos_get_irq_level(void)
 	return v;
 }
 
+static int tr16c0_archos_demux_i2c(int demux)
+{
+	//int v = omap_readl(0x4a100604);
+
+	pr_debug("%s:%d\n", __func__, demux);
+
+	if (demux) {
+		// disable irq pull up.
+		omap_mux_init_gpio(irq_gpio, OMAP_PIN_INPUT);
+
+		// switch back i2c lines to gpio mode
+		gpio_request(i2c4_scl_gpio, "i2c4_scl_gpio");
+		gpio_request(i2c4_sda_gpio, "i2c4_sda_gpio");
+
+		omap_mux_init_gpio(i2c4_scl_gpio, OMAP_PIN_OUTPUT);
+		omap_mux_init_gpio(i2c4_sda_gpio, OMAP_PIN_OUTPUT);
+
+		gpio_direction_output(i2c4_scl_gpio, 0);
+		gpio_direction_output(i2c4_sda_gpio, 0);
+
+		// force low level.
+		gpio_set_value(i2c4_scl_gpio, 0);
+		gpio_set_value(i2c4_sda_gpio, 0);
+
+		// disable omap internal pull ups
+		// omap_writel(v & ~(1 << 28), 0x4a100604);
+	} else {
+		// enable omap internal pull ups
+		// omap_writel(v | (1 << 28), 0x4a100604);
+
+		// put back irq pull up.
+		omap_mux_init_gpio(irq_gpio, OMAP_PIN_INPUT_PULLUP | OMAP_PIN_OFF_WAKEUPENABLE);
+
+		gpio_free(i2c4_scl_gpio);
+		gpio_free(i2c4_sda_gpio);
+
+		// mux back to i2c lines.
+		omap_mux_init_signal("i2c4_scl.i2c4_scl", OMAP_PIN_INPUT);
+		omap_mux_init_signal("i2c4_sda.i2c4_sda", OMAP_PIN_INPUT);
+	}
+
+	return 0;
+}
 
 int __init archos_touchscreen_tr16c0_init(struct tr16c0_platform_data *pdata)
 {
@@ -177,6 +222,10 @@ int __init archos_touchscreen_tr16c0_init(struct tr16c0_platform_data *pdata)
 
 	pdata->reset = &tr16c0_archos_reset;
 	pdata->get_irq_level = &tr16c0_archos_get_irq_level;
+	pdata->regulator = fixed_reg_tsp_vcc_initdata.consumer_supplies[0].supply;
+
+	if (!cpu_is_omap3630())
+		pdata->demux_i2c = &tr16c0_archos_demux_i2c;
 
 	pr_debug("%s: irq_gpio %d - irq %d, reset_gpio %d, pwr_gpio %d\n",
 			__func__, pdata->irq, conf->irq_gpio, conf->shtdwn_gpio, conf->pwr_gpio);

@@ -764,6 +764,7 @@ void uhh_omap_reset_link(struct ehci_hcd *ehci)
 	u32 temp_reg;
 	u8 count;
 	u16 orig_val, val;
+	unsigned long flags;
 
 	/* switch to internal 60Mhz clock */
 	temp_reg = omap_readl(L3INIT_HSUSBHOST_CLKCTRL);
@@ -797,8 +798,13 @@ void uhh_omap_reset_link(struct ehci_hcd *ehci)
 		pr_err("ehci:link_reset: soft-reset fail\n");
 
 	/* PHY reset via RESETB pin */
+	local_save_flags(flags);
+	spin_unlock(&ehci->lock);
+	local_irq_enable();
 	omap_ehci_hw_phy_reset(ehci_to_hcd(ehci));
-
+	local_irq_restore(flags);
+	spin_lock(&ehci->lock);
+	
 	/* switch back to external 60Mhz clock */
 	temp_reg &= ~(1 << 8);
 	temp_reg |= 1 << 24;
@@ -1279,7 +1285,19 @@ static int ehci_hub_control (
 			if (!selector || selector > 5)
 				goto error;
 			ehci_quiesce(ehci);
+
+			/* Put all enabled ports into suspend */
+			while (ports--) {
+				u32 __iomem *sreg =
+						&ehci->regs->port_status[ports];
+
+				temp = ehci_readl(ehci, sreg) & ~PORT_RWC_BITS;
+				if (temp & PORT_PE)
+					ehci_writel(ehci, temp | PORT_SUSPEND,
+							sreg);
+			}
 			ehci_halt(ehci);
+			temp = ehci_readl(ehci, status_reg);
 			temp |= selector << 16;
 			ehci_writel(ehci, temp, status_reg);
 			break;

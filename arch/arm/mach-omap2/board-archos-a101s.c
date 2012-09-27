@@ -30,6 +30,7 @@
 #include <linux/gpio_keys.h>
 #include <linux/hwspinlock.h>
 #include <linux/wakelock.h>
+#include <linux/mfd/twl6040-codec.h>
 
 #include <linux/leds.h>
 #include <linux/leds_pwm.h>
@@ -405,6 +406,12 @@ static struct archos_3g_config usb_3g_config __initdata = {
 	.nrev = 6,
 	.rev[0 ... 5] = {
 		.enable = 40,
+		.nreset = UNUSED_GPIO,
+		.nenable = UNUSED_GPIO,
+		.nsimdet = UNUSED_GPIO,
+		.wake = UNUSED_GPIO,
+		.wakehost = UNUSED_GPIO,
+		.nwakedisable = UNUSED_GPIO,
 	},
 };
 
@@ -633,6 +640,9 @@ static struct i2c_board_info __initdata pixcir_tsp_i2c_boardinfo[] = {
 static struct tr16c0_platform_data board_tr16c0_pdata = {
 	.x_max = 1280,
 	.y_max = 800,
+	.latest_fw_version = {
+		5, 4, 533,
+	},
 };
 
 static struct i2c_board_info __initdata tr16c0_tsp_i2c_boardinfo[] = {
@@ -708,7 +718,7 @@ static struct archos_display_config display_config __initdata = {
 		.lcd_pwon = 	38 ,
 		.lcd_rst = 	UNUSED_GPIO ,
 		.lcd_pci = 	UNUSED_GPIO,
-		.lvds_en = 	39 ,
+		.bridge_en = 	39 ,
 		.lcd_stdby = 	101,
 		.lcd_avdd_en = 	12 ,
 		.hdmi_pwr = 	37 ,
@@ -722,12 +732,13 @@ static struct archos_display_config display_config __initdata = {
 			.spi_cs   = UNUSED_GPIO,
 		},
 		.do_not_use_pll = 1,
+		.do_gamma_fix = 1,
 	},
 	.rev[4 ... 5] = {
 		.lcd_pwon = 	38 ,
 		.lcd_rst = 	UNUSED_GPIO ,
 		.lcd_pci = 	UNUSED_GPIO,
-		.lvds_en = 	39 ,
+		.bridge_en = 	39 ,
 		.lcd_stdby = 	101,
 		.lcd_avdd_en = 	12 ,
 		.hdmi_pwr = 	37 ,
@@ -740,6 +751,7 @@ static struct archos_display_config display_config __initdata = {
 			.spi_data = UNUSED_GPIO,
 			.spi_cs   = UNUSED_GPIO,
 		},
+		.do_gamma_fix = 1,
 	},
 };
 
@@ -872,6 +884,7 @@ static struct omap_dss_device archos_4430_hdmi_device = {
 	.driver_name = "hdmi_panel",
 	.type = OMAP_DISPLAY_TYPE_HDMI,
 	.hpd_gpio = HDMI_GPIO_HPD,
+	.cec_auto_switch = 1,
 	.clocks	= {
 		.dispc	= {
 			.dispc_fclk_src	= OMAP_DSS_CLK_SRC_FCK,
@@ -1077,6 +1090,10 @@ static int __init board_vaux3_init(void* driver_data)
 	return 0;
 }
 
+static struct regulator_consumer_supply board_vaux2_supply[] = {
+	REGULATOR_SUPPLY("cam_vdd", "archos_camera_glue"),
+};
+
 static struct regulator_init_data board_vaux2 = {
 	.constraints = {
 		.min_uV			= 2800000,
@@ -1087,12 +1104,14 @@ static struct regulator_init_data board_vaux2 = {
 		.valid_ops_mask	 = REGULATOR_CHANGE_VOLTAGE
 					| REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
-		.always_on		= true,
 		.state_mem = {
 			.enabled	= false,
 			.disabled	= true,
 		},
+		.initial_state		= PM_SUSPEND_MEM,
 	},
+	.num_consumer_supplies	= ARRAY_SIZE(board_vaux2_supply),
+	.consumer_supplies = board_vaux2_supply,
 };
 
 static struct regulator_consumer_supply board_vaux3_supply[] = {
@@ -1221,21 +1240,31 @@ static struct regulator_init_data board_vdac = {
 	},
 };
 
+static struct regulator_consumer_supply board_vusb_supply[] = {
+		REGULATOR_SUPPLY("vusb", "archos_twl6030_usb_xceiv"),
+};
+
 static struct regulator_init_data board_vusb = {
 	.constraints = {
 		.min_uV			= 3300000,
 		.max_uV			= 3300000,
-		.apply_uV		= true,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL
 					| REGULATOR_MODE_STANDBY,
 		.valid_ops_mask	 =	REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
 		.always_on		= uart3_on_usb,
 		.state_mem = {
-			.enabled	= false,
 			.disabled	= true,
 		},
+#ifdef CONFIG_ARCHOS_UART3_ON_DPDM
+		.initial_state		= PM_SUSPEND_ON,
+#else
+		.initial_state		= PM_SUSPEND_MEM,
+#endif
+		
 	},
+	.num_consumer_supplies	= ARRAY_SIZE(board_vusb_supply),
+	.consumer_supplies	= board_vusb_supply,
 };
 
 static struct twl4030_usb_data board_twl6030_usb_data = {
@@ -1249,13 +1278,43 @@ static struct twl4030_usb_data board_twl6030_usb_data = {
 };
 
 static struct twl4030_codec_audio_data twl6040_audio = {
+	/* single-step ramp for headset and handsfree */
+	.hs_left_step	= 0x0f,
+	.hs_right_step	= 0x0f,
+	.hf_left_step	= 0x1d,
+	.hf_right_step	= 0x1d,
 };
+
+static int twl6040_init(void)
+{
+	u8 rev = 0;
+	int ret;
+
+	ret = twl_i2c_read_u8(TWL_MODULE_AUDIO_VOICE,
+				&rev, TWL6040_REG_ASICREV);
+	if (ret)
+		return ret;
+
+	/*
+	 * ERRATA: Reset value of PDM_UL buffer logic is 1 (VDDVIO)
+	 * when AUDPWRON = 0, which causes current drain on this pin's
+	 * pull-down on OMAP side. The workaround consists of disabling
+	 * pull-down resistor of ABE_PDM_UL_DATA pin
+	 * Impacted revisions: ES1.1 and ES1.2 (both share same ASICREV value)
+	 */
+	if (rev == TWL6040_REV_1_1)
+		omap_mux_init_signal("abe_pdm_ul_data.abe_pdm_ul_data",
+			OMAP_PIN_INPUT);
+
+	return 0;
+}
 
 static struct twl4030_codec_data twl6040_codec = {
 	.audio_mclk	= 19200000,
 	.audio	= &twl6040_audio,
 	.naudint_irq    = OMAP44XX_IRQ_SYS_2N,
 	.irq_base	= TWL6040_CODEC_IRQ_BASE,
+	.init		= twl6040_init,
 };
 
 static struct twl4030_madc_platform_data board_gpadc_data = {
@@ -1265,14 +1324,14 @@ static struct twl4030_madc_platform_data board_gpadc_data = {
 static int board_batt_table[] = {
 	/* Sensicom CN0603R473B3750FB 47k B=3750  Rx=10k Ry=220k */
 	/* adc code for temperature in degree C */
-	925, 923,  /* -2 ,-1 */
-	920, 917, 914, 911, 908, 904, 901, 898, 894, 890,  /* 00 - 09 */
-	886, 882, 878, 874, 870, 865, 861, 856, 851, 846,  /* 10 - 19 */
-	841, 836, 830, 825, 819, 813, 807, 801, 795, 789,  /* 20 - 29 */
-	783, 776, 770, 763, 756, 749, 742, 735, 728, 721,  /* 30 - 39 */
-	713, 706, 698, 691, 683, 675, 668, 660, 652, 644,  /* 40 - 49 */
-	636, 628, 620, 612, 604, 596, 587, 579, 571, 563,  /* 50 - 59 */
-	555, 547, 539,  /* 60 - 62 */
+	1130, 1126,  /* -2 ,-1 */
+	1123, 1119, 1116, 1112, 1108, 1104, 1100, 1096, 1091, 1087,  /* 00 - 09 */
+	1082, 1077, 1072, 1067, 1062, 1056, 1051, 1045, 1039, 1033,  /* 10 - 19 */
+	1027, 1020, 1014, 1007, 1000, 993, 986, 978, 971, 963,  /* 20 - 29 */
+	956, 948, 940, 932, 923, 915, 906, 898, 889, 880,  /* 30 - 39 */
+	871, 862, 853, 843, 834, 825, 815, 806, 796, 786,  /* 40 - 49 */
+	776, 767, 757, 747, 737, 727, 717, 707, 697, 687,  /* 50 - 59 */
+	677, 667, 658,  /* 60 - 62 */
 };
 
 static struct twl4030_bci_platform_data board_bci_data = {
@@ -1291,6 +1350,13 @@ static struct regulator_init_data board_clk32kg = {
 		.valid_ops_mask         = REGULATOR_CHANGE_STATUS,
 		.always_on		= true,
        },
+};
+
+static struct regulator_init_data clk32kaudio = {
+	.constraints = {
+		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
+		.always_on		= true,
+	},
 };
 
 static struct twl4030_platform_data board_twldata = {
@@ -1313,6 +1379,7 @@ static struct twl4030_platform_data board_twldata = {
 	.codec          = &twl6040_codec,
 	.usb            = &board_twl6030_usb_data,
 	.clk32kg	= &board_clk32kg,
+	.clk32kaudio	= &clk32kaudio,
 };
 
 static void __init omap_i2c_hwspinlock_init(int bus_id, int spinlock_id,
@@ -1447,30 +1514,13 @@ static struct omap_device_pad tablet_uart3_pads[] __initdata = {
 	},
 	{	/* UART3 RX on usba0_otg_dp */
 		.name	= "usba0_otg_dp.usba0_otg_dp",
-		.flags	= OMAP_DEVICE_PAD_REMUX | OMAP_DEVICE_PAD_WAKEUP,
-		.enable	= OMAP_PIN_INPUT | OMAP_MUX_MODE1,
-		.idle	= OMAP_PIN_INPUT | OMAP_MUX_MODE1,
+		.enable	= OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE1,
 	},
 };
 
 static struct omap_device_pad no_uart_pads[] __initdata = {
 		/* empty structure */
 };
-
-/*
-static struct omap_device_pad tablet_uart4_pads[] __initdata = {
-	{
-		.name	= "uart4_tx.uart4_tx",
-		.enable	= OMAP_PIN_OUTPUT | OMAP_MUX_MODE0,
-	},
-	{
-		.name	= "uart4_rx.uart4_rx",
-		.flags	= OMAP_DEVICE_PAD_REMUX | OMAP_DEVICE_PAD_WAKEUP,
-		.enable	= OMAP_PIN_INPUT | OMAP_MUX_MODE0,
-		.idle	= OMAP_PIN_INPUT | OMAP_MUX_MODE0,
-	},
-};
-*/
 
 static struct omap_uart_port_info tablet_uart_info_uncon __initdata = {
 	.use_dma	= 0,
@@ -1508,10 +1558,6 @@ static inline void __init board_serial_init(void)
 		omap_serial_init_port_pads(2, no_uart_pads,
 				0, &tablet_uart_info_uncon);
 
-	/* We don't use uart4. */
-	/* omap_serial_init_port_pads(3, tablet_uart4_pads,
-	 *	ARRAY_SIZE(tablet_uart4_pads), &tablet_uart_info_uncon);
-	 */
 }
 
 static void __init board_touch_init(void)
@@ -1596,6 +1642,8 @@ static void __init board_init(void)
 
 	archos_memory_init();
 
+	archos_create_board_props();
+
 	omap4_i2c_init();
 	board_buttons_init();
 	board_xceiv_init();
@@ -1620,7 +1668,6 @@ static void __init board_init(void)
 	omap4_twl6030_hsmmc_init(mmc);
 
 	archos_omap4_ehci_init();
-	archos_camera_mt9m114_init();
 
 	omap_dmm_init();
 	omap_board_display_init();

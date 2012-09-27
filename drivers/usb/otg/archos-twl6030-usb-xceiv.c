@@ -34,6 +34,7 @@
 #include <linux/notifier.h>
 #include <linux/slab.h>
 #include <linux/switch.h>
+#include <linux/mutex.h>
 
 #include <linux/power_supply.h>
 
@@ -126,6 +127,7 @@ struct archos_twl6030_usb {
 	u8			linkstat;
 	u8			asleep;
 	u8 			phy_powered;
+	struct mutex	phy_powered_mutex;
 	bool			irq_enabled;
 	int			prev_vbus;
 
@@ -204,14 +206,19 @@ static int archos_twl6030_phy_init(struct otg_transceiver *x)
 	}
 	hw_state = archos_twl6030_readb(twl, TWL6030_MODULE_ID0, STS_HW_CONDITIONS);
 
-	if (!twl->phy_powered) {
-		if (hw_state & STS_USB_ID)
-			pdata->phy_power(twl->dev, 1, 1);
-		else
-			pdata->phy_power(twl->dev, 0, 1);
-		twl->phy_powered = 1;
-		pr_err("PHY ON\n");
+	mutex_lock(&twl->phy_powered_mutex);
+	if (twl->phy_powered) {
+		mutex_unlock(&twl->phy_powered_mutex);
+		return 0;
 	}
+	twl->phy_powered = 1;
+	mutex_unlock(&twl->phy_powered_mutex);
+
+	if (hw_state & STS_USB_ID)
+		pdata->phy_power(twl->dev, 1, 1);
+	else
+		pdata->phy_power(twl->dev, 0, 1);
+	pr_err("PHY ON\n");
 	return 0;
 }
 
@@ -222,10 +229,16 @@ static void archos_twl6030_phy_shutdown(struct otg_transceiver *x)
 	struct twl4030_usb_data *pdata;
 
 	twl = xceiv_to_twl(x);
+	pr_err("PHY OFF1 %s\n", in_interrupt()? "IRQ" : "");
 
-	if (!twl->phy_powered)
+	mutex_lock(&twl->phy_powered_mutex);
+	if (!twl->phy_powered) {
+		mutex_unlock(&twl->phy_powered_mutex);
 		return;
-		
+	}
+	twl->phy_powered = 0;
+	mutex_unlock(&twl->phy_powered_mutex);
+
 	/* USB_VBUS_CTRL_CLR */
 	twl_i2c_write_u8(TWL6030_MODULE_ID1, 0xFF, 0x05);
 	/* USB_ID_CRTL_CLR */
@@ -238,8 +251,6 @@ static void archos_twl6030_phy_shutdown(struct otg_transceiver *x)
 	pdata = dev->platform_data;
 	pdata->phy_power(twl->dev, 0, 0);
 	pr_err("PHY OFF\n");
-
-	twl->phy_powered = 0;
 }
 
 static int archos_twl6030_usb_ldo_init(struct archos_twl6030_usb *twl)
@@ -421,6 +432,9 @@ printk("STATE_GND -> STATE_NONE\n");
 			archos_twl6030_writeb(twl, TWL_MODULE_USB, 0x10, USB_ID_INT_EN_HI_CLR);
 			archos_twl6030_writeb(twl, TWL_MODULE_USB,  0x1, USB_ID_INT_EN_HI_SET);
 
+			//Re-enable the charger detection.
+			omap4_enable_charger_detect();
+
 			twl->state = STATE_NONE;
 			twl->otg.last_event = status;
 
@@ -441,6 +455,9 @@ printk("STATE_NONE -> STATE_GND\n");
 			twl->asleep = 1;
 			archos_twl6030_writeb(twl, TWL_MODULE_USB,  0x1, USB_ID_INT_EN_HI_CLR);
 			archos_twl6030_writeb(twl, TWL_MODULE_USB, 0x10, USB_ID_INT_EN_HI_SET);
+
+			//Disable charger detection, we are host now
+			omap4_disable_charger_detect();
 
 			twl->state = STATE_GND;
 			twl->otg.last_event = USB_EVENT_ID;
@@ -472,8 +489,11 @@ printk("STATE_NONE -> STATE_VBUS\n");
 printk("STATE_NONE -> STATE_CHARGER\n");
 				status = USB_EVENT_CHARGER;
 				twl->otg.last_event = status;
-				twl->usb_cinlimit_mA = 1500;
+				twl->usb_cinlimit_mA = 1800;
 				twl->state = STATE_CHARGER;
+
+				/* the ce pin needs an enabled phy */
+				archos_twl6030_phy_init(&twl->otg);
 			}
 			twl->prev_vbus = (vbus_state & VBUS_DET);
 			switch_set_state(&twl->usb_switch, twl->state);
@@ -491,7 +511,6 @@ printk("STATE_NONE -> STATE_CHARGER\n");
 
 static irqreturn_t archos_twl6030_usb_irq(int irq, void *_twl)
 {
-	u8 vbus_state;
 	struct archos_twl6030_usb *twl = _twl;
 	
 	schedule_delayed_work(&twl->work, 0);
@@ -541,7 +560,7 @@ static int archos_twl6030_enable_irq(struct otg_transceiver *x)
 	return 0;
 }
 
-unsigned int archos_twl6030_get_usb_max_power(struct otg_transceiver *x)
+static unsigned int archos_twl6030_get_usb_max_power(struct otg_transceiver *x)
 {
        struct archos_twl6030_usb *twl = xceiv_to_twl(x);
 
@@ -621,12 +640,15 @@ static int __devinit archos_twl6030_usb_probe(struct platform_device *pdev)
 	twl->otg.init           = archos_twl6030_phy_init;
 	twl->otg.shutdown       = archos_twl6030_phy_shutdown;
 	twl->otg.enable_irq	= archos_twl6030_enable_irq;
+	twl->otg.get_usb_max_power = archos_twl6030_get_usb_max_power;
 	twl->features		= pdata->features;
 	
 	twl->state = STATE_UNKNOWN;
 
 	/* init spinlock for workqueue */
 	spin_lock_init(&twl->lock);
+
+	mutex_init(&twl->phy_powered_mutex);
 
 	err = archos_twl6030_usb_ldo_init(twl);
 	if (err) {

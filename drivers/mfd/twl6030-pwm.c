@@ -32,7 +32,7 @@
 /* Pull down disable */
 #define PWM_CTRL2_DIS_PD	(1 << 6)
 
-/* LED Current control */ 
+/* LED Current control */
 #define PWM_CTRL2_CURR_02	(2 << 4) /* 2.5 milli Amps */
 #define PWM_CTRL2_CURR_03	(3 << 4) /*   5 milli Amps */
 
@@ -59,6 +59,7 @@
 struct pwm_device {
 	const char *label;
 	unsigned int pwm_id;
+	int duty_cycle;
 };
 
 int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
@@ -73,24 +74,28 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 			pwm->pwm_id, pwm->label,
 			duty_ns, period_ns);
 
+	if (duty_ns == period_ns)
+		duty_cycle = 64;
+	else
+		duty_cycle = 63 - (duty_ns * 63) / period_ns;
+
+	if (pwm->duty_cycle == duty_cycle)
+		return 0;
+
 	switch (pwm->pwm_id) {
 		case 3:
 			/* Custom PWM2 */
-			duty_cycle = 64 - (duty_ns * 64) / period_ns;
 			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1, duty_cycle | (1 << 7), TWL6030_PWM2ON);
 			if (ret < 0)
 				goto fail;
 
-			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1, 64, TWL6030_PWM2OFF);
 			break;
 		case 2:
 			/* Custom PWM1 */
-			duty_cycle = 64 - (duty_ns * 64) / period_ns;
 			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1, duty_cycle | (1 << 7), TWL6030_PWM1ON);
 			if (ret < 0)
 				goto fail;
 
-			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1, 64, TWL6030_PWM1OFF);
 			break;
 		case 1:
 			/* LED PWM */
@@ -102,6 +107,8 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 
 			break;
 	}
+
+	pwm->duty_cycle = duty_cycle;
 
 	if (ret < 0)
 		goto fail;
@@ -121,31 +128,13 @@ int pwm_enable(struct pwm_device *pwm)
 
 	switch (pwm->pwm_id) {
 		case 3:
-			/* Custom PWM2 */
-			ret = twl_i2c_read_u8(TWL6030_MODULE_ID1,
-					&val,
-					TWL6030_TOGGLE3);
-
-			if (ret < 0)
-				goto fail;
-
-			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1, 
-					(val | TOGGLE3_PWM2_SET | TOGGLE3_PWM2_CLK_EN),
-					TWL6030_TOGGLE3);
+			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1, 64, TWL6030_PWM2OFF);
 			break;
+
 		case 2:
-			/* Custom PWM1 */
-			ret = twl_i2c_read_u8(TWL6030_MODULE_ID1,
-					&val,
-					TWL6030_TOGGLE3);
-
-			if (ret < 0)
-				goto fail;
-
-			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1, 
-					(val | TOGGLE3_PWM1_SET | TOGGLE3_PWM1_CLK_EN),
-					TWL6030_TOGGLE3);
+			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1, 64, TWL6030_PWM1OFF);
 			break;
+
 		case 1:
 			/* LED PWM */
 			ret = twl_i2c_read_u8(TWL6030_MODULE_ID1,
@@ -189,29 +178,10 @@ void pwm_disable(struct pwm_device *pwm)
 
 	switch (pwm->pwm_id) {
 		case 3:
-			/* Custom PWM2 */
-			ret = twl_i2c_read_u8(TWL6030_MODULE_ID1,
-					&val,
-					TWL6030_TOGGLE3);
-			if (ret < 0)
-				goto fail;
-
-			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1, 
-					(val | TOGGLE3_PWM2_RESET) & ~TOGGLE3_PWM2_CLK_EN,
-					TWL6030_TOGGLE3);
-			break;
 		case 2:
-			/* Custom PWM1 */
-			ret = twl_i2c_read_u8(TWL6030_MODULE_ID1,
-					&val,
-					TWL6030_TOGGLE3);
-			if (ret < 0)
-				goto fail;
-
-			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1, 
-					(val | TOGGLE3_PWM1_RESET) & ~TOGGLE3_PWM1_CLK_EN,
-					TWL6030_TOGGLE3);
+			// do not reset block, output is not predictable.
 			break;
+
 		case 1:
 			/*  LED PWM  */
 			ret = twl_i2c_read_u8(TWL6030_MODULE_ID1,
@@ -246,6 +216,7 @@ EXPORT_SYMBOL(pwm_disable);
 
 struct pwm_device *pwm_request(int pwm_id, const char *label)
 {
+	u8 stat;
 	u8 val;
 	int ret;
 	struct pwm_device *pwm;
@@ -258,19 +229,51 @@ struct pwm_device *pwm_request(int pwm_id, const char *label)
 
 	pwm->label = label;
 	pwm->pwm_id = pwm_id;
+	pwm->duty_cycle = -1;
 
 	switch (pwm_id) {
 		case 3:
+			/* Custom PWM2 */
+			ret = twl_i2c_read_u8(TWL6030_MODULE_ID1,
+					&val,
+					TWL6030_TOGGLE3);
+
+			if (ret < 0)
+				goto fail;
+
+			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1,
+					(val | TOGGLE3_PWM2_SET | TOGGLE3_PWM2_CLK_EN),
+					TWL6030_TOGGLE3);
+			break;
 		case 2:
-			/* Custom PWM2 & Custom PWM1 */
-			/* No need for specific init */
+			/* Custom PWM1 */
+			ret = twl_i2c_read_u8(TWL6030_MODULE_ID1,
+					&val,
+					TWL6030_TOGGLE3);
+
+			if (ret < 0)
+				goto fail;
+
+			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1,
+					(val | TOGGLE3_PWM1_SET | TOGGLE3_PWM1_CLK_EN),
+					TWL6030_TOGGLE3);
 			break;
 
 		case 1:
 			/* LED PWM */
 			/* Configure PWM */
-			val = PWM_CTRL2_DIS_PD | PWM_CTRL2_CURR_03 |
-				PWM_CTRL2_SRC_VBUS | PWM_CTRL2_MODE_HW;
+			ret = twl_i2c_read_u8(TWL6030_MODULE_ID1,
+					&stat,
+					LED_PWM_CTRL2);
+
+			val = PWM_CTRL2_DIS_PD | PWM_CTRL2_SRC_VBUS |
+				PWM_CTRL2_MODE_HW;
+
+			/* Setup led current to 5mA if config is not set */
+			if (stat & (0x03 << 4))
+				val |= (stat & (0x03 << 4));
+			else
+				val |= PWM_CTRL2_CURR_03;
 
 			ret = twl_i2c_write_u8(TWL6030_MODULE_ID1,
 					val,
@@ -294,7 +297,44 @@ EXPORT_SYMBOL(pwm_request);
 
 void pwm_free(struct pwm_device *pwm)
 {
+	u8 val = 0;
+
 	pwm_disable(pwm);
+
+	switch (pwm->pwm_id) {
+		case 3:
+			/* Custom PWM2 */
+			twl_i2c_read_u8(TWL6030_MODULE_ID1,
+					&val,
+					TWL6030_TOGGLE3);
+
+			twl_i2c_write_u8(TWL6030_MODULE_ID1,
+					(val | TOGGLE3_PWM2_RESET),
+					TWL6030_TOGGLE3);
+
+			twl_i2c_write_u8(TWL6030_MODULE_ID1,
+					(val | TOGGLE3_PWM2_RESET) & ~TOGGLE3_PWM2_CLK_EN,
+					TWL6030_TOGGLE3);
+			break;
+		case 2:
+			/* Custom PWM1 */
+			twl_i2c_read_u8(TWL6030_MODULE_ID1,
+					&val,
+					TWL6030_TOGGLE3);
+
+			twl_i2c_write_u8(TWL6030_MODULE_ID1,
+					(val | TOGGLE3_PWM1_RESET),
+					TWL6030_TOGGLE3);
+
+			twl_i2c_write_u8(TWL6030_MODULE_ID1,
+					(val | TOGGLE3_PWM1_RESET) & ~TOGGLE3_PWM1_CLK_EN,
+					TWL6030_TOGGLE3);
+			break;
+
+		default:
+			break;
+	}
+
 	kfree(pwm);
 }
 EXPORT_SYMBOL(pwm_free);

@@ -24,10 +24,10 @@
 #define __OMAP2_DSS_H
 
 #ifdef CONFIG_OMAP2_DSS_DEBUG_SUPPORT
-#define DEBUG
+#define DSS_DEBUG
 #endif
 
-#ifdef DEBUG
+#ifdef DSS_DEBUG
 extern unsigned int dss_debug;
 #ifdef DSS_SUBSYS_NAME
 #define DSSDBG(format, ...) \
@@ -56,7 +56,7 @@ extern unsigned int dss_debug;
 				## __VA_ARGS__)
 #endif
 
-#else /* DEBUG */
+#else /* DSS_DEBUG */
 #define DSSDBG(format, ...)
 #define DSSDBGF(format, ...)
 #endif
@@ -180,6 +180,36 @@ struct dispc_config {
 	u32 wb_bottom_buffer;
 };
 
+/*TODO: Move this structure to manager.c*/
+struct writeback_cache_data {
+	/* If true, cache changed, but not written to shadow registers. Set
+	 * in apply(), cleared when registers written.
+	 */
+	bool dirty;
+	/* If true, shadow registers contain changed values not yet in real
+	 * registers. Set when writing to shadow registers, cleared at
+	 * VSYNC/EVSYNC
+	 */
+	bool shadow_dirty;
+	bool enabled;
+	u32 paddr;
+	u32 p_uv_addr; /* relevant for NV12 format only */
+	u16 out_width;
+	u16 out_height;
+	u16 width;
+	u16 height;
+	u32	fifo_low;
+	u32	fifo_high;
+	enum omap_color_mode			color_mode;
+	enum omap_color_mode			input_color_mode;
+	enum omap_writeback_capturemode	capturemode;
+	enum omap_writeback_source		source;
+	enum omap_burst_size			burst_size;
+	enum omap_writeback_mode		mode;
+	u8					rotation;
+	enum omap_dss_rotation_type		rotation_type;
+};
+
 struct seq_file;
 struct platform_device;
 
@@ -187,6 +217,8 @@ struct platform_device;
 struct bus_type *dss_get_bus(void);
 struct regulator *dss_get_vdds_dsi(void);
 struct regulator *dss_get_vdds_sdi(void);
+
+void omap_dss_request_bandwidth(int bandwidth);
 
 /* display */
 int dss_suspend_all_devices(void);
@@ -221,6 +253,11 @@ void dss_overlay_setup_dispc_manager(struct omap_overlay_manager *mgr);
 void dss_overlay_setup_l4_manager(struct omap_overlay_manager *mgr);
 #endif
 void dss_recheck_connections(struct omap_dss_device *dssdev, bool force);
+/* Write back */
+void dss_init_writeback(struct platform_device *pdev);
+void dss_uninit_writeback(struct platform_device *pdev);
+bool omap_dss_check_wb(struct writeback_cache_data *wb, int overlayId,
+			int managerId);
 
 /* DSS */
 int dss_init_platform_driver(void);
@@ -502,6 +539,8 @@ int dispc_set_clock_div(enum omap_channel channel,
 int dispc_get_clock_div(enum omap_channel channel,
 		struct dispc_clock_info *cinfo);
 u32 sa_calc_wrap(struct dispc_config *dispc_reg_config, u32 channel_no);
+int dispc_setup_wb(struct writeback_cache_data *wb);
+void dispc_go_wb(void);
 
 /* VENC */
 #ifdef CONFIG_OMAP2_DSS_VENC
@@ -562,10 +601,19 @@ u8 *hdmi_read_edid(struct omap_video_timings *);
 
 int hdmi_panel_init(void);
 void hdmi_panel_exit(void);
+
+void hdmi_panel_early_resume(struct omap_dss_device *dssdev);
+void hdmi_panel_early_suspend(struct omap_dss_device *dssdev);
+
 void hdmi_dump_regs(struct seq_file *s);
 int omapdss_hdmi_register_hdcp_callbacks(void (*hdmi_start_frame_cb)(void),
 					 void (*hdmi_irq_cb)(int status),
 					 bool (*hdmi_power_on_cb)(void));
+int omapdss_hdmi_register_cec_callbacks(void (*hdmi_cec_power_on_cb)(
+					int phy_addr, int status),
+					void (*hdmi_cec_irq_cb)(int));
+int omapdss_hdmi_is_auto_displayed(void);
+
 int omap_dss_ovl_set_info(struct omap_overlay *ovl,
 		struct omap_overlay_info *info);
 

@@ -862,6 +862,8 @@ static int machine_constraints_voltage(struct regulator_dev *rdev,
  * regulator operations to proceed i.e. set_voltage, set_current_limit,
  * set_mode.
  */
+static u32 _regulator_get_min_disable_time(struct regulator_dev *rdev);
+
 static int set_machine_constraints(struct regulator_dev *rdev,
 	const struct regulation_constraints *constraints)
 {
@@ -912,6 +914,11 @@ static int set_machine_constraints(struct regulator_dev *rdev,
 			rdev->constraints = NULL;
 			goto out;
 		}
+	} else if (_regulator_get_min_disable_time(rdev)) {
+			/* forcing immediate enable of regulator during boot */
+			rdev->regulator_disable_timestamp.tv_sec = 0;
+			rdev->regulator_disable_timestamp.tv_usec = 0;
+			//do_gettimeofday(&rdev->regulator_disable_timestamp);
 	}
 
 	print_constraints(rdev);
@@ -1109,6 +1116,24 @@ static int _regulator_get_enable_time(struct regulator_dev *rdev)
 	if (!rdev->desc->ops->enable_time)
 		return 0;
 	return rdev->desc->ops->enable_time(rdev);
+}
+
+#define MAX_TIME_ELAPSED (0xffffffff * 1000)
+static u32 timeval_msec_diff(struct timeval *lasttime, struct timeval *curtime)
+{
+	u64 cur = curtime->tv_sec * USEC_PER_SEC + curtime->tv_usec;
+	u64 last = lasttime->tv_sec * USEC_PER_SEC + lasttime->tv_usec;
+	if (cur - last > MAX_TIME_ELAPSED)
+		return 0xffffffff;
+
+	return (u32)div_u64((cur - last), 1000);
+}
+
+static u32 _regulator_get_min_disable_time(struct regulator_dev *rdev)
+{
+	if (!rdev->desc->ops->min_disable_time)
+		return 0;
+	return rdev->desc->ops->min_disable_time(rdev);
 }
 
 /* Internal regulator request function */
@@ -1329,6 +1354,21 @@ static int _regulator_enable(struct regulator_dev *rdev)
 			if (!rdev->desc->ops->enable)
 				return -EINVAL;
 
+			ret = _regulator_get_min_disable_time(rdev);
+			if (ret > 0) {
+				struct timeval cur;
+				u32 elapsed;
+				do_gettimeofday(&cur);
+				elapsed = timeval_msec_diff(&rdev->regulator_disable_timestamp, &cur);
+				rdev_info(rdev, "regulator \"%s\" already disabled for %ums", rdev_get_name(rdev), elapsed);
+				if (elapsed < ret) {
+					rdev_info(rdev, ", remaining: %ums\n", ret - elapsed);
+					mdelay(ret - elapsed);
+				}
+
+				rdev_info(rdev, "\n");
+			}
+
 			/* Query before enabling in case configuration
 			 * dependent.  */
 			ret = _regulator_get_enable_time(rdev);
@@ -1425,6 +1465,10 @@ static int _regulator_disable(struct regulator_dev *rdev,
 
 			_notifier_call_chain(rdev, REGULATOR_EVENT_DISABLE,
 					     NULL);
+
+			if (_regulator_get_min_disable_time(rdev)) {
+				do_gettimeofday(&rdev->regulator_disable_timestamp);
+			}
 		}
 
 		/* decrease our supplies ref count and disable if required */

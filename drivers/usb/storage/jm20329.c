@@ -260,8 +260,14 @@ static inline int jm20329_wakeup(struct jm20329_device *dev)
 	if (dev->pdrv->wakeup)
 		dev->pdrv->wakeup(dev);
 
-	if (dev->roothub)
+	if (dev->roothub) {
 		pm_runtime_get_sync(&dev->roothub->dev);
+		// In case the hub is still enumerated and suspended, we have to wake it manually
+		if (dev->roothub->children[0]) {
+			pm_runtime_get_sync(&dev->roothub->children[0]->dev);
+			pm_runtime_put(&dev->roothub->children[0]->dev);
+		}
+	}
 
 	dev->in_transition = JM20329_NONE;
 	dev->state = JM20329_AWAKE;

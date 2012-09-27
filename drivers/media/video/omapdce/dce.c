@@ -28,10 +28,22 @@
 #include <linux/uaccess.h>
 #include <linux/platform_device.h>
 #include <linux/ion.h>
+#include <linux/omap_ion.h>
 
 #include <media/omapdce.h>
 
 #include "dce_rpc.h"
+
+enum {
+	XDM_MEMTYPE_PVRFD = -1,
+	XDM_MEMTYPE_ROW = 0,
+	XDM_MEMTYPE_RAW = 0,
+	XDM_MEMTYPE_TILED8 = 1,
+	XDM_MEMTYPE_TILED16 = 2,
+	XDM_MEMTYPE_TILED32 = 3,
+	XDM_MEMTYPE_TILEDPAGE = 4
+};
+
 
 int debug_dce = 0;
 module_param(debug_dce, int, 0644);
@@ -111,7 +123,7 @@ static struct omap_dce_txn txns[MAX_TRANSACTIONS];
  * and pull all this into a struct.. but in rpmsg_cb we don't have a
  * way to get at that, so for now all global..
  */
-struct rpmsg_channel *rpdev;
+static struct rpmsg_channel *rpdev;
 static atomic_t next_req_id = ATOMIC_INIT(0);
 static DECLARE_WAIT_QUEUE_HEAD(wq);
 static DEFINE_MUTEX(lock);  // TODO probably more locking needed..
@@ -546,6 +558,18 @@ static u32 dce_virt_to_phys(u32 arg)
 	return 0;
 }
 
+static inline void dump_buf_desc(struct xdm2_single_buf_desc *desc)
+{
+	if (desc->mem_type >= XDM_MEMTYPE_TILED8) {
+		printk("buf: paddr: 0x%X, size: %dx%d, type: %s\n", desc->buf,
+		    desc->buf_size.tiled.width, desc->buf_size.tiled.height,
+		    desc->mem_type == XDM_MEMTYPE_TILED8 ? "XDM_MEMTYPE_TILED8" : "XDM_MEMTYPE_TILED16");
+	} else {
+		printk("buf: paddr: 0x%X, size: %d, type: RAW\n", desc->buf,
+		    desc->buf_size.bytes);
+	}
+}
+
 static inline int handle_single_buf_desc(
 		struct dce_file_priv *priv, struct dce_rpc_hdr *req,
 		struct xdm2_single_buf_desc *desc)
@@ -568,6 +592,57 @@ DBG("handle_single_buf_desc: pa %08lX", paddr);
 		return ret;
 	desc->buf = paddr;
 
+	if (debug_dce)
+		dump_buf_desc(desc);
+
+	return ret;
+}
+
+static inline int handle_pvrfd_buf_desc(struct dce_file_priv *priv,
+		struct xdm2_single_buf_desc *desc, ion_phys_addr_t paddr)
+{
+	desc->buf = paddr;
+	if (paddr >= 0x60000000 && paddr <= 0x67FFFFFF) {
+		desc->mem_type = XDM_MEMTYPE_TILED8;
+	} else if (paddr >= 0x68000000 && paddr <= 0x6FFFFFFF) {
+		desc->mem_type = XDM_MEMTYPE_TILED16;
+	} else {
+		pr_err("%s: paddr not handled: 0x%lX\n", __func__, paddr);
+		return -1;
+	}
+	if (debug_dce)
+		dump_buf_desc(desc);
+	return 0;
+}
+
+static inline int handle_pvrfd_buf_descs(struct dce_file_priv *priv,
+		struct xdm2_buf_desc *bufs)
+{
+	int ret = -1;
+	int fd;
+	int i;
+	int nb_handles = 2;
+	size_t unused;
+	struct ion_client *pvr_ion_client;
+	struct ion_handle *handles[2] = { NULL, NULL };
+	ion_phys_addr_t paddr;
+
+
+	fd = (int) bufs->descs[0].buf;
+	omap_ion_fd_to_handles(fd, &pvr_ion_client, handles, &nb_handles);
+	if ((nb_handles != 2) || !handles[0] || !handles[1]) {
+		pr_err("%s: Dce can not export ION fd\n", __func__);
+		return -1;
+	}
+	for (i = 0; i < 2; ++i) {
+		if (!ion_phys(pvr_ion_client, handles[i], &paddr, &unused)) {
+			ret = handle_pvrfd_buf_desc(priv, &bufs->descs[i], paddr);
+
+			if (ret)
+				return ret;
+		}
+	}
+
 	return ret;
 }
 
@@ -576,7 +651,8 @@ static inline int handle_buf_desc(void **ptr, void *end,
 		uint8_t *len)
 {
 	struct xdm2_buf_desc *bufs = *ptr;
-	int i, ret;
+	int i;
+	int ret;
 
 	/* read num_bufs field: */
 	ret = cfu(ptr, usr, 4, end);
@@ -591,11 +667,19 @@ static inline int handle_buf_desc(void **ptr, void *end,
 	*len = (4 + bufs->num_bufs * sizeof(bufs->descs[0])) / 4;
 
 	/* handle buffer mapping.. */
-	for (i = 0; i < bufs->num_bufs; i++) {
-		ret = handle_single_buf_desc(priv, req, &bufs->descs[i]);
+
+	if (bufs->num_bufs == 2 && bufs->descs[0].mem_type == XDM_MEMTYPE_PVRFD) {
+		ret = handle_pvrfd_buf_descs(priv, bufs);
 
 		if (ret)
 			return ret;
+	} else {
+		for (i = 0; i < bufs->num_bufs; i++) {
+			ret = handle_single_buf_desc(priv, req, &bufs->descs[i]);
+
+			if (ret)
+				return ret;
+		}
 	}
 
 	return 0;

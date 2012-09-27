@@ -106,6 +106,8 @@ struct tma340_version {
 struct cypress_tma340_priv {
 	struct i2c_client *client;
 	struct input_dev *input_dev;
+	struct platform_device *pdev;
+
 	struct completion irq_trigged;
 	struct regulator *regulator;
 	struct wake_lock wakelock;
@@ -1016,7 +1018,7 @@ static ssize_t _store_calibration(struct device *dev, struct device_attribute *a
 
 	return count;
 }
-static DEVICE_ATTR(calibration_trigger, S_IWUSR | S_IRUGO, NULL, _store_calibration);
+static DEVICE_ATTR(calibration_trigger, S_IRUGO | S_IWUGO, NULL, _store_calibration);
 
 static ssize_t _show_upgrade_state(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -1197,6 +1199,12 @@ static int cypress_tma340_probe(struct i2c_client *client, const struct i2c_devi
 
 	ret = sysfs_create_group(&client->dev.kobj, &attr_group);
 
+	priv->pdev = platform_device_register_simple("archos_touchscreen", -1, NULL, 0);
+	if (IS_ERR(priv->pdev))
+		return ret;
+
+	ret = sysfs_create_link(&priv->pdev->dev.kobj, &client->dev.kobj, "tsp");
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	priv->early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
 	priv->early_suspend.suspend = cypress_tma340_early_suspend;
@@ -1247,6 +1255,10 @@ err_regulator_get:
 static int cypress_tma340_remove(struct i2c_client *client)
 {
 	struct cypress_tma340_priv *priv = i2c_get_clientdata(client);
+
+	sysfs_remove_link(&priv->pdev->dev.kobj, "tsp");
+
+	platform_device_unregister(priv->pdev);
 
 	sysfs_remove_group(&client->dev.kobj, &attr_group);
 

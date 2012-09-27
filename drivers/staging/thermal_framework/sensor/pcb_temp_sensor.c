@@ -42,6 +42,16 @@
 #define PCB_REPORT_DELAY_MS	1000
 
 /*
+ * Set this to 0 to disable the registration of the PCB
+ * sensor against the thermal framework. The sensor will
+ * have no effect on the device behaviour, but its
+ * value will be available using the proper sysfs.
+ * This can be enabled/disabled at runtime using the
+ * thermal_fw_report sysfs.
+ */
+#define REPORT_TO_THERMAL_FW	1
+
+/*
  * pcb_temp_sensor structure
  * @pdev - Platform device pointer
  * @dev - device pointer
@@ -56,133 +66,42 @@ struct pcb_temp_sensor {
 	struct delayed_work pcb_sensor_work;
 	int work_delay;
 	int debug_temp;
+	struct pcb_temp_sensor_pdata *pdata;
+	int thermal_fw_report_enabled;
 };
 
-#define TWL6030_ADC_START_VALUE 126
-#define TWL6030_ADC_END_VALUE   978
-#define TWL6030_GPADC_CHANNEL     4
-/*
- * Temperature values in milli degrees celsius ADC code values from 978 to 126
- */
-static int adc_to_temp[] = {
-	-40000, -40000, -40000, -40000, -40000, -37000, -35000, -33000, -31000,
-	-29000, -28000, -27000, -25000, -24000, -23000, -22000, -21000, -20000,
-	-19000, -18000, -17000, -17000, -16000, -15000, -14000, -14000, -13000,
-	-12000, -12000, -11000, -11000, -10000, -10000, -9000, -8000, -8000,
-	-7000, -7000, -6000, -6000, -6000, -5000, -5000, -4000, -4000, -3000,
-	-3000, -3000, -2000, -2000, -1000, -1000, -1000, 0, 0, 0, 1000, 1000,
-	1000, 2000, 2000, 2000, 3000, 3000, 3000, 4000, 4000, 4000, 5000, 5000,
-	5000, 6000, 6000, 6000, 6000, 7000, 7000, 7000, 8000, 8000, 8000, 8000,
-	9000, 9000, 9000, 9000, 10000, 10000, 10000, 10000, 11000, 11000,
-	11000, 11000, 12000, 12000, 12000, 12000, 12000, 13000, 13000, 13000,
-	13000, 14000, 14000, 14000, 14000, 14000, 15000, 15000, 15000, 15000,
-	15000, 16000, 16000, 16000, 16000, 16000, 17000, 17000, 17000, 17000,
-	17000, 18000, 18000, 18000, 18000, 18000, 19000, 19000, 19000, 19000,
-	19000, 20000, 20000, 20000, 20000, 20000, 20000, 21000, 21000, 21000,
-	21000, 21000, 22000, 22000, 22000, 22000, 22000, 22000, 23000, 23000,
-	23000, 23000, 23000, 23000, 24000, 24000, 24000, 24000, 24000, 24000,
-	25000, 25000, 25000, 25000, 25000, 25000, 25000, 26000, 26000, 26000,
-	26000, 26000, 26000, 27000, 27000, 27000, 27000, 27000, 27000, 27000,
-	28000, 28000, 28000, 28000, 28000, 28000, 29000, 29000, 29000, 29000,
-	29000, 29000, 29000, 30000, 30000, 30000, 30000, 30000, 30000, 30000,
-	31000, 31000, 31000, 31000, 31000, 31000, 31000, 32000, 32000, 32000,
-	32000, 32000, 32000, 32000, 33000, 33000, 33000, 33000, 33000, 33000,
-	33000, 33000, 34000, 34000, 34000, 34000, 34000, 34000, 34000, 35000,
-	35000, 35000, 35000, 35000, 35000, 35000, 35000, 36000, 36000, 36000,
-	36000, 36000, 36000, 36000, 36000, 37000, 37000, 37000, 37000, 37000,
-	37000, 37000, 38000, 38000, 38000, 38000, 38000, 38000, 38000, 38000,
-	39000, 39000, 39000, 39000, 39000, 39000, 39000, 39000, 39000, 40000,
-	40000, 40000, 40000, 40000, 40000, 40000, 40000, 41000, 41000, 41000,
-	41000, 41000, 41000, 41000, 41000, 42000, 42000, 42000, 42000, 42000,
-	42000, 42000, 42000, 43000, 43000, 43000, 43000, 43000, 43000, 43000,
-	43000, 43000, 44000, 44000, 44000, 44000, 44000, 44000, 44000, 44000,
-	45000, 45000, 45000, 45000, 45000, 45000, 45000, 45000, 45000, 46000,
-	46000, 46000, 46000, 46000, 46000, 46000, 46000, 47000, 47000, 47000,
-	47000, 47000, 47000, 47000, 47000, 47000, 48000, 48000, 48000, 48000,
-	48000, 48000, 48000, 48000, 48000, 49000, 49000, 49000, 49000, 49000,
-	49000, 49000, 49000, 49000, 50000, 50000, 50000, 50000, 50000, 50000,
-	50000, 50000, 51000, 51000, 51000, 51000, 51000, 51000, 51000, 51000,
-	51000, 52000, 52000, 52000, 52000, 52000, 52000, 52000, 52000, 52000,
-	53000, 53000, 53000, 53000, 53000, 53000, 53000, 53000, 53000, 54000,
-	54000, 54000, 54000, 54000, 54000, 54000, 54000, 54000, 55000, 55000,
-	55000, 55000, 55000, 55000, 55000, 55000, 55000, 56000, 56000, 56000,
-	56000, 56000, 56000, 56000, 56000, 56000, 57000, 57000, 57000, 57000,
-	57000, 57000, 57000, 57000, 57000, 58000, 58000, 58000, 58000, 58000,
-	58000, 58000, 58000, 58000, 59000, 59000, 59000, 59000, 59000, 59000,
-	59000, 59000, 59000, 60000, 60000, 60000, 60000, 60000, 60000, 60000,
-	60000, 61000, 61000, 61000, 61000, 61000, 61000, 61000, 61000, 61000,
-	62000, 62000, 62000, 62000, 62000, 62000, 62000, 62000, 62000, 63000,
-	63000, 63000, 63000, 63000, 63000, 63000, 63000, 63000, 64000, 64000,
-	64000, 64000, 64000, 64000, 64000, 64000, 64000, 65000, 65000, 65000,
-	65000, 65000, 65000, 65000, 65000, 66000, 66000, 66000, 66000, 66000,
-	66000, 66000, 66000, 66000, 67000, 67000, 67000, 67000, 67000, 67000,
-	67000, 67000, 68000, 68000, 68000, 68000, 68000, 68000, 68000, 68000,
-	68000, 69000, 69000, 69000, 69000, 69000, 69000, 69000, 69000, 70000,
-	70000, 70000, 70000, 70000, 70000, 70000, 70000, 70000, 71000, 71000,
-	71000, 71000, 71000, 71000, 71000, 71000, 72000, 72000, 72000, 72000,
-	72000, 72000, 72000, 72000, 73000, 73000, 73000, 73000, 73000, 73000,
-	73000, 73000, 74000, 74000, 74000, 74000, 74000, 74000, 74000, 74000,
-	75000, 75000, 75000, 75000, 75000, 75000, 75000, 75000, 76000, 76000,
-	76000, 76000, 76000, 76000, 76000, 76000, 77000, 77000, 77000, 77000,
-	77000, 77000, 77000, 77000, 78000, 78000, 78000, 78000, 78000, 78000,
-	78000, 79000, 79000, 79000, 79000, 79000, 79000, 79000, 79000, 80000,
-	80000, 80000, 80000, 80000, 80000, 80000, 81000, 81000, 81000, 81000,
-	81000, 81000, 81000, 82000, 82000, 82000, 82000, 82000, 82000, 82000,
-	82000, 83000, 83000, 83000, 83000, 83000, 83000, 83000, 84000, 84000,
-	84000, 84000, 84000, 84000, 84000, 85000, 85000, 85000, 85000, 85000,
-	85000, 85000, 86000, 86000, 86000, 86000, 86000, 86000, 87000, 87000,
-	87000, 87000, 87000, 87000, 87000, 88000, 88000, 88000, 88000, 88000,
-	88000, 88000, 89000, 89000, 89000, 89000, 89000, 89000, 90000, 90000,
-	90000, 90000, 90000, 90000, 91000, 91000, 91000, 91000, 91000, 91000,
-	91000, 92000, 92000, 92000, 92000, 92000, 92000, 93000, 93000, 93000,
-	93000, 93000, 93000, 94000, 94000, 94000, 94000, 94000, 94000, 95000,
-	95000, 95000, 95000, 95000, 96000, 96000, 96000, 96000, 96000, 96000,
-	97000, 97000, 97000, 97000, 97000, 97000, 98000, 98000, 98000, 98000,
-	98000, 99000, 99000, 99000, 99000, 99000, 100000, 100000, 100000,
-	100000, 100000, 100000, 101000, 101000, 101000, 101000, 101000, 102000,
-	102000, 102000, 102000, 102000, 103000, 103000, 103000, 103000, 103000,
-	104000, 104000, 104000, 104000, 104000, 105000, 105000, 105000, 105000,
-	106000, 106000, 106000, 106000, 106000, 107000, 107000, 107000, 107000,
-	108000, 108000, 108000, 108000, 108000, 109000, 109000, 109000, 109000,
-	110000, 110000, 110000, 110000, 111000, 111000, 111000, 111000, 112000,
-	112000, 112000, 112000, 112000, 113000, 113000, 113000, 114000, 114000,
-	114000, 114000, 115000, 115000, 115000, 115000, 116000, 116000, 116000,
-	116000, 117000, 117000, 117000, 118000, 118000, 118000, 118000, 119000,
-	119000, 119000, 120000, 120000, 120000, 120000, 121000, 121000, 121000,
-	122000, 122000, 122000, 123000, 123000, 123000, 124000, 124000, 124000,
-	124000, 125000, 125000, 125000, 125000, 125000, 125000, 125000, 125000,
-	125000, 125000, 125000, 125000,
-};
+static void pcb_enable_thermal_fw_report(struct pcb_temp_sensor *temp_sensor, int on);
 
-static int adc_to_temp_conversion(int adc_val)
+
+static int pcb_read_current_temp_raw(struct pcb_temp_sensor *temp_sensor)
 {
-	if ((adc_val < TWL6030_ADC_START_VALUE) ||
-		(adc_val > TWL6030_ADC_END_VALUE)) {
-		pr_err("%s:Temp read is invalid %i\n", __func__, adc_val);
-		return -EINVAL;
-	}
-
-	return adc_to_temp[TWL6030_ADC_END_VALUE - adc_val];
-}
-
-static int pcb_read_current_temp(struct pcb_temp_sensor *temp_sensor)
-{
-	int temp = 0;
 	struct twl6030_gpadc_request req;
 	int val;
 
-	req.channels = (1 << TWL6030_GPADC_CHANNEL);
+	req.channels = (1 << temp_sensor->pdata->gpadc_channel);
 	req.method = TWL6030_GPADC_SW2;
 	req.func_cb = NULL;
+	req.type = TWL6030_GPADC_WAIT;
 	val = twl6030_gpadc_conversion(&req);
 	if (val < 0) {
 		pr_err("%s:TWL6030_GPADC conversion is invalid %d\n",
 			__func__, val);
 		return -EINVAL;
 	}
-	temp = adc_to_temp_conversion(req.buf[TWL6030_GPADC_CHANNEL].code);
 
-	return temp;
+	return req.rbuf[temp_sensor->pdata->gpadc_channel];
+}
+
+static int pcb_read_current_temp(struct pcb_temp_sensor *temp_sensor)
+{
+	int val;
+
+	val = pcb_read_current_temp_raw(temp_sensor);
+	msleep(100);
+	if (val < 0)
+		return val;
+
+	return temp_sensor->pdata->adc_to_temp_conversion(val);
 }
 
 static int pcb_get_temp(struct thermal_dev *tdev)
@@ -202,14 +121,13 @@ static void pcb_report_fw_temp(struct thermal_dev *tdev)
 	struct pcb_temp_sensor *temp_sensor = platform_get_drvdata(pdev);
 	int ret;
 
-	pcb_read_current_temp(temp_sensor);
+	pcb_get_temp(tdev);
 	if (temp_sensor->therm_fw->current_temp != -EINVAL) {
 		ret = thermal_sensor_set_temp(temp_sensor->therm_fw);
 		if (ret == -ENODEV)
 			pr_err("%s:thermal_sensor_set_temp reports error\n",
 				__func__);
-		else
-			cancel_delayed_work_sync(&temp_sensor->pcb_sensor_work);
+
 		kobject_uevent(&temp_sensor->dev->kobj, KOBJ_CHANGE);
 	}
 }
@@ -264,12 +182,56 @@ static int pcb_temp_sensor_read_temp(struct device *dev,
 	return sprintf(buf, "%d\n", temp);
 }
 
+static int pcb_temp_sensor_read_temp_raw(struct device *dev,
+				      struct device_attribute *devattr,
+				      char *buf)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct pcb_temp_sensor *temp_sensor = platform_get_drvdata(pdev);
+	int val = 0;
+
+	val = pcb_read_current_temp_raw(temp_sensor);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t show_thermal_fw_report(struct device *dev,
+			struct device_attribute *devattr, char *buf)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct pcb_temp_sensor *temp_sensor = platform_get_drvdata(pdev);
+
+	return sprintf(buf, "%d\n", temp_sensor->thermal_fw_report_enabled);
+}
+
+static ssize_t store_thermal_fw_report(struct device *dev,
+			struct device_attribute *devattr,
+			const char *buf, size_t count)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct pcb_temp_sensor *temp_sensor = platform_get_drvdata(pdev);
+	long val;
+
+	if (strict_strtol(buf, 10, &val))
+		count = -EINVAL;
+	else
+		pcb_enable_thermal_fw_report(temp_sensor, val);
+	
+	return count;
+}
+
 static DEVICE_ATTR(debug_user, S_IWUSR | S_IRUGO, show_temp_user_space,
 			  set_temp_user_space);
 static DEVICE_ATTR(temp1_input, S_IRUGO, pcb_temp_sensor_read_temp,
 			  NULL);
+static DEVICE_ATTR(temp1_input_raw, S_IRUGO, pcb_temp_sensor_read_temp_raw,
+			  NULL);
+static DEVICE_ATTR(thermal_fw_report, S_IWUSR | S_IRUGO, show_thermal_fw_report,
+			  store_thermal_fw_report);
 
 static struct attribute *pcb_temp_sensor_attributes[] = {
+	&dev_attr_thermal_fw_report.attr,
+	&dev_attr_temp1_input_raw.attr,
 	&dev_attr_temp1_input.attr,
 	&dev_attr_debug_user.attr,
 	NULL
@@ -282,6 +244,27 @@ static const struct attribute_group pcb_temp_sensor_group = {
 static struct thermal_dev_ops pcb_sensor_ops = {
 	.report_temp = pcb_get_temp,
 };
+
+static void pcb_enable_thermal_fw_report(struct pcb_temp_sensor *temp_sensor, int on)
+{
+	if (temp_sensor->thermal_fw_report_enabled == !!on)
+		return;
+
+	temp_sensor->thermal_fw_report_enabled = !!on;
+
+	if (temp_sensor->thermal_fw_report_enabled) {
+		temp_sensor->therm_fw->dev_ops = &pcb_sensor_ops;
+		thermal_sensor_dev_register(temp_sensor->therm_fw);
+		schedule_delayed_work(&temp_sensor->pcb_sensor_work,
+				msecs_to_jiffies(0));
+	} else {
+		cancel_delayed_work_sync(&temp_sensor->pcb_sensor_work);
+		temp_sensor->therm_fw->current_temp = 0;
+		thermal_sensor_set_temp(temp_sensor->therm_fw);
+		thermal_sensor_dev_unregister(temp_sensor->therm_fw);
+		temp_sensor->therm_fw->dev_ops = NULL;
+	}
+}
 
 static void pcb_sensor_delayed_work_fn(struct work_struct *work)
 {
@@ -322,13 +305,18 @@ static int __devinit pcb_temp_sensor_probe(struct platform_device *pdev)
 	kobject_uevent(&pdev->dev.kobj, KOBJ_ADD);
 	platform_set_drvdata(pdev, temp_sensor);
 
+	temp_sensor->pdata = pdata;
+
+	temp_sensor->thermal_fw_report_enabled = REPORT_TO_THERMAL_FW;
+
 	temp_sensor->therm_fw = kzalloc(sizeof(struct thermal_dev), GFP_KERNEL);
 	if (temp_sensor->therm_fw) {
 		temp_sensor->therm_fw->name = "pcb_sensor";
 		temp_sensor->therm_fw->domain_name = "cpu";
 		temp_sensor->therm_fw->dev = temp_sensor->dev;
 		temp_sensor->therm_fw->dev_ops = &pcb_sensor_ops;
-		thermal_sensor_dev_register(temp_sensor->therm_fw);
+		if (temp_sensor->thermal_fw_report_enabled)
+			thermal_sensor_dev_register(temp_sensor->therm_fw);
 	} else {
 		dev_err(&pdev->dev, "%s:Cannot alloc memory for thermal fw\n",
 			__func__);
@@ -344,8 +332,9 @@ static int __devinit pcb_temp_sensor_probe(struct platform_device *pdev)
 	}
 
 	temp_sensor->work_delay = PCB_REPORT_DELAY_MS;
-	schedule_delayed_work(&temp_sensor->pcb_sensor_work,
-			msecs_to_jiffies(0));
+	if (temp_sensor->thermal_fw_report_enabled)
+		schedule_delayed_work(&temp_sensor->pcb_sensor_work,
+				msecs_to_jiffies(0));
 
 	dev_info(&pdev->dev, "%s : '%s'\n", temp_sensor->therm_fw->name,
 			pdata->name);
@@ -353,7 +342,8 @@ static int __devinit pcb_temp_sensor_probe(struct platform_device *pdev)
 	return 0;
 
 sysfs_create_err:
-	thermal_sensor_dev_unregister(temp_sensor->therm_fw);
+	if (temp_sensor->thermal_fw_report_enabled)
+		thermal_sensor_dev_unregister(temp_sensor->therm_fw);
 	kfree(temp_sensor->therm_fw);
 	platform_set_drvdata(pdev, NULL);
 therm_fw_alloc_err:
@@ -367,8 +357,10 @@ static int __devexit pcb_temp_sensor_remove(struct platform_device *pdev)
 	struct pcb_temp_sensor *temp_sensor = platform_get_drvdata(pdev);
 
 	sysfs_remove_group(&pdev->dev.kobj, &pcb_temp_sensor_group);
-	cancel_delayed_work_sync(&temp_sensor->pcb_sensor_work);
-	thermal_sensor_dev_unregister(temp_sensor->therm_fw);
+	if (temp_sensor->thermal_fw_report_enabled) {
+		cancel_delayed_work_sync(&temp_sensor->pcb_sensor_work);
+		thermal_sensor_dev_unregister(temp_sensor->therm_fw);
+	}
 	kfree(temp_sensor->therm_fw);
 	kobject_uevent(&temp_sensor->dev->kobj, KOBJ_REMOVE);
 	platform_set_drvdata(pdev, NULL);
@@ -404,7 +396,7 @@ static struct platform_driver pcb_temp_sensor_driver = {
 
 int __init pcb_temp_sensor_init(void)
 {
-	if (!cpu_is_omap446x())
+	if (!cpu_is_omap446x() && !cpu_is_omap447x())
 		return 0;
 
 	return platform_driver_register(&pcb_temp_sensor_driver);

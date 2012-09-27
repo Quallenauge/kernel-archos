@@ -384,6 +384,7 @@ int thermal_cooling_dev_register(struct thermal_dev *tdev)
 	if (list_empty(&thermal_domain_list)) {
 		goto init_cooling_agent;
 	} else {
+		printk("%s: Taking thermal_domain_list_lock\n", tdev->name);
 		mutex_lock(&thermal_domain_list_lock);
 		list_for_each_entry(domain, &thermal_domain_list, node) {
 			pr_info("%s:Found %s %s\n", __func__,
@@ -396,6 +397,7 @@ int thermal_cooling_dev_register(struct thermal_dev *tdev)
 			}
 		}
 		mutex_unlock(&thermal_domain_list_lock);
+		printk("%s: thermal_domain_list_lock released\n", tdev->name);
 	}
 
 init_cooling_agent:
@@ -408,10 +410,12 @@ init_cooling_agent:
 	therm_dom->domain_name = tdev->domain_name;
 	INIT_LIST_HEAD(&therm_dom->cooling_agents);
 	list_add(&tdev->node, &therm_dom->cooling_agents);
+	printk("%s: Taking thermal_domain_list_lock\n", tdev->name);
 	mutex_lock(&thermal_domain_list_lock);
 	list_add(&therm_dom->node, &thermal_domain_list);
 out:
 	mutex_unlock(&thermal_domain_list_lock);
+	printk("%s: thermal_domain_list_lock released\n", tdev->name);
 	thermal_init_thermal_state(tdev);
 
 	return 0;
@@ -507,7 +511,7 @@ void thermal_sensor_dev_unregister(struct thermal_dev *tdev)
 
 	list_for_each_entry(domain, &thermal_domain_list, node) {
 		if (!strcmp(domain->domain_name, tdev->domain_name)) {
-			kfree(domain->temp_sensor);
+			//kfree(domain->temp_sensor);
 			domain->temp_sensor = NULL;
 		}
 	}

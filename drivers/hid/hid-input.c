@@ -271,7 +271,7 @@ static __s32 hidinput_calc_abs_res(const struct hid_field *field, __u16 code)
 	return logical_extents / physical_extents;
 }
 
-static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_field *field,
+void hidinput_configure_usage(struct hid_input *hidinput, struct hid_field *field,
 				     struct hid_usage *usage)
 {
 	struct input_dev *input = hidinput->input;
@@ -922,6 +922,10 @@ int hidinput_connect(struct hid_device *hid, unsigned int force)
 	for (k = HID_INPUT_REPORT; k <= HID_OUTPUT_REPORT; k++) {
 		if (k == HID_OUTPUT_REPORT &&
 			hid->quirks & HID_QUIRK_SKIP_OUTPUT_REPORTS)
+			continue;
+
+		if (k == HID_INPUT_REPORT &&
+			hid->quirks & HID_QUIRK_SKIP_INPUT_REPORTS)
 			continue;
 
 		list_for_each_entry(report, &hid->report_enum[k].report_list, list) {

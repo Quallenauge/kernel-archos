@@ -119,6 +119,9 @@ struct otg_transceiver {
 
 	/* start or continue HNP role switch */
 	int	(*start_hnp)(struct otg_transceiver *otg);
+	
+	/* welwarsky@archos: get the cin_limit */
+	unsigned int (*get_usb_max_power)(struct otg_transceiver *otg);
 
 };
 
@@ -270,6 +273,15 @@ otg_set_irq(struct otg_transceiver *otg)
 {
 	if (otg->enable_irq != NULL)
 		return otg->enable_irq(otg);
+	else
+		return 0;
+}
+
+static inline unsigned int
+otg_get_usb_max_power(struct otg_transceiver *otg)
+{
+	if (otg->get_usb_max_power != NULL)
+		return otg->get_usb_max_power(otg);
 	else
 		return 0;
 }

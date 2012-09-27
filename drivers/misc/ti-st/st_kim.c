@@ -40,6 +40,9 @@
 #define MAX_ST_DEVICES	3	/* Imagine 1 on each UART for now */
 static struct platform_device *st_kim_devices[MAX_ST_DEVICES];
 
+/* referance to store the chip version */
+static short g_wilink_version = 0;
+
 /**********************************************************************/
 /* internal functions */
 
@@ -216,6 +219,7 @@ static long read_local_version(struct kim_data_s *kim_gdata, char *bts_scr_name)
 	version =
 		MAKEWORD(kim_gdata->resp_buffer[13],
 				kim_gdata->resp_buffer[14]);
+	g_wilink_version = version;
 	chip = (version & 0x7C00) >> 10;
 	min_ver = (version & 0x007F);
 	maj_ver = (version & 0x0380) >> 7;
@@ -233,6 +237,11 @@ static long read_local_version(struct kim_data_s *kim_gdata, char *bts_scr_name)
 
 	pr_info("%s", bts_scr_name);
 	return 0;
+}
+
+short get_wilink_chip_version(void)
+{
+	return g_wilink_version;
 }
 
 void skip_change_remote_baud(unsigned char **ptr, long *len)

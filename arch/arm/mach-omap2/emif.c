@@ -39,6 +39,7 @@ struct emif_instance {
 	void __iomem *base;
 	u16 irq;
 	struct platform_device *pdev;
+	bool ddr_refresh_disabled;
 };
 static struct emif_instance emif[EMIF_NUM_INSTANCES];
 static struct emif_regs *emif_curr_regs[EMIF_NUM_INSTANCES];
@@ -520,8 +521,10 @@ static u32 get_ddr_phy_ctrl_1(u32 freq, u8 RL)
 		val = EMIF_DLL_SLAVE_DLY_CTRL_100_MHZ_AND_LESS;
 	else if (freq <= 200000000)
 		val = EMIF_DLL_SLAVE_DLY_CTRL_200_MHZ;
-	else
+	else if (freq <= 400000000)
 		val = EMIF_DLL_SLAVE_DLY_CTRL_400_MHZ;
+	else
+		val = EMIF_DLL_SLAVE_DLY_CTRL_466_MHZ;
 	mask_n_set(phy, OMAP44XX_REG_DLL_SLAVE_DLY_CTRL_SHIFT,
 		   OMAP44XX_REG_DLL_SLAVE_DLY_CTRL_MASK, val);
 
@@ -533,6 +536,47 @@ static u32 get_ddr_phy_ctrl_1(u32 freq, u8 RL)
 	phy >>= OMAP44XX_REG_DDR_PHY_CTRL_1_SHIFT;
 
 	return phy;
+}
+
+/*
+ * get_lp_mode - Get the LP Mode of a EMIF instance.
+ *
+ * It returns the REG_LP_MODE of EMIF_PWR_MGMT_CTRL[10:8]
+ * for a EMIF.
+ *
+ */
+static u32 get_lp_mode(u32 emif_nr)
+{
+	u32 temp, lpmode;
+	void __iomem *base = emif[emif_nr].base;
+
+	temp = readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
+	lpmode = (temp & OMAP44XX_REG_LP_MODE_MASK) >>
+			OMAP44XX_REG_LP_MODE_SHIFT;
+
+	return lpmode;
+}
+
+/*
+ * set_lp_mode - Set the LP Mode of a EMIF instance.
+ *
+ * It replaces the REG_LP_MODE of EMIF_PWR_MGMT_CTRL[10:8]
+ * with the new value for a EMIF.
+ *
+ */
+static void set_lp_mode(u32 emif_nr, u32 lpmode)
+{
+	u32 temp;
+	void __iomem *base = emif[emif_nr].base;
+
+	/* Extract current lp mode value */
+	temp = readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
+
+	/* Write out the new lp mode value */
+	temp &= ~OMAP44XX_REG_LP_MODE_MASK;
+	temp |= lpmode << OMAP44XX_REG_LP_MODE_SHIFT;
+	writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
+
 }
 
 /*
@@ -605,6 +649,7 @@ static void setup_registers(u32 emif_nr, struct emif_regs *regs, u32 volt_state)
 	mask_n_set(temp, OMAP44XX_REG_DDR_PHY_CTRL_1_SHDW_SHIFT,
 		   OMAP44XX_REG_DDR_PHY_CTRL_1_SHDW_MASK,
 		   regs->emif_ddr_phy_ctlr_1_final);
+
 	__raw_writel(temp, base + OMAP44XX_EMIF_DDR_PHY_CTRL_1_SHDW);
 
 	__raw_writel(regs->temp_alert_config,
@@ -883,6 +928,8 @@ static int __devinit omap_emif_probe(struct platform_device *pdev)
 	}
 
 	pr_info("EMIF%d is enabled with IRQ%d\n", id, emif[id].irq);
+
+	emif[id].ddr_refresh_disabled = false;
 
 	return 0;
 }
@@ -1298,6 +1345,61 @@ int omap_emif_setup_registers(u32 freq, u32 volt_state)
 	return err;
 }
 
+
+/*
+ * omap_emif_frequency_pre_notify - Disable DDR self refresh of both EMIFs
+ *
+ * It disables the LP mode if the LP mode of EMIFs was LP_MODE_SELF_REFRESH.
+ *
+ * It should be called before any PRCM frequency update sequence.
+ * After the frequency update sequence, omap_emif_frequency_post_notify
+ * should be called to restore the original LP MODE setting of the EMIFs.
+ *
+ */
+void omap_emif_frequency_pre_notify(void)
+{
+	int emif_num;
+
+	for (emif_num = EMIF1; emif_num < EMIF_NUM_INSTANCES; emif_num++) {
+
+		/*
+		 * Only disable ddr self-refresh
+		 * if ddr self-refresh was enabled
+		 */
+		if (likely(LP_MODE_SELF_REFRESH == get_lp_mode(emif_num))) {
+
+			set_lp_mode(emif_num, LP_MODE_DISABLE);
+			emif[emif_num].ddr_refresh_disabled = true;
+		}
+
+	}
+}
+
+/*
+ * omap_emif_frequency_post_notify - Enable DDR self refresh of both EMIFs
+ *
+ * It restores the LP mode of the EMIFs back to LP_MODE_SELF_REFRESH if it
+ * was previously disabled by omap_emif_frequency_pre_notify()
+ *
+ */
+void omap_emif_frequency_post_notify(void)
+{
+	int emif_num;
+
+	for (emif_num = EMIF1; emif_num < EMIF_NUM_INSTANCES; emif_num++) {
+
+		/*
+		 * Only re-enable ddr self-refresh
+		 * if ddr self-refresh was disabled
+		 */
+		if (likely(emif[emif_num].ddr_refresh_disabled)) {
+
+			set_lp_mode(emif_num, LP_MODE_SELF_REFRESH);
+			emif[emif_num].ddr_refresh_disabled = false;
+		}
+	}
+}
+
 /*
  * omap_emif_setup_device_details - save the SDRAM device details passed
  * from the board file
@@ -1324,6 +1426,11 @@ int omap_emif_setup_device_details(const struct emif_device_details
 	}
 
 	return 0;
+}
+
+const struct emif_device_details *omap_emif_get_device_details(u32 emif_nr)
+{
+	return emif_devices[emif_nr];
 }
 
 static void __init setup_lowpower_regs(u32 emif_nr,

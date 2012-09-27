@@ -355,14 +355,14 @@ int omapdss_default_get_recommended_bpp(struct omap_dss_device *dssdev)
 {
 	switch (dssdev->type) {
 	case OMAP_DISPLAY_TYPE_DPI:
-		if (dssdev->phy.dpi.data_lines >= 18)
+		if (dssdev->phy.dpi.data_lines > 16)
 			return 24;
 		else
 			return 16;
 
 	case OMAP_DISPLAY_TYPE_DBI:
 	case OMAP_DISPLAY_TYPE_DSI:
-		if (dssdev->ctrl.pixel_size == 24)
+		if (dssdev->ctrl.pixel_size > 16)
 			return 24;
 		else
 			return 16;
@@ -459,6 +459,8 @@ void dss_init_device(struct platform_device *pdev,
 	}
 
 	BLOCKING_INIT_NOTIFIER_HEAD(&dssdev->state_notifiers);
+
+	mutex_init(&dssdev->state_lock);
 
 	/* create device sysfs files */
 	i = 0;

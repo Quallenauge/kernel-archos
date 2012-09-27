@@ -64,6 +64,28 @@ obj-$(CONFIG_TOUCHSCREEN_W90X900)	+= w90p910_ts.o
 obj-$(CONFIG_TOUCHSCREEN_TPS6507X)	+= tps6507x-ts.o
 obj-$(CONFIG_TOUCHSCREEN_SYNTM12XX)	+= syntm12xx.o
 obj-$(CONFIG_TOUCHSCREEN_QUANTUM_OBP)	+= qtouch_obp_ts.o
+obj-$(CONFIG_TOUCHSCREEN_GOODIX_GT80x)	+= goodix-gt80x.o
+
+obj-$(CONFIG_TOUCHSCREEN_GOODIX_GT8105)	+= goodix-gt8105.o
+
+goodix-gt8105-objs := goodix-gt8105_core.o
+ifeq ($(CONFIG_TOUCHSCREEN_GOODIX_GT8105_DFU),y)
+goodix-gt8105-objs += goodix-gt8105_dfu.o
+endif
+
 obj-$(CONFIG_TOUCHSCREEN_TR16C0)	+= tr16c0-i2c.o
 obj-$(CONFIG_TOUCHSCREEN_PIXCIR_I2C_TS)	+= pixcir_i2c_tsp.o
 obj-$(CONFIG_TOUCHSCREEN_CPT_I2C_TSP)	+= cpt_i2c_tsp.o
+obj-$(CONFIG_TOUCHSCREEN_BYD_I2C_TSP)	+= byd_i2c_tsp.o
+
+obj-$(CONFIG_TOUCHSCREEN_FT5606)	+= ft5606.o
+
+ft5606-objs += ft5606_core.o
+ifeq ($(CONFIG_TOUCHSCREEN_FT5606_DFU),y)
+ft5606-objs += ft5606_ex_fun.o
+endif
+
+obj-$(CONFIG_TOUCHSCREEN_CYTTSP4_CORE)	+= cyttsp4_core.o
+obj-$(CONFIG_TOUCHSCREEN_CYTTSP4_SPI)	+= cyttsp4_spi.o
+obj-$(CONFIG_TOUCHSCREEN_CYTTSP4_I2C)	+= cyttsp4_i2c.o
+obj-$(CONFIG_TOUCHSCREEN_NT11003)	+= nt11003.o

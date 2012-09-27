@@ -185,9 +185,9 @@ obj-y	+= davinci/
 
 obj-$(CONFIG_ARCH_OMAP)	+= omap/
 obj-$(CONFIG_TI_TILER)	+= tiler/
-obj-$(CONFIG_VIDEO_OMAP_GFX) += omapgfx/
-
 obj-$(CONFIG_VIDEO_OMAP_DCE) += omapdce/
+obj-$(CONFIG_VIDEO_OMAP_GFX) += omapgfx/
+obj-$(CONFIG_VIDEO_OMAP_IMT) += omapimt/
 
 EXTRA_CFLAGS += -Idrivers/media/dvb/dvb-core
 EXTRA_CFLAGS += -Idrivers/media/dvb/frontends

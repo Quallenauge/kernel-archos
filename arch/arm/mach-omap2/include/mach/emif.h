@@ -173,6 +173,7 @@
  * values suggested by hw team.
  */
 #define EMIF_DDR_PHY_CTRL_1_BASE_VAL			0x049FF
+#define EMIF_DLL_SLAVE_DLY_CTRL_466_MHZ			0x37
 #define EMIF_DLL_SLAVE_DLY_CTRL_400_MHZ			0x41
 #define EMIF_DLL_SLAVE_DLY_CTRL_200_MHZ			0x80
 #define EMIF_DLL_SLAVE_DLY_CTRL_100_MHZ_AND_LESS	0xFF
@@ -258,9 +259,12 @@ struct emif_regs {
 
 int omap_emif_setup_registers(u32 freq,
 			      u32 volt_state);
+void omap_emif_frequency_pre_notify(void);
+void omap_emif_frequency_post_notify(void);
 int omap_emif_setup_device_details(
 			const struct emif_device_details *emif1_devices,
 			const struct emif_device_details *emif2_devices);
+const struct emif_device_details *omap_emif_get_device_details(u32 emif_nr);
 
 void emif_clear_irq(int emif_id);
 #endif

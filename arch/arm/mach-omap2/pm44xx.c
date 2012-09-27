@@ -25,6 +25,7 @@
 
 #include <asm/hardware/gic.h>
 #include <mach/omap4-common.h>
+#include <mach/emif.h>
 #include <plat/omap_hsi.h>
 #include <plat/common.h>
 #include <plat/temperature_sensor.h>
@@ -120,8 +121,17 @@ static struct clockdomain *emif_clkdm, *mpuss_clkdm;
  *
  * CDDS no: OMAP4460-1.0BUG00291 (OMAP official errata ID yet to be available).
  */
-#define OMAP4_PM_ERRATUM_LPDDR_CLK_IO_iXXX		BIT(5)
+#define OMAP4_PM_ERRATUM_LPDDR_CLK_IO_i736		BIT(5)
 #define LPDDR_WD_PULL_DOWN				0x02
+
+/*
+ * The OFF mode isn't fully supported for OMAP4430GP ES2.0 - ES2.2
+ * When coming back from device off mode, the Cortex-A9 WUGEN enable registers
+ * are not restored by ROM code due to i625. The work around is using an
+ * alternative power state (instead of off mode) which maintains the proper
+ * register settings.
+ */
+#define OMAP4_PM_ERRATUM_WUGEN_LOST_i625	BIT(6)
 
 /* TI Errata i612 - Wkup Clk Recycling Needed After Warm Reset
  * CRITICALITY: Low
@@ -146,7 +156,7 @@ void syscontrol_lpddr_clk_io_errata(bool enable)
 {
 	u32 v = 0;
 
-	if (!is_pm44xx_erratum(LPDDR_CLK_IO_iXXX))
+	if (!is_pm44xx_erratum(LPDDR_CLK_IO_i736))
 		return;
 
 	v = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO1_2);
@@ -265,7 +275,6 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 		if (omap_sr_disable_reset_volt(mpu_voltdm))
 			goto abort_device_off;
 
-		omap_sr_disable_reset_volt(mpu_voltdm);
 		omap_vc_set_auto_trans(mpu_voltdm,
 			OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 	}
@@ -1000,14 +1009,17 @@ static void __init syscontrol_setup_regs(void)
 	v = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO1_3);
 	v &= ~(OMAP4_LPDDR21_VREF_EN_CA_MASK | OMAP4_LPDDR21_VREF_EN_DQ_MASK);
 	v |= OMAP4_LPDDR21_VREF_AUTO_EN_CA_MASK | OMAP4_LPDDR21_VREF_AUTO_EN_DQ_MASK;
-        omap4_ctrl_pad_writel(v, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO1_3);
+	omap4_ctrl_pad_writel(v,
+		OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO1_3);
 
 	v = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO2_3);
 	v &= ~(OMAP4_LPDDR21_VREF_EN_CA_MASK | OMAP4_LPDDR21_VREF_EN_DQ_MASK);
 	v |= OMAP4_LPDDR21_VREF_AUTO_EN_CA_MASK | OMAP4_LPDDR21_VREF_AUTO_EN_DQ_MASK;
-        omap4_ctrl_pad_writel(v, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO2_3);
+	omap4_ctrl_pad_writel(v,
+		OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO2_3);
 
 	syscontrol_lpddr_clk_io_errata(true);
+
 }
 
 static void __init prcm_setup_regs(void)
@@ -1257,7 +1269,7 @@ static void omap_default_idle(void)
 void omap4_device_set_state_off(u8 enable)
 {
 #ifdef CONFIG_OMAP_ALLOW_OSWR
-	if (enable)
+	if (enable && !(is_pm44xx_erratum(WUGEN_LOST_i625)))
 		omap4_prminst_write_inst_reg(0x1 <<
 				OMAP4430_DEVICE_OFF_ENABLE_SHIFT,
 		OMAP4430_PRM_PARTITION, OMAP4430_PRM_DEVICE_INST,
@@ -1321,7 +1333,7 @@ static void __init omap4_pm_setup_errata(void)
 	if (cpu_is_omap44xx())
 		pm44xx_errata |= OMAP4_PM_ERRATUM_IVA_AUTO_RET_iXXX |
 				 OMAP4_PM_ERRATUM_HSI_SWAKEUP_iXXX |
-				 OMAP4_PM_ERRATUM_LPDDR_CLK_IO_iXXX;
+				 OMAP4_PM_ERRATUM_LPDDR_CLK_IO_i736;
 
 	if (cpu_is_omap443x()) {
 		/* Dynamic Dependency errata for all silicon !=443x */
@@ -1331,6 +1343,15 @@ static void __init omap4_pm_setup_errata(void)
 			OMAP4_PM_ERRATUM_IO_WAKEUP_CLOCK_NOT_RECYCLED_i612;
 	} else
 		pm44xx_errata |= OMAP4_PM_ERRATUM_MPU_EMIF_NO_DYNDEP_IDLE_iXXX;
+
+	/*
+	 * The OFF mode isn't fully supported for OMAP4430GP ES2.0 - ES2.2
+	 * due to errata i625
+	 * On ES1.0 OFF mode is not supported due to errata i498
+	 */
+	if (cpu_is_omap443x() && (omap_type() == OMAP2_DEVICE_TYPE_GP) &&
+			(omap_rev() < OMAP4430_REV_ES2_3))
+		pm44xx_errata |= OMAP4_PM_ERRATUM_WUGEN_LOST_i625;
 }
 
 /**
@@ -1342,7 +1363,7 @@ static void __init omap4_pm_setup_errata(void)
 static int __init omap4_pm_init(void)
 {
 	int ret = 0;
-	struct clockdomain *l3_1_clkdm;
+	struct clockdomain *l3_1_clkdm, *l4wkup;
 	struct clockdomain *ducati_clkdm, *l3_2_clkdm, *l4_per, *l4_cfg;
 	char *init_devices[] = {"mpu", "iva"};
 	int i;
@@ -1391,6 +1412,12 @@ static int __init omap4_pm_init(void)
 	 * doesn't work as expected. The hardware recommendation is
 	 * to keep above dependencies. Without this system locks up or
 	 * randomly crashes.
+	 *
+	 * On 44xx:
+	 * The L4 wakeup depedency is added to workaround the OCP sync hardware
+	 * BUG with 32K synctimer which lead to incorrect timer value read
+	 * from the 32K counter. The BUG applies for GPTIMER1 and WDT2 which
+	 * are part of L4 wakeup clockdomain.
 	 */
 	mpuss_clkdm = clkdm_lookup("mpuss_clkdm");
 	emif_clkdm = clkdm_lookup("l3_emif_clkdm");
@@ -1399,7 +1426,8 @@ static int __init omap4_pm_init(void)
 	ducati_clkdm = clkdm_lookup("ducati_clkdm");
 	l4_per = clkdm_lookup("l4_per_clkdm");
 	l4_cfg = clkdm_lookup("l4_cfg_clkdm");
-	if ((!mpuss_clkdm) || (!emif_clkdm) || (!l3_1_clkdm) ||
+	l4wkup = clkdm_lookup("l4_wkup_clkdm");
+	if ((!mpuss_clkdm) || (!emif_clkdm) || (!l3_1_clkdm) || (!l4wkup) ||
 		(!l3_2_clkdm) || (!ducati_clkdm) || (!l4_per) || (!l4_cfg))
 		goto err2;
 
@@ -1416,6 +1444,7 @@ static int __init omap4_pm_init(void)
 		ret |= clkdm_add_wkdep(mpuss_clkdm, l4_cfg);
 		ret |= clkdm_add_wkdep(ducati_clkdm, l4_per);
 		ret |= clkdm_add_wkdep(ducati_clkdm, l4_cfg);
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l4wkup);
 		if (ret) {
 			pr_err("Failed to add MPUSS -> L3/EMIF, DUCATI -> L3"
 			       " and MPUSS -> L4* wakeup dependency\n");
@@ -1439,6 +1468,7 @@ static int __init omap4_pm_init(void)
 		/* There appears to be a problem between the MPUSS and L3_1 */
 		ret |= clkdm_add_wkdep(mpuss_clkdm, l3_1_clkdm);
 		ret |= clkdm_add_wkdep(mpuss_clkdm, l3_2_clkdm);
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l4wkup);
 
 		/* There appears to be a problem between the Ducati and L3/L4 */
 		ret |= clkdm_add_wkdep(ducati_clkdm, l3_1_clkdm);

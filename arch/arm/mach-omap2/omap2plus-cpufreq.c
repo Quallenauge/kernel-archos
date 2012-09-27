@@ -63,6 +63,7 @@ static unsigned int max_thermal;
 static unsigned int max_freq;
 static unsigned int current_target_freq;
 static unsigned int current_cooling_level;
+static DEFINE_PER_CPU(struct cpufreq_policy, *cur_freq_policy);
 static bool omap_cpufreq_ready;
 static bool omap_cpufreq_suspended;
 
@@ -330,6 +331,7 @@ static int cpufreq_apply_cooling(struct thermal_dev *dev,
 {
 	/* cooling level 0 would be maximum speed */
 	unsigned int cool_freq = max_freq;
+	unsigned int policy_max = per_cpu(cur_freq_policy, 0)->max;
 	int i, j;
 
 	for(j=0; j<cooling_level; j++) {
@@ -343,6 +345,11 @@ static int cpufreq_apply_cooling(struct thermal_dev *dev,
 			break;
 		cool_freq = max;
 	}
+	
+	/* welwarsky@archos.com: obey max frequency enforced by policy */
+	if (cool_freq > policy_max)
+		cool_freq = policy_max;
+	
 	pr_debug("%s: cool level %i curr cool %i set to freq %d\n",
 		__func__, cooling_level, current_cooling_level, cool_freq);
 	current_cooling_level = cooling_level;
@@ -422,8 +429,6 @@ static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
 
 	for (i = 0; freq_table[i].frequency != CPUFREQ_TABLE_END; i++)
 		max_freq = max(freq_table[i].frequency, max_freq);
-	max_thermal = max_freq;
-	current_cooling_level = 0;
 
 	/*
 	 * On OMAP SMP configuartion, both processors share the voltage
@@ -440,6 +445,8 @@ static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
 	/* FIXME: what's the actual transition time? */
 	policy->cpuinfo.transition_latency = 300 * 1000;
 
+	/* welwarsky@archos.com: remember cpufreq policy. */
+	per_cpu(cur_freq_policy, policy->cpu) = policy;
 	return 0;
 
 fail_table:
@@ -533,6 +540,9 @@ static int __init omap_cpufreq_init(void)
 
 	ret = cpufreq_register_driver(&omap_driver);
 	omap_cpufreq_ready = !ret;
+
+	max_thermal = max_freq;
+	current_cooling_level = 0;
 
 	if (!ret) {
 		int t;

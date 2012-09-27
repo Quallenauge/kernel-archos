@@ -16,9 +16,18 @@ enum {
 	PIXCIR_FLAGS_XY_SWAP	= 1 << 2,
 };
 
+enum {
+	TYPE_M45 = 0,
+	TYPE_M48 = 1,
+	TYPE_AB70 = 2,
+};
+
 struct pixcir_platform_data {
 	int irq;
 	int flags;
+
+	// can be TYPE_M45/TYPE_M48/TYPE_AB70
+	int type;
 
 	// min/max, as should normally
 	// reported by chip.

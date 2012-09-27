@@ -265,6 +265,15 @@ config INPUT_CM109
 	  To compile this driver as a module, choose M here: the module will be
 	  called cm109.
 
+config INPUT_CM119
+	tristate "C-Media CM109"
+	depends on EXPERIMENTAL
+	depends on USB_ARCH_HAS_HCD
+	select USB
+	help
+	  To compile this driver as a module, choose M here: the module will be
+	  called cm119.
+
 config INPUT_TWL4030_PWRBUTTON
 	tristate "TWL4030 Power button Driver"
 	depends on TWL4030_CORE

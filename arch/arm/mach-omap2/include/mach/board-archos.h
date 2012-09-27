@@ -39,10 +39,16 @@
 #include <linux/akm8975.h>
 #include <linux/mag3110.h>
 #include <linux/i2c/twl.h>
+
 #include <linux/input/cypress-tma340.h>
 #include <linux/input/pixcir_i2c_tsp.h>
 #include <linux/input/tr16c0-i2c.h>
 #include <linux/input/cpt_i2c_tsp.h>
+#include <linux/input/byd_i2c_tsp.h>
+#include <linux/input/goodix-gt8105.h>
+#include <linux/input/ft5606.h>
+#include <linux/input/nt11003.h>
+
 #include <asm/mach-types.h>
 
 struct omap_dss_device;
@@ -85,7 +91,7 @@ struct archos_vbus_config
 
 struct archos_pwm_conf
 {
-	enum pwm_src { 
+	enum pwm_src {
 		OMAP_DM_PWM	= 0,
 		TWL6030_PWM	= 1,
 	} src;
@@ -107,7 +113,7 @@ struct archos_disp_conf
 	int lcd_pwon;
 	int lcd_rst;
 	int lcd_pci;
-	int lvds_en;
+	int bridge_en;
 	int lcd_stdby;
 	int lcd_avdd_en;
 	int hdmi_pwr;
@@ -119,6 +125,8 @@ struct archos_disp_conf
 	int bkl_pwr;
 	int use_fixed_bkl;
 	int do_not_use_pll;
+	int do_gamma_fix;
+	int panel_rotation;
 };
 
 struct archos_display_config
@@ -156,6 +164,17 @@ struct archos_usb_config
 };
 #define ARCHOS_TAG_USB		0x4e05
 
+enum charger_type_t {
+	CHARGER_LX2208=0,	// USB charger 100/500/1000mA
+	CHARGER_DCIN,		// autonomous charger using DC-in
+	CHARGER_RT9502,		// USB charger 100/500mA + DC-in
+	CHARGER_TWL6030USB,	// USB charger built into TWL6030
+	CHARGER_TWL6030USB_DC,	// USB charger built into TWL6030, used with DC-IN plug.
+	CHARGER_ISL9220,	// USB charger 100/500/1500mA
+	CHARGER_BQ24167,	// separate charger plugged on TWL6032
+	CHARGER_NONE,		// No charger !
+};
+
 struct archos_charge_conf
 {
 	int charge_enable;
@@ -163,14 +182,7 @@ struct archos_charge_conf
 	int charge_low;
 	int gpio_dc_detect;
 	int dc_detect_invert;
-	enum charger_type_t { 
-		CHARGER_LX2208=0,	// USB charger 100/500/1000mA
-		CHARGER_DCIN,		// autonomous charger using DC-in
-		CHARGER_RT9502,		// USB charger 100/500mA + DC-in
-		CHARGER_TWL6030USB,	// USB charger built into TWL6030
-		CHARGER_TWL6030USB_DC,	// USB charger built into TWL6030, used with DC-IN plug.
-		CHARGER_ISL9220		// USB charger 100/500/1500mA
-	} charger_type;
+	enum charger_type_t charger_type;
 };
 
 struct archos_charge_config
@@ -179,6 +191,38 @@ struct archos_charge_config
 	struct archos_charge_conf rev[MAX_HWREVS];
 };
 #define ARCHOS_TAG_CHARGE 0x4e07
+
+struct archos_ext_power_conf
+{
+	int usb_in_detect;
+	int usb_high_charge;
+	int usb_out_enable;
+	int dc_in_detect;
+	int ext_in_detect;
+	int charge_enable;
+	int ext_out_enable;
+	enum charger_type_t charger_type;
+};
+
+struct archos_ext_power_config
+{
+	int	nrev;	/* number of hardware revisions */
+	struct archos_ext_power_conf rev[MAX_HWREVS];
+};
+#define ARCHOS_TAG_POWER_EXT 0x4e21
+
+struct archos_gadget_detect_config
+{
+	int nrev;
+	struct archos_gadget_detect_conf {
+		int dc_out_enable;
+		unsigned int adc_channel;
+		unsigned int shorted;
+		unsigned int open;
+		unsigned int i_sense;
+	} rev[MAX_HWREVS];
+};
+#define ARCHOS_TAG_GADGET_DETECT	0x4e22
 
 struct archos_usbhdd_conf
 {
@@ -227,6 +271,8 @@ struct archos_wifi_bt_config {
 		int bt_power;
 		int fm_power;
 		int gps_power;
+		int DC2DC_req;
+		int Clk_req;
 		unsigned int wifi_pa_type;
 	} rev[MAX_HWREVS];
 };
@@ -611,6 +657,12 @@ struct archos_3g_config
 	int	nrev;
 	struct archos_3g_conf {
 		int enable;
+		int nreset;
+		int nenable;
+		int nsimdet;
+		int wake;
+		int wakehost;
+		int nwakedisable;
 	} rev[MAX_HWREVS];
 };
 #define ARCHOS_TAG_3G 0x4e20
@@ -631,7 +683,9 @@ extern int __init panel_cpt_xga_8_init(struct omap_dss_device *);
 extern int __init panel_auo_wxga_10_init(struct omap_dss_device *);
 extern int __init panel_claa_wsvga_7_init(struct omap_dss_device *);
 extern int __init panel_ivo_wxga_116_init(struct omap_dss_device *);
+extern int __init panel_cmi_xga_97_init(struct omap_dss_device *);
 extern int __init panel_virtual_init(struct omap_dss_device *);
+extern int __init panel_cmi_wuxga_116_init(struct omap_dss_device *);
 
 extern int __init archos_compass_init(struct akm8975_platform_data *pdata);
 extern int __init archos_compass_mag3110_init(struct mag3110_platform_data *pdata);
@@ -640,10 +694,16 @@ extern int __init archos_touchscreen_tm340_init(struct cypress_tma340_platform_d
 extern int __init archos_touchscreen_pixcir_init(struct pixcir_platform_data *pdata);
 extern int __init archos_touchscreen_tr16c0_init(struct tr16c0_platform_data *pdata);
 extern int __init archos_touchscreen_cpt_i2c_tsp_init(struct cpt_i2c_tsp_platform_data *pdata);
+extern int __init archos_touchscreen_byd_init(struct byd_platform_data *pdata);
+extern int __init archos_touchscreen_goodix_gt8105_init(struct goodix_gt8105_platform_data *pdata);
+extern int __init archos_touchscreen_ft5606_init(struct focaltech_ft5606_platform_data *pdata);
+extern int __init archos_touchscreen_nt11003_init(struct nt11003_platform_data *pdata);
 
 extern int __init archos_camera_mt9m114_init(void);
 extern int __init archos_camera_mt9d113_init(void);
 extern int __init archos_camera_ov7675_init(void);
+
+extern int __init archos_pcb_temp_sensor_init(void);
 
 extern void __init archos_reserve(void);
 extern int __init archos_memory_init(void);
@@ -660,6 +720,8 @@ extern void archos_omap4_ehci_init(void);
 extern int __init archos_omap3_uhhtll_init(void);
 
 extern unsigned get_last_off_on_transaction_id(struct device *dev);
+
+extern void archos_create_board_props(void);
 
 struct hardware_component {
 	unsigned tps62361:1;

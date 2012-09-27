@@ -99,6 +99,7 @@ static struct dbs_tuners {
 	unsigned int *hotplug_load_history;
 	unsigned int ignore_nice;
 	unsigned int io_is_busy;
+	unsigned int min_nr_running;
 } dbs_tuners_ins = {
 	.sampling_rate =		DEFAULT_SAMPLING_PERIOD,
 	.up_threshold =			DEFAULT_UP_FREQ_MIN_LOAD,
@@ -109,6 +110,7 @@ static struct dbs_tuners {
 	.hotplug_load_index =		0,
 	.ignore_nice =			0,
 	.io_is_busy =			0,
+	.min_nr_running =		1,
 };
 
 /*
@@ -156,6 +158,7 @@ show_one(hotplug_in_sampling_periods, hotplug_in_sampling_periods);
 show_one(hotplug_out_sampling_periods, hotplug_out_sampling_periods);
 show_one(ignore_nice_load, ignore_nice);
 show_one(io_is_busy, io_is_busy);
+show_one(min_nr_running, min_nr_running);
 
 static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
@@ -378,6 +381,26 @@ static ssize_t store_io_is_busy(struct kobject *a, struct attribute *b,
 	return count;
 }
 
+static ssize_t store_min_nr_running(struct kobject *a, struct attribute *b,
+				   const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (input < 1)
+		return -EINVAL;
+	
+	mutex_lock(&dbs_mutex);
+	dbs_tuners_ins.min_nr_running = input;
+	mutex_unlock(&dbs_mutex);
+
+	return count;
+}
+
 define_one_global_rw(sampling_rate);
 define_one_global_rw(up_threshold);
 define_one_global_rw(down_differential);
@@ -386,6 +409,7 @@ define_one_global_rw(hotplug_in_sampling_periods);
 define_one_global_rw(hotplug_out_sampling_periods);
 define_one_global_rw(ignore_nice_load);
 define_one_global_rw(io_is_busy);
+define_one_global_rw(min_nr_running);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate.attr,
@@ -396,6 +420,7 @@ static struct attribute *dbs_attributes[] = {
 	&hotplug_out_sampling_periods.attr,
 	&ignore_nice_load.attr,
 	&io_is_busy.attr,
+	&min_nr_running.attr,
 	NULL
 };
 
@@ -514,7 +539,8 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	if (avg_load > dbs_tuners_ins.up_threshold) {
 		/* should we enable auxillary CPUs? */
 		if (num_online_cpus() < 2 && hotplug_in_avg_load >
-				dbs_tuners_ins.up_threshold) {
+				dbs_tuners_ins.up_threshold
+				&& nr_running() >= dbs_tuners_ins.min_nr_running) {
 			/* hotplug with cpufreq is nasty
 			 * a call to cpufreq_governor_dbs may cause a lockup.
 			 * wq is not running here so its safe.
@@ -541,8 +567,9 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		/* are we at the minimum frequency already? */
 		if (policy->cur == policy->min) {
 			/* should we disable auxillary CPUs? */
-			if (num_online_cpus() > 1 && hotplug_out_avg_load <
-					dbs_tuners_ins.down_threshold) {
+			if ((num_online_cpus() > 1 && hotplug_out_avg_load <
+					dbs_tuners_ins.down_threshold)
+					|| nr_running() < dbs_tuners_ins.min_nr_running) {
 				mutex_unlock(&this_dbs_info->timer_mutex);
 				cpu_down(1);
 				mutex_lock(&this_dbs_info->timer_mutex);

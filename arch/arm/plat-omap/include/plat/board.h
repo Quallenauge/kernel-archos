@@ -157,9 +157,18 @@ struct omap_die_governor_config {
 	int monitor_temp;
 	int safe_temp;
 
+	int pcb_fatal_temp;
+	int pcb_panic_temp;
+	int pcb_alert_temp;
+	int pcb_monitor_temp;
+	int pcb_safe_temp;
+
 	int hysteresis_value;
+	int pcb_hysteresis_value;
 	int normal_temp_monitoring_rate;
 	int fast_temp_monitoring_rate;
+	int use_separate_pcb_zone_definition;
+	int pcb_panic_guard_treshold;
 };
 
 struct omap_flash_part_config {

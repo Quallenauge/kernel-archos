@@ -350,6 +350,9 @@ static ssize_t usb_show_charger_type(struct device* dev,
 	struct archos_battery *bat = dev_get_drvdata(dev);
 
 	switch (bat->charger_type) {
+	case CHARGER_NONE:
+		return snprintf(buf, PAGE_SIZE, "CHARGER_NONE\n");
+
 	case CHARGER_LX2208:
 		return snprintf(buf, PAGE_SIZE, "CHARGER_LX2208\n");
 	case CHARGER_DCIN:
@@ -362,6 +365,8 @@ static ssize_t usb_show_charger_type(struct device* dev,
 		return snprintf(buf, PAGE_SIZE, "CHARGER_TWL6030USB_DC\n");
 	case CHARGER_ISL9220:
 		return snprintf(buf, PAGE_SIZE, "CHARGER_ISL9220\n");
+	case CHARGER_BQ24167:
+		return snprintf(buf, PAGE_SIZE, "CHARGER_BQ24167\n");
 
 	default:
 		// return charger type num.
@@ -540,6 +545,8 @@ static int __init archos_battery_probe(struct platform_device *pdev)
 	int ret;
 	const struct archos_charge_config *chg_cfg;
 	const struct archos_charge_conf *chg_conf;
+	const struct archos_ext_power_config *power_cfg;
+	const struct archos_ext_power_conf *power_conf;
 
 	bat = kzalloc(sizeof(struct archos_battery), GFP_KERNEL);
 	if (bat == NULL)
@@ -603,11 +610,18 @@ static int __init archos_battery_probe(struct platform_device *pdev)
 		}
 	}
 
+	power_cfg = omap_get_config(ARCHOS_TAG_POWER_EXT, struct archos_ext_power_config);
+	power_conf = hwrev_ptr(power_cfg, system_rev);
+	if (!IS_ERR(power_conf)) {
+		bat->charger_type = power_conf->charger_type;
+	}
+
 	platform_set_drvdata(pdev, bat);
 	
 	// Do not register when twl6030 is in use to avoid conflicts in android hc
 	if (!((bat->charger_type == CHARGER_TWL6030USB) || 
-		 (bat->charger_type == CHARGER_TWL6030USB_DC))) {
+		 (bat->charger_type == CHARGER_TWL6030USB_DC) ||
+		 (bat->charger_type == CHARGER_BQ24167))) {
 		ret = power_supply_register(&pdev->dev, &bat->main_battery);
 		if (ret < 0) {
 			printk(KERN_DEBUG "archos_battery_probe: "
@@ -683,11 +697,21 @@ int __init archos_battery_twl4030_bci_init(struct twl4030_bci_platform_data *pda
 {
 	const struct archos_charge_config *chg_cfg;
 	const struct archos_charge_conf *chg_conf;
+	const struct archos_ext_power_config *ext_chg_cfg;
+	const struct archos_ext_power_conf *ext_chg_conf;
 
 	chg_cfg = omap_get_config( ARCHOS_TAG_CHARGE, struct archos_charge_config);
 	chg_conf = hwrev_ptr(chg_cfg, system_rev);
-	if (IS_ERR(chg_conf))
-		return -ENODEV;
-	pdata->usb_is_dc = chg_conf->charger_type == CHARGER_TWL6030USB_DC;
+	if (!IS_ERR(chg_conf)) {
+		pdata->usb_is_dc = chg_conf->charger_type == CHARGER_TWL6030USB_DC;
+	}
+
+	ext_chg_cfg = omap_get_config(ARCHOS_TAG_POWER_EXT, struct archos_ext_power_config);
+	ext_chg_conf = hwrev_ptr(ext_chg_cfg, system_rev);
+	if (!IS_ERR(ext_chg_conf)) {
+		pdata->use_separate_charger = ext_chg_conf->charger_type == CHARGER_BQ24167;
+		pdata->usb_is_dc = (ext_chg_conf->dc_in_detect != UNUSED_GPIO );
+	}
+
 	return 0;
 }

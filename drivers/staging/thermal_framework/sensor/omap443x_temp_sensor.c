@@ -250,7 +250,7 @@ static int omap_read_current_temp(struct omap_temp_sensor *temp_sensor,
 		return -EINVAL;
 	} else {
 		if (temperature)
-			*temperature = adc_to_temp[temp - OMAP_ADC_START_VALUE];
+			*temperature = adc_to_temp_conversion(temp);
 		if (state) {
 			if (temp<temp_sensor->temp_threshold_low)
 				*state = BELOW_T_LOW;
@@ -298,13 +298,15 @@ static void temp_measure_work(struct work_struct *work)
 		else
 			temp_sensor->averaged_current_temperature = (temp * 70 + temp_sensor->averaged_current_temperature * 30)/100;
 		//if ( temp>80000 )
-			pr_debug("temp now: %d agv: %d state %d\n", temp, temp_sensor->averaged_current_temperature, state);
-		if (state != temp_sensor->state) { // crossed threshold
-			pr_debug("crossed - was %d\n", temp_sensor->state);
-			temp_sensor->therm_fw->current_temp = temp_sensor->averaged_current_temperature;
+		if (state != temp_sensor->state) {
+			pr_info("state changed - was %d\n", temp_sensor->state);
+			pr_info("temp now: %d agv: %d state %d\n", temp, temp_sensor->averaged_current_temperature, state);
 			temp_sensor->state = state;
-			thermal_sensor_set_temp(temp_sensor->therm_fw);
-			kobject_uevent(&temp_sensor->dev->kobj, KOBJ_CHANGE);
+			if (state == BELOW_T_LOW || state == ABOVE_T_HIGH) {
+				temp_sensor->therm_fw->current_temp = temp_sensor->averaged_current_temperature;
+				thermal_sensor_set_temp(temp_sensor->therm_fw);
+				kobject_uevent(&temp_sensor->dev->kobj, KOBJ_CHANGE);
+			}
 		}
 	}
 
@@ -317,21 +319,6 @@ static int omap_report_temp(struct thermal_dev *tdev)
 	struct platform_device *pdev = to_platform_device(tdev->dev);
 	struct omap_temp_sensor *temp_sensor = platform_get_drvdata(pdev);
 	return temp_sensor->averaged_current_temperature;
-
-	/*** FIX -- 4430 thermal sensor does not like to be read more than once at a time
-	int ret;
-
-	mutex_lock(&temp_sensor->sensor_mutex);
-	ret = omap_read_current_temp(temp_sensor, &temp_sensor->therm_fw->current_temp, NULL);
-	mutex_unlock(&temp_sensor->sensor_mutex);
-
-	if (!ret) {
-		thermal_sensor_set_temp(temp_sensor->therm_fw);
-		kobject_uevent(&temp_sensor->dev->kobj, KOBJ_CHANGE);
-		return temp_sensor->therm_fw->current_temp;
-	} else
-		return -EINVAL;
-	***/
 }
 
 static void omap_configure_temp_sensor_thresholds(struct omap_temp_sensor
@@ -388,7 +375,9 @@ static int omap_set_thresholds(struct omap_temp_sensor *temp_sensor,
 	}
 
 	new_hot = temp_to_adc_conversion(max);
-	new_cold = temp_to_adc_conversion(min);
+	new_cold = temp_to_adc_conversion(min)+1; /* round upwards */
+	if (new_cold==new_hot)
+		new_cold--; /* make sure there is an interval */
 
 	if ((new_hot == -EINVAL) || (new_cold == -EINVAL)) {
 		pr_err("%s: New thresh value is out of range\n", __func__);
@@ -532,20 +521,13 @@ static int omap_temp_sensor_read_temp(struct device *dev,
 	struct omap_temp_sensor *temp_sensor = platform_get_drvdata(pdev);
 	int temp = 0, ret;
 
-	temp =  temp_sensor->averaged_current_temperature; //FIX only driver thread read the sensor
+	temp =  temp_sensor->averaged_current_temperature; /* only driver thread reads the sensor */
 
 #ifdef TEMP_DEBUG
 	if (temp_sensor->debug) {
 		temp = temp_sensor->debug_temp;
-		goto out;
 	}
 #endif
-	/*** FIX -- 4430 thermal sensor does not like to be read more than once at a time 
-	mutex_lock(&temp_sensor->sensor_mutex);
-	ret = omap_read_current_temp(temp_sensor, &temp, NULL);
-	mutex_unlock(&temp_sensor->sensor_mutex);
-	***/
-out:
 	return sprintf(buf, "%d\n", temp);
 }
 

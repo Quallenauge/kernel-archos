@@ -30,8 +30,11 @@
 #include <plat/dsscomp.h>
 
 #include <linux/debugfs.h>
+#include <asm/mach-types.h>
 
 #include "dsscomp.h"
+#include "../dss/dss.h"
+#include "../dss/dss_features.h"
 /* queue state */
 
 static DEFINE_MUTEX(mtx);
@@ -52,6 +55,8 @@ static struct {
 
 static struct workqueue_struct *cb_wkq;		/* callback work queue */
 static struct dsscomp_dev *cdev;
+
+static unsigned long current_bandwidth = 0;
 
 #ifdef CONFIG_DEBUG_FS
 LIST_HEAD(dbg_comps);
@@ -99,6 +104,21 @@ static void maskref_decmask(struct maskref *om, u32 mask)
  * ===========================================================================
  */
 
+struct dsscomp_cb_work {
+	struct work_struct work;
+	struct dsscomp_data *comp;
+	int status;
+};
+
+struct dsscomp_apply_work {
+	struct work_struct work;
+	dsscomp_t comp;
+};
+
+/* Local caches */
+static struct kmem_cache *dsscomp_cb_wk_cachep;
+static struct kmem_cache *dsscomp_app_wk_cachep;
+
 /* Initialize queue structures, and set up state of the displays */
 int dsscomp_queue_init(struct dsscomp_dev *cdev_)
 {
@@ -123,11 +143,39 @@ int dsscomp_queue_init(struct dsscomp_dev *cdev_)
 			    cdev->ovls[j]->manager == mgr)
 				mgrq[i].ovl_mask |= 1 << j;
 		}
+		if (cdev->wb_ovl && cdev->wb_ovl->info.enabled &&
+			mgr && (cdev->wb_ovl->info.source == mgr->id))
+				mgrq[i].ovl_mask |= 1 << OMAP_DSS_WB;
 	}
 
 	cb_wkq = create_singlethread_workqueue("dsscomp_cb");
 	if (!cb_wkq)
 		goto error;
+
+	/* create cache for dsscomp_cb_work structures */
+	if (!dsscomp_cb_wk_cachep) {
+		dsscomp_cb_wk_cachep = kmem_cache_create("cb_wk_cache",
+					sizeof(struct dsscomp_cb_work), 0,
+						SLAB_HWCACHE_ALIGN, NULL);
+		if (!dsscomp_cb_wk_cachep) {
+			pr_err("DSSCOMP: %s: can't create cache\n",
+							__func__);
+			goto error;
+		}
+	}
+
+	/* create cache for dsscomp_apply_work structures */
+	if (!dsscomp_app_wk_cachep) {
+		dsscomp_app_wk_cachep = kmem_cache_create("app_wk_cache",
+					sizeof(struct dsscomp_apply_work), 0,
+						SLAB_HWCACHE_ALIGN, NULL);
+		if (!dsscomp_app_wk_cachep) {
+			pr_err("DSSCOMP: %s: can't create cache\n", __func__);
+			/* destroy previously created cache */
+			kmem_cache_destroy(dsscomp_cb_wk_cachep);
+			goto error;
+		}
+	}
 
 	return 0;
 error:
@@ -219,7 +267,7 @@ int dsscomp_set_ovl(dsscomp_t comp, struct dss2_ovl_info *ovl)
 
 	ix = comp->ix;
 
-	if (ovl->cfg.ix >= cdev->num_ovls) {
+	if (ovl->cfg.ix >= cdev->num_ovls && ovl->cfg.ix != OMAP_DSS_WB) {
 		r = -EINVAL;
 		goto done;
 	}
@@ -250,8 +298,15 @@ int dsscomp_set_ovl(dsscomp_t comp, struct dss2_ovl_info *ovl)
 
 		/* and disabled (unless forced) if on another manager */
 		o = cdev->ovls[ovl->cfg.ix];
-		if (o->info.enabled && (!o->manager || o->manager->id != ix))
-			goto done;
+		if (ovl->cfg.ix == OMAP_DSS_WB) {
+			struct omap_writeback *wb = cdev->wb_ovl;
+			if (wb && wb->info.enabled && wb->info.source != ix)
+				goto done;
+		} else {
+			if (o->info.enabled &&
+			   (!o->manager || o->manager->id != ix))
+				goto done;
+		}
 
 		/* add overlay to composition & display */
 		comp->ovl_mask |= mask;
@@ -279,7 +334,7 @@ int dsscomp_get_ovl(dsscomp_t comp, u32 ix, struct dss2_ovl_info *ovl)
 	BUG_ON(!ovl);
 	BUG_ON(comp->state != DSSCOMP_STATE_ACTIVE);
 
-	if (ix >= cdev->num_ovls) {
+	if (ix >= cdev->num_ovls && ix != OMAP_DSS_WB) {
 		r = -EINVAL;
 	} else if (comp->ovl_mask & (1 << ix)) {
 		r = 0;
@@ -369,12 +424,6 @@ void dsscomp_drop(dsscomp_t comp)
 }
 EXPORT_SYMBOL(dsscomp_drop);
 
-struct dsscomp_cb_work {
-	struct work_struct work;
-	struct dsscomp_data *comp;
-	int status;
-};
-
 static void dsscomp_mgr_delayed_cb(struct work_struct *work)
 {
 	struct dsscomp_cb_work *wk = container_of(work, typeof(*wk), work);
@@ -382,7 +431,7 @@ static void dsscomp_mgr_delayed_cb(struct work_struct *work)
 	int status = wk->status;
 	u32 ix;
 
-	kfree(work);
+	kmem_cache_free(dsscomp_cb_wk_cachep, wk);
 
 	mutex_lock(&mtx);
 
@@ -429,7 +478,16 @@ static u32 dsscomp_mgr_callback(void *data, int id, int status)
 	    (status == DSS_COMPLETION_DISPLAYED &&
 	     comp->state != DSSCOMP_STATE_DISPLAYED) ||
 	    (status & DSS_COMPLETION_RELEASED)) {
-		struct dsscomp_cb_work *wk = kzalloc(sizeof(*wk), GFP_ATOMIC);
+		struct dsscomp_cb_work *wk;
+
+		/* allocate work object from cache */
+		wk = kmem_cache_zalloc(dsscomp_cb_wk_cachep, GFP_ATOMIC);
+		if (!wk) {
+			pr_err("DSSCOMP: %s: can't allocate cache object\n",
+								__func__);
+			BUG();
+		}
+
 		wk->comp = comp;
 		wk->status = status;
 		INIT_WORK(&wk->work, dsscomp_mgr_delayed_cb);
@@ -446,6 +504,99 @@ static inline bool dssdev_manually_updated(struct omap_dss_device *dev)
 		dev->driver->get_update_mode(dev) != OMAP_DSS_UPDATE_AUTO;
 }
 
+static int color_mode_to_bytes(enum omap_color_mode color_mode)
+{
+	switch (color_mode) {
+	case OMAP_DSS_COLOR_CLUT1:
+	case OMAP_DSS_COLOR_CLUT2:
+	case OMAP_DSS_COLOR_CLUT4:
+	case OMAP_DSS_COLOR_CLUT8:
+	case OMAP_DSS_COLOR_NV12:
+		return 1;
+	case OMAP_DSS_COLOR_RGB12U:
+	case OMAP_DSS_COLOR_RGB16:
+	case OMAP_DSS_COLOR_ARGB16:
+	case OMAP_DSS_COLOR_YUV2:
+	case OMAP_DSS_COLOR_UYVY:
+	case OMAP_DSS_COLOR_RGBA16:
+	case OMAP_DSS_COLOR_RGBX16:
+	case OMAP_DSS_COLOR_ARGB16_1555:
+	case OMAP_DSS_COLOR_XRGB16_1555:
+		return 2;
+	case OMAP_DSS_COLOR_RGB24P:
+	case OMAP_DSS_COLOR_RGB24U:
+	case OMAP_DSS_COLOR_ARGB32:
+	case OMAP_DSS_COLOR_RGBA32:
+	case OMAP_DSS_COLOR_RGBX32:
+		return 4;
+	default:
+		return 4;
+	}
+}
+
+#define MAX(a, b) (a > b ? a : b)
+#define MIN(a, b) (a < b ? a : b)
+static inline int intersect(int *dw, int *dh, int r1_x1, int r1_y1, int r1_w, int r1_h, int r2_x1, int r2_y1, int r2_w, int r2_h)
+{
+	int r1_x2 = r1_x1 + r1_w - 1;
+	int r1_y2 = r1_y1 + r1_h - 1;
+	int r2_x2 = r2_x1 + r2_w - 1;
+	int r2_y2 = r2_y1 + r2_h - 1;
+
+	int isect = (r2_x1 < r1_x2
+				&& r2_x2 > r1_x1
+				&& r2_y1 < r1_y2
+				&& r2_y2 > r1_y1);
+
+	if(isect) {
+		*dw = MIN(r1_x2, r2_x2) - MAX(r1_x1, r2_x1) + 1;
+		*dh = MIN(r1_y2, r2_y2) - MAX(r1_y1, r2_y1) + 1;
+	} else {
+		*dw = 0;
+		*dh = 0;
+	}
+	return isect;
+}
+
+static unsigned long get_min_bandwidth(dsscomp_t comp, struct omap_overlay_manager *mgr)
+{
+	struct dsscomp_setup_mgr_data *d = &comp->frm;
+	struct omap_dss_device *dssdev = cdev->displays[d->mgr.ix];
+	struct omap_video_timings t;
+	int i;
+	unsigned long bandwidth = 0;
+	unsigned long pixClk = 74250;
+
+	if (!mgr) return 0;
+
+	if (dssdev->driver->get_timings) {
+		dssdev->driver->get_timings(dssdev, &t);
+		pixClk = t.pixel_clock;
+	}
+
+	if (d) {
+		for (i=0; i < dss_feat_get_num_ovls(); i++)
+		{
+			struct dss2_ovl_info *ovl = &d->ovls[i];
+			if (ovl && ovl->cfg.enabled) {
+				if ((ovl->cfg.win.h != 0) && (ovl->cfg.win.w != 0)) {
+					unsigned long tmp;
+					tmp = (((ovl->cfg.crop.w * color_mode_to_bytes(ovl->cfg.color_mode) * ovl->cfg.crop.h / ovl->cfg.win.h) + 1000) * pixClk / ovl->cfg.win.w);
+					bandwidth += tmp;
+				}
+			}
+		}
+
+		mgr->tput_bandwidth = bandwidth;
+
+		bandwidth = 0;
+		for (i=0; i<cdev->num_mgrs; i++) {
+			bandwidth += cdev->mgrs[i]->tput_bandwidth;
+		}
+	}
+
+	return bandwidth;
+}
 /* apply composition */
 /* at this point the composition is not on any queue */
 static int dsscomp_apply(dsscomp_t comp)
@@ -459,6 +610,9 @@ static int dsscomp_apply(dsscomp_t comp)
 	struct dsscomp_setup_mgr_data *d;
 	u32 oix;
 	bool cb_programmed = false;
+	struct omap_writeback *wb = cdev->wb_ovl;
+	bool wb_apply = false;
+	unsigned long new_bandwidth = 0;
 
 	struct omapdss_ovl_cb cb = {
 		.fn = dsscomp_mgr_callback,
@@ -500,31 +654,45 @@ static int dsscomp_apply(dsscomp_t comp)
 
 		dump_ovl_info(cdev, oi);
 
-		if (oi->cfg.ix >= cdev->num_ovls) {
+		if (oi->cfg.ix >= cdev->num_ovls && oi->cfg.ix != OMAP_DSS_WB) {
 			r = -EINVAL;
 			continue;
 		}
-		ovl = cdev->ovls[oi->cfg.ix];
 
-		/* set overlays' manager & info */
-		if (ovl->info.enabled && ovl->manager != mgr) {
-			r = -EBUSY;
-			goto skip_ovl_set;
-		}
-		if (ovl->manager != mgr) {
-			/*
-			 * Ideally, we should call ovl->unset_manager(ovl),
-			 * but it may block on go even though the disabling
-			 * of the overlay already went through.  So instead,
-			 * we are just clearing the manager.
-			 */
-			ovl->manager = NULL;
-			r = ovl->set_manager(ovl, mgr);
-			if (r)
+		if (oi->cfg.ix == OMAP_DSS_WB) {
+			enum omap_writeback_source src;
+			if (wb->info.enabled && wb->info.source != mgr->id) {
+				dmask |= 1 << oi->cfg.ix;
+				continue;
+			}
+			/* update status of WB */
+			wb_apply = true;
+			src = mgr->id;
+
+			r = set_dss_wb_info(oi, src);
+		} else {
+			ovl = cdev->ovls[oi->cfg.ix];
+
+			/* set overlays' manager & info */
+			if (ovl->info.enabled && ovl->manager != mgr) {
+				r = -EBUSY;
 				goto skip_ovl_set;
+			}
+			if (ovl->manager != mgr) {
+				/*
+				 * Ideally, we should call ovl->unset_manager(ovl),
+				 * but it may block on go even though the disabling
+				 * of the overlay already went through.  So instead,
+				 * we are just clearing the manager.
+				 */
+				ovl->manager = NULL;
+				r = ovl->set_manager(ovl, mgr);
+				if (r)
+					goto skip_ovl_set;
+			}
+			r = set_dss_ovl_info(oi);
 		}
 
-		r = set_dss_ovl_info(oi);
 skip_ovl_set:
 		if (r && comp->must_apply) {
 			dev_err(DEV(cdev), "[%p] set ovl%d failed %d", comp,
@@ -573,6 +741,21 @@ skip_ovl_set:
 				mutex_unlock(&mtx);
 			}
 		}
+		/*
+		  * special treatment for WB overlay as its not
+		  * part of omap_overlay array in kernel
+		  */
+		if (cdev->wb_ovl) {
+			u32 mask = 1 << OMAP_DSS_WB;
+			if ((~comp->ovl_mask & mask) &&
+			    cdev->wb_ovl->info.enabled &&
+			    cdev->wb_ovl->info.source == mgr->id) {
+				mutex_lock(&mtx);
+				comp->ovl_mask |= mask;
+				maskref_incbit(&mgrq[comp->ix].ovl_qmask, i);
+				mutex_unlock(&mtx);
+			}
+		}
 	}
 
 	/* apply changes and call update on manual panels */
@@ -586,11 +769,24 @@ skip_ovl_set:
 		d->win.h = dssdev->panel.timings.y_res - d->win.y;
 
 	mutex_lock(&mtx);
+
+	new_bandwidth = get_min_bandwidth(comp, mgr);
+
+	if (new_bandwidth > current_bandwidth) {
+		omap_dss_request_bandwidth(new_bandwidth);
+	}
+
 	if (mgrq[comp->ix].blanking) {
 		pr_info_ratelimited("ignoring apply mgr(%s) while blanking\n",
 				    mgr->name);
 		r = -ENODEV;
 	} else {
+		if (wb_apply) {
+			r = omap_dss_wb_apply(mgr, cdev->wb_ovl);
+			if (r)
+				dev_err(DEV(cdev),
+					"omap_dss_wb_apply failed %d", r);
+		}
 		r = mgr->apply(mgr);
 		if (r)
 			dev_err(DEV(cdev), "failed while applying %d", r);
@@ -598,6 +794,15 @@ skip_ovl_set:
 		if (!r && !cb_programmed)
 			r = -EINVAL;
 	}
+
+	if (new_bandwidth < current_bandwidth) {
+		//TODO should be better to use a worker instead of blocking here, waiting for vsync
+		mgr->wait_for_vsync(mgr); //Wait for the current frame to have been displayed before reducing the bandwidth
+		omap_dss_request_bandwidth(new_bandwidth);
+	}
+
+	current_bandwidth = new_bandwidth;
+
 	mutex_unlock(&mtx);
 
 	/*
@@ -618,23 +823,27 @@ skip_ovl_set:
 		mgr->blank(mgr, true);
 
 	if (!r && (d->mode & DSSCOMP_SETUP_MODE_DISPLAY)) {
-		/* cannot handle update errors, so ignore them */
-		if (dssdev_manually_updated(dssdev) && drv->update)
-			drv->update(dssdev, d->win.x,
+		if (dssdev_manually_updated(dssdev) && drv->update) {
+			r = drv->update(dssdev, d->win.x,
 					d->win.y, d->win.w, d->win.h);
+			if (r) {
+				/* if failed to update, kick out
+				 * prior composition
+				 */
+				mgr->blank(mgr, false);
+				/* clear error as no need to
+				 * handle error state now
+				 */
+				r = 0;
+			}
+		}
 		else
 			/* wait for sync to do smooth animations */
 			mgr->wait_for_vsync(mgr);
 	}
-
 done:
 	return r;
 }
-
-struct dsscomp_apply_work {
-	struct work_struct work;
-	dsscomp_t comp;
-};
 
 int dsscomp_state_notifier(struct notifier_block *nb,
 						unsigned long arg, void *ptr)
@@ -655,22 +864,27 @@ int dsscomp_state_notifier(struct notifier_block *nb,
 	return 0;
 }
 
-
 static void dsscomp_do_apply(struct work_struct *work)
 {
 	struct dsscomp_apply_work *wk = container_of(work, typeof(*wk), work);
 	/* complete compositions that failed to apply */
 	if (dsscomp_apply(wk->comp))
 		dsscomp_mgr_callback(wk->comp, -1, DSS_COMPLETION_ECLIPSED_SET);
-	kfree(wk);
+	kmem_cache_free(dsscomp_app_wk_cachep, wk);
 }
 
 int dsscomp_delayed_apply(dsscomp_t comp)
 {
 	/* don't block in case we are called from interrupt context */
-	struct dsscomp_apply_work *wk = kzalloc(sizeof(*wk), GFP_NOWAIT);
-	if (!wk)
+	struct dsscomp_apply_work *wk;
+
+	/* allocate work object from cache */
+	wk = kmem_cache_zalloc(dsscomp_app_wk_cachep, GFP_NOWAIT);
+	if (!wk) {
+		pr_warn("DSSCOMP: %s: can't allocate object from cache\n",
+								__func__);
 		return -ENOMEM;
+	}
 
 	mutex_lock(&mtx);
 
@@ -767,9 +981,9 @@ void dsscomp_dbg_comps(struct seq_file *s)
 #endif
 }
 
+#ifdef CONFIG_DSSCOMP_DEBUG_LOG
 void dsscomp_dbg_events(struct seq_file *s)
 {
-#ifdef CONFIG_DSSCOMP_DEBUG_LOG
 	u32 i;
 	struct dbg_event_t *d;
 
@@ -786,9 +1000,9 @@ void dsscomp_dbg_events(struct seq_file *s)
 		seq_printf(s, "\n");
 	}
 	mutex_unlock(&dbg_mtx);
-#endif
-}
 
+}
+#endif
 /*
  * ===========================================================================
  *		EXIT

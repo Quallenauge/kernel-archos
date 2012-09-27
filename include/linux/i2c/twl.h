@@ -488,6 +488,7 @@ int twl6030_unregister_notifier(struct notifier_block *nb,
  * TWL6030 PM Master module register offsets (use TWL_MODULE_PM_MASTER)
  */
 
+#define TWL6030_PM_MASTER_MSK_TRANSITION	0x01
 #define TWL6030_VBATMIN_HI_THRESHOLD		0x05
 
 /*
@@ -590,6 +591,23 @@ int twl6030_unregister_notifier(struct notifier_block *nb,
 #define RES_RC6MHZ		45
 #define RES_TEMP		46
 
+/* 6032 extra resources */
+#define RES_LDOUSB		47
+#define RES_SMPS5		48
+#define RES_SMPS4		49
+#define RES_SMPS3		50
+#define RES_SMPS2		51
+#define RES_SMPS1		52
+#define RES_LDOLN		53
+#define RES_LDO7		54
+#define RES_LDO6		55
+#define RES_LDO5		56
+#define RES_LDO4		57
+#define RES_LDO3		58
+#define RES_LDO2		59
+#define RES_LDO1		60
+#define RES_VSYSMIN_HI	61
+
 /*
  * Power Bus Message Format ... these can be sent individually by Linux,
  * but are usually part of downloaded scripts that are run when various
@@ -637,13 +655,16 @@ struct twl4030_bci_platform_data {
 	unsigned int low_bat_voltagemV;
 #ifdef CONFIG_MACH_ARCHOS
 	bool usb_is_dc;
+	bool use_separate_charger;
 #endif
 
+	unsigned int sense_resistor_mohm;
+
 	/* twl6032 */
-	unsigned int use_hw_charger;
-	unsigned int use_power_path;
 	unsigned long features;
 	unsigned int use_eeprom_config;
+
+	unsigned long errata;
 };
 
 /* TWL4030_GPIO_MAX (18) GPIOs, with interrupts */
@@ -760,9 +781,11 @@ static inline int twl4030_remove_script(u8 flags) { return -EINVAL; }
 #endif
 
 #ifdef CONFIG_TWL6030_POWER
-extern void twl6030_power_init(struct twl4030_power_data *power_data);
+extern void twl6030_power_init(struct twl4030_power_data *power_data,\
+					unsigned long features);
 #else
-extern inline void twl6030_power_init(struct twl4030_power_data *power_data) { }
+extern inline void twl6030_power_init(struct twl4030_power_data *power_data,\
+					unsigned long features) { }
 #endif
 
 struct twl4030_codec_audio_data {
@@ -867,6 +890,10 @@ struct twl4030_platform_data {
 	struct regulator_init_data		*smps3;
 	struct regulator_init_data		*smps4;
 	struct regulator_init_data		*vio6032;
+
+	/* External control pins */
+	struct regulator_init_data		*sysen;
+	struct regulator_init_data		*regen1;
 };
 
 /*----------------------------------------------------------------------*/
@@ -965,5 +992,11 @@ static inline int twl4030charger_usb_en(int enable) { return 0; }
 #define TWL6032_REG_VIO		60
 
 #define TWL6030_REG_CLK32KAUDIO	61
+
+/* External control pins */
+#define TWL6030_REG_SYSEN	62
+#define TWL6030_REG_REGEN1	63
+
+#define TWL6032_PREQ1_RES_ASS_A	0xd7
 
 #endif /* End of __TWL4030_H */
