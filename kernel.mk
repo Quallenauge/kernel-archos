@@ -1,6 +1,6 @@
 KERNEL_BUILD_DIR=$(BASE_DIR)/
 KERNEL_CONFIG=$(KERNEL_BUILD_DIR)/linux-ics/.config
-KERNEL_CONFIG_SRC=$(KERNEL_SRC_REAL_DIR)/linux.config
+KERNEL_CONFIG_SRC=$(KERNEL_SRC_REAL_DIR)/linux.config.g9
 
 ifeq ($(ARCH),arm)
 KERNEL=$(KERNEL_BUILD_DIR)/linux-ics/arch/arm/boot/zImage
