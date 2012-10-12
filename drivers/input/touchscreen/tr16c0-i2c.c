@@ -6,7 +6,7 @@
  */
 
 //#define DEBUG
-#define AUTOLOAD_FIRMWARE
+//#define AUTOLOAD_FIRMWARE
 #define DEBUG_INTERFACE
 
 #include <linux/delay.h>
@@ -432,6 +432,7 @@ exit_work:
 	return;
 }
 
+#ifdef AUTOLOAD_FIRMWARE
 #define DATA_LEN 128
 
 static int tr16c0_get_data_hash(struct i2c_client *client, int *hash)
@@ -462,6 +463,7 @@ static int tr16c0_get_data_hash(struct i2c_client *client, int *hash)
 
 	return 0;
 }
+#endif
 
 
 static int tr16c0_startup_sequence(struct i2c_client *client)
@@ -496,7 +498,9 @@ static int tr16c0_startup_sequence(struct i2c_client *client)
 
 	print_hex_dump_bytes(KERN_ERR, 0, (unsigned char *) &v, sizeof(v));
 
+#ifdef AUTOLOAD_FIRMWARE
 	tr16c0_get_data_hash(client, &priv->current_fw_version.config_hash);
+#endif
 
 	dev_info(&client->dev, "%s: v%d.%d.%d %d - 0x%08x\n", __func__,
 			priv->current_fw_version.major,
@@ -769,6 +773,7 @@ int tr16c0_enter_bootloader(struct i2c_client * client)
 	return -1;
 }
 
+#ifdef AUTOLOAD_FIRMWARE
 static void tr16c0_flash_fw(struct i2c_client * client, const struct firmware * fw)
 {
 	struct fw_packet {
@@ -998,6 +1003,7 @@ static void tr16c0_request_firmware_nowait(struct i2c_client *client)
 
 	return;
 }
+#endif
 
 #ifdef DEBUG_INTERFACE
 static int touchplus_ts_open(struct inode *inode, struct file *file)
