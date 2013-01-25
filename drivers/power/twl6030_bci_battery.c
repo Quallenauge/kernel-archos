@@ -985,6 +985,7 @@ static irqreturn_t twl6030charger_ctrl_interrupt(int irq, void *_di)
 		(charge_state & CONTROLLER_STAT1_EXTCHRG_STATZ)) {
 		events = BQ2415x_CHARGER_FAULT;
 		blocking_notifier_call_chain(&notifier_list, events, NULL);
+		charger_fault = 1;
 	}
 
 	if (!di->usb_is_dc) {
@@ -1080,6 +1081,7 @@ static irqreturn_t twl6030charger_ctrl_interrupt(int irq, void *_di)
 stat_fault:
 	if (stat_set & CONTROLLER_STAT1_FAULT_WDG) {
 		charger_fault = 1;
+		di->stat1 &= ~CONTROLLER_STAT1_FAULT_WDG;
 		dev_dbg(di->dev, "Fault watchdog fired\n");
 	}
 	if (stat_reset & CONTROLLER_STAT1_FAULT_WDG)
@@ -1101,7 +1103,7 @@ stat_fault:
 		twl6032_charger_ctrl_interrupt(di);
 
 	if (charger_fault) {
-		twl6030_stop_usb_charger(di);
+		twl6030_stop_charger(di);
 		di->charge_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		dev_err(di->dev, "Charger Fault stop charging\n");
 	}
@@ -1175,7 +1177,7 @@ static irqreturn_t twl6030charger_fault_interrupt(int irq, void *_di)
 		dev_dbg(di->dev, "USB ANTICOLLAPSE\n");
 
 	if (charger_fault) {
-		twl6030_stop_usb_charger(di);
+		twl6030_stop_charger(di);
 		di->charge_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		dev_err(di->dev, "Charger Fault stop charging\n");
 
