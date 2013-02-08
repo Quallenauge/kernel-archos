@@ -640,6 +640,13 @@ twl6030_gpadc_start_conversion(struct twl6030_gpadc_data *gpadc,
 	}
 }
 
+static int twl6030_gpadc_is_conversion_ready(
+		struct twl6030_gpadc_data *gpadc, u8 status_reg)
+{
+	u8 reg = twl6030_gpadc_read(gpadc, status_reg);
+	return !(reg & TWL6030_GPADC_BUSY) && (reg & TWL6030_GPADC_EOC_SW);
+}
+
 static int twl6030_gpadc_wait_conversion_ready(
 		struct twl6030_gpadc_data *gpadc,
 		unsigned int timeout_ms, u8 status_reg)
@@ -648,14 +655,16 @@ static int twl6030_gpadc_wait_conversion_ready(
 
 	timeout = jiffies + msecs_to_jiffies(timeout_ms);
 	do {
-		u8 reg;
-
-		reg = twl6030_gpadc_read(gpadc, status_reg);
-		if (!(reg & TWL6030_GPADC_BUSY) && (reg & TWL6030_GPADC_EOC_SW))
+		if (twl6030_gpadc_is_conversion_ready(gpadc, status_reg))
 			return 0;
+		msleep_interruptible(1);
 	} while (!time_after(jiffies, timeout));
 
-	return -EAGAIN;
+	/* one more checking against scheduler-caused timeout */
+	if (twl6030_gpadc_is_conversion_ready(gpadc, status_reg))
+		return 0;
+	else
+		return -EAGAIN;
 }
 
 /* locks held by caller */
@@ -855,7 +864,6 @@ static ssize_t show_channel(struct device *dev,
 	req.method = TWL6030_GPADC_SW2;
 	req.active = 0;
 	req.func_cb = NULL;
-	req.type = TWL6030_GPADC_WAIT;
 	ret = twl6030_gpadc_conversion(&req);
 	if (ret < 0)
 		return ret;
@@ -880,7 +888,6 @@ static ssize_t show_raw_code(struct device *dev,
 	req.method = TWL6030_GPADC_SW2;
 	req.active = 0;
 	req.func_cb = NULL;
-	req.type = TWL6030_GPADC_WAIT;
 	ret = twl6030_gpadc_conversion(&req);
 	if (ret < 0)
 		return ret;
@@ -1201,11 +1208,11 @@ static int twl6032_calibration(struct twl6030_gpadc_data *gpadc)
 			/* D1 */
 			d1 = (trim_regs[11] & 0x0F) << 3;
 			d1 |= (trim_regs[9] & 0x0E) >> 1;
-			if (trim_regs[1] & 0x01)
+			if (trim_regs[9] & 0x01)
 				d1 = -d1;
 
 			/* D2 */
-			d2 = (trim_regs[15] & 0x0F) << 2;
+			d2 = (trim_regs[15] & 0x0F) << 3;
 			d2 |= (trim_regs[13] & 0x0E) >> 1;
 			if (trim_regs[13] & 0x01)
 				d2 = -d2;
@@ -1218,8 +1225,8 @@ static int twl6032_calibration(struct twl6030_gpadc_data *gpadc)
 			if (trim_regs[1] & 0x01)
 				temp = -temp;
 
-			d1 = (trim_regs[1] & 0x7E) >> 1;
-			if (trim_regs[12] & 0x01)
+			d1 = (trim_regs[5] & 0x7E) >> 1;
+			if (trim_regs[5] & 0x01)
 				d1 = -d1;
 
 			d1 += temp;
@@ -1230,8 +1237,8 @@ static int twl6032_calibration(struct twl6030_gpadc_data *gpadc)
 			if (trim_regs[2] & 0x01)
 				temp = -temp;
 
-			d2 = (trim_regs[6] & 0x7F) >> 1;
-			if (trim_regs[14] & 0x01)
+			d2 = (trim_regs[6] & 0xFE) >> 1;
+			if (trim_regs[6] & 0x01)
 				d2 = -d2;
 
 			d2 += temp;
@@ -1273,22 +1280,6 @@ static int twl6032_calibration(struct twl6030_gpadc_data *gpadc)
 
 	return 0;
 }
-
-void twl6030_gpadc_set_chan3_current(unsigned int val) {
-	int res = twl6030_gpadc_read(the_gpadc, TWL6030_GPADC_CTRL2);
-	res &= 0xFC;
-	res |= (val & 0x3);
-	twl6030_gpadc_write(the_gpadc, TWL6030_GPADC_CTRL2, res);
-}
-EXPORT_SYMBOL(twl6030_gpadc_set_chan3_current);
-
-void twl6030_gpadc_set_sampling_window(unsigned int val) {
-	int res = twl6030_gpadc_read(the_gpadc, TWL6030_TOGGLE1);
-	res &= 0xFF ^ (1 << 2);
-	res |= ((val > 0) << 2);
-	twl6030_gpadc_write(the_gpadc, TWL6030_TOGGLE1, res);
-}
-EXPORT_SYMBOL(twl6030_gpadc_set_sampling_window);
 
 static int __devinit twl6030_gpadc_probe(struct platform_device *pdev)
 {
