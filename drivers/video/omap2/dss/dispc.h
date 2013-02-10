@@ -284,20 +284,6 @@ static inline u16 DISPC_CPR_COEF_B(enum omap_channel channel)
 	}
 }
 
-static inline u16 DISPC_GAMMA_TABLEo_OFFSET(enum omap_channel channel)
-{
-	switch (channel) {
-	case OMAP_DSS_CHANNEL_LCD:
-		return 0x0630;
-	case OMAP_DSS_CHANNEL_LCD2:
-		return 0x0634;
-	case OMAP_DSS_CHANNEL_DIGIT:
-		return 0x0638;
-	default:
-		BUG();
-	}
-}
-
 /* DISPC overlay register base addresses */
 static inline u16 DISPC_OVL_BASE(enum omap_plane plane)
 {

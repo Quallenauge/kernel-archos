@@ -39,8 +39,10 @@
 
 #include <video/omapdss.h>
 #include <video/dsscomp.h>
+#include <plat/android-display.h>
 #include <plat/dsscomp.h>
 #include "dsscomp.h"
+#include "../dss/dss_features.h"
 #include "../dss/dss.h"
 
 #include <linux/debugfs.h>
@@ -48,7 +50,9 @@
 static DECLARE_WAIT_QUEUE_HEAD(waitq);
 static DEFINE_MUTEX(wait_mtx);
 
-u32 hwc_virt_to_phys(u32 arg)
+static struct dsscomp_platform_info platform_info;
+
+static u32 hwc_virt_to_phys(u32 arg)
 {
 	pmd_t *pmd;
 	pte_t *ptep;
@@ -305,7 +309,6 @@ static long query_display(struct dsscomp_dev *cdev,
 		(dev->state == OMAP_DSS_DISPLAY_ACTIVE);
 	dis->overlays_available = 0;
 	dis->overlays_owned = 0;
-	dis->fclk = dispc_fclk_rate()/1000;
 #if 0
 	dis->s3d_info = dev->panel.s3d_info;
 #endif
@@ -314,7 +317,6 @@ static long query_display(struct dsscomp_dev *cdev,
 
 	dis->width_in_mm = DIV_ROUND_CLOSEST(dev->panel.width_in_um, 1000);
 	dis->height_in_mm = DIV_ROUND_CLOSEST(dev->panel.height_in_um, 1000);
-	dis->is_virtual = dev->panel.is_virtual;
 
 	/* find all overlays available for/owned by this display */
 	for (i = 0; i < cdev->num_ovls && dis->enabled; i++) {
@@ -354,14 +356,13 @@ static long query_display(struct dsscomp_dev *cdev,
 	if (dis->modedb_len && dev->driver->get_modedb)
 		dis->modedb_len = dev->driver->get_modedb(dev,
 			(struct fb_videomode *) dis->modedb, dis->modedb_len);
-	dis->support_underscan = (dev->panel.monspecs.misc & FB_MISC_UNDERSCAN)?1:0;
 	return 0;
 }
 
 static long check_ovl(struct dsscomp_dev *cdev,
 					struct dsscomp_check_ovl_data *chk)
 {
-	/* for now return all overlays as possible */
+	/* for now return all overlays as possstruct dsscomp_dev *cdevible */
 	return (1 << cdev->num_ovls) - 1;
 }
 
@@ -419,6 +420,37 @@ static void fill_cache(struct dsscomp_dev *cdev)
 	dev_info(DEV(cdev), "found %d displays and %d overlays, WB overlay %d\n",
 				cdev->num_displays, cdev->num_ovls,
 				cdev->wb_ovl ? 1 : 0);
+}
+
+static void fill_platform_info(struct dsscomp_dev *cdev)
+{
+	struct dsscomp_platform_info *p = &platform_info;
+	struct sgx_omaplfb_config *fb_info;
+
+	p->max_xdecim_1d = 16;
+	p->max_xdecim_2d = 16;
+	p->max_ydecim_1d = 16;
+	p->max_ydecim_2d = 2;
+
+	p->fclk = dss_feat_get_param_max(FEAT_PARAM_DSS_FCK);
+	/*
+	 * :TODO: for now overwrite with actual fclock as dss will not scale
+	 * fclock based on composition
+	 */
+	p->fclk = dispc_fclk_rate();
+
+	p->min_width = 2;
+	p->max_width = 2048;
+	p->max_height = 2048;
+
+	p->max_downscale = 4;
+	p->integer_scale_ratio_limit = 2048;
+
+	p->tiler1d_slot_size = tiler1d_slot_size(cdev);
+
+	fb_info = sgx_omaplfb_get(0);
+	p->fbmem_type = fb_info->tiler2d_buffers ? DSSCOMP_FBMEM_TILER2D :
+						DSSCOMP_FBMEM_VRAM;
 }
 
 static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
@@ -486,56 +518,12 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	{
 		r = copy_from_user(&u.sdis, ptr, sizeof(u.sdis)) ? :
 		    setup_display(cdev, &u.sdis);
-	}
-	case DSSCIOC_QUERY_TILER_BUDGET:
-	{
-		 unsigned int tilerBudget;
-		 r = dsscomp_gralloc_query_tiler_budget_ioctl(&tilerBudget) ? :
-				copy_to_user(ptr, &tilerBudget, sizeof(tilerBudget));
-		 break;
-	}
-	case DSSCIOC_USE_TILER_BUDGET:
-	{
 		break;
 	}
-	case DSSCIOC_ISR_START:
+	case DSSCIOC_QUERY_PLATFORM:
 	{
-		r = isr_start( cdev, ptr );
-		break;
-	}
-	case DSSCIOC_ISR_STOP:
-	{
-		r = isr_stop( cdev );
-		break;
-	}
-	case DSSCIOC_ISR_PUT: 
-	{
-		r = isr_put( cdev, ptr );
-		break;
-	}
-	case DSSCIOC_ISR_GET: 
-	{
-		r = isr_get( cdev, ptr );
-		break;
-	}
-	case DSSCIOC_ISR_REFTIME:
-	{
-		r = isr_reftime(cdev, ptr);
-		break;
-	}
-	case DSSCIOC_ISR_FLUSH: 
-	{
-		r = isr_flush( cdev );
-		break;	
-	}
-	case DSSCIOC_ISR_RESUME:
-	{
-		r = isr_resume( cdev );
-		break;
-	}
-	case DSSCIOC_ISR_SUSPEND:
-	{
-		r = isr_suspend( cdev );
+		/* :TODO: for now refill platform info as it is dynamic */
+		r = copy_to_user(ptr, &platform_info, sizeof(platform_info));
 		break;
 	}
 	default:
@@ -550,20 +538,10 @@ static int comp_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static int comp_release(struct inode *inode, struct file *filp)
-{
-	struct miscdevice *dev = filp->private_data;
-	struct dsscomp_dev *cdev = container_of(dev, struct dsscomp_dev, dev);
-
-	isr_stop(cdev);
-	return 0;
-}
-
 static const struct file_operations comp_fops = {
 	.owner		= THIS_MODULE,
 	.open		= comp_open,
 	.unlocked_ioctl = comp_ioctl,
-	.release	= comp_release,
 };
 
 static int dsscomp_debug_show(struct seq_file *s, void *unused)
@@ -624,6 +602,7 @@ static int dsscomp_probe(struct platform_device *pdev)
 	pr_info("dsscomp: initializing.\n");
 
 	fill_cache(cdev);
+	fill_platform_info(cdev);
 
 	/* initialize queues */
 	dsscomp_queue_init(cdev);
@@ -674,9 +653,7 @@ void dsscomp_kdump(void)
 	};
 	int i;
 
-#ifdef CONFIG_DSSCOMP_DEBUG_LOG
 	dsscomp_dbg_events(&s);
-#endif	
 	dsscomp_dbg_comps(&s);
 	dsscomp_dbg_gralloc(&s);
 

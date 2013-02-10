@@ -198,7 +198,7 @@ struct omap_dss_device auo_wxga_10_dss_device = {
 	.driver_name		= "generic_dpi_panel",
 	.data			= &auo_wxga_10_panel,
 	.phy.dpi.data_lines	= 18,
-	.phy.dpi.dither 	= OMAP_DSS_DITHER_SPATIAL,
+//	.phy.dpi.dither 	= OMAP_DSS_DITHER_SPATIAL,
 	.reset_gpio		= -1,
 	.channel		= OMAP_DSS_CHANNEL_LCD2,
 	.clocks = {
@@ -243,7 +243,7 @@ int __init panel_auo_wxga_10_init(struct omap_dss_device *disp_data)
 
 	if (conf->do_gamma_fix) {
 		gamma_tab_init(gamma_table);
-		auo_wxga_10_dss_device.phy.dpi.gamma_correction = gamma_table;
+//		auo_wxga_10_dss_device.phy.dpi.gamma_correction = gamma_table;
 	}
 
 	*disp_data = auo_wxga_10_dss_device;

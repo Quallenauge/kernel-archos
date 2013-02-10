@@ -175,39 +175,15 @@ int crop_to_rect(union rect *crop, union rect *win, union rect *vis,
 	return 0;
 }
 
-#define NB_OVERLAY 4
-
-static struct {
-	struct {
-		struct dss2_ovl_cfg cfg;
-		u8 valid;
-	} ovls[NB_OVERLAY];
-	struct {
-		__u32 ba;
-		__u32 uv;
-		__u32 stride;
-		enum omap_color_mode color_mode;
-		enum omap_dss_ilace_mode ilace;
-	} addr;
-} avos_isr;
-
-static DEFINE_SPINLOCK(avos_isr_lock);
-u32 hwc_virt_to_phys(u32 arg);
-
-static inline int rectcmp(struct dss2_rect_t *r1, struct dss2_rect_t *r2)
-{
-	return !(r1->x == r2->x && r1->y == r2->y && r1->w == r2->w && r1->h == r2->h);
-}
-
 int set_dss_ovl_info(struct dss2_ovl_info *oi)
 {
 	struct omap_overlay_info info;
+	struct omap_writeback_info wb_info;
+	struct omap_writeback *wb;
 	struct omap_overlay *ovl;
 	struct dss2_ovl_cfg *cfg;
 	union rect crop, win, vis;
 	int c;
-	unsigned long flags = 0;
-	int ret = -EINVAL, locked = 0;
 
 	/* check overlay number */
 	if (!oi || oi->cfg.ix >= omap_dss_get_num_overlays())
@@ -217,22 +193,6 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 
 	/* just in case there are new fields, we get the current info */
 	ovl->get_overlay_info(ovl, &info);
-
-	if (cfg->source_type == OMAP_AVOS_SOURCE) {
-		spin_lock_irqsave(&avos_isr_lock, flags);
-		locked = 1;
-		if (avos_isr.addr.ba) {
-			oi->ba = avos_isr.addr.ba;
-			oi->uv = avos_isr.addr.uv;
-			cfg->stride = avos_isr.addr.stride;
-			cfg->color_mode = avos_isr.addr.color_mode;
-			cfg->ilace = avos_isr.addr.ilace;
-		}
-		avos_isr.ovls[cfg->ix].cfg = *cfg;
-		avos_isr.ovls[cfg->ix].valid = 1;
-	} else {
-		avos_isr.ovls[cfg->ix].valid = 0;
-	}
 
 	info.enabled = cfg->enabled;
 	if (!cfg->enabled)
@@ -246,6 +206,7 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 
 	info.global_alpha = cfg->global_alpha;
 	info.pre_mult_alpha = cfg->pre_mult_alpha;
+	info.wb_source = cfg->wb_source;
 	info.rotation = cfg->rotation;
 	info.mirror = cfg->mirror;
 	info.color_mode = cfg->color_mode;
@@ -253,14 +214,28 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 	/* crop to screen */
 	crop.r = cfg->crop;
 	win.r = cfg->win;
-	vis.x = vis.y = 0;
-	vis.w = ovl->manager->device->panel.timings.x_res;
-	vis.h = ovl->manager->device->panel.timings.y_res;
 
-	if (crop_to_rect(&crop, &win, &vis, cfg->rotation, cfg->mirror) ||
-								vis.w < 2) {
-		info.enabled = false;
-		goto done;
+	vis.x = vis.y = 0;
+
+	wb = omap_dss_get_wb(0);
+
+	wb->get_wb_info(wb, &wb_info);
+
+	if (wb && wb_info.enabled && wb_info.mode == OMAP_WB_MEM2MEM_MODE &&
+					ovl->manager->id == wb_info.source) {
+		vis.w = wb_info.width;
+		vis.h = wb_info.height;
+	} else {
+		vis.w = ovl->manager->device->panel.timings.x_res;
+		vis.h = ovl->manager->device->panel.timings.y_res;
+	}
+
+	if (!info.wb_source) {
+		if (crop_to_rect(&crop, &win, &vis, cfg->rotation,
+				cfg->mirror) || vis.w < 2) {
+			info.enabled = false;
+			goto done;
+		}
 	}
 
 	/* adjust crop to UV pixel boundaries */
@@ -394,284 +369,22 @@ done:
 		info.pre_mult_alpha);
 #endif
 	/* set overlay info */
-	ret = ovl->set_overlay_info(ovl, &info);
-
-	if (locked)
-		spin_unlock_irqrestore(&avos_isr_lock, flags);
-	return ret;
+	return ovl->set_overlay_info(ovl, &info);
 }
 
-long convert_dss_ovl_addr(struct dsscomp_buffer *buf)
-{
-	__u32 addr;
-	
-	/* check overlay number */
-	if (!buf)
-		return -EINVAL;
-
-	addr = (u32) buf->address;
-
-	/* convert addresses to user space */
-	if (buf->color_mode == OMAP_DSS_COLOR_NV12) {
-		__u32 uv_addr = (u32) buf->uv_addr;
-		buf->uv = hwc_virt_to_phys(uv_addr + buf->ofs_x + buf->ofs_y / 2 * buf->stride);
-	}
-	buf->ba = hwc_virt_to_phys(addr + buf->ofs_x + buf->ofs_y * buf->stride);
-	return 0;
-}
-
-int ovl_isr_start(struct dsscomp_dev *cdev)
-{
-	return 0;
-}
-
-int ovl_isr_stop(struct dsscomp_dev *cdev)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&avos_isr_lock, flags);
-	memset(&avos_isr.addr, 0, sizeof(avos_isr.addr));
-	spin_unlock_irqrestore(&avos_isr_lock, flags);
-	return 0;
-}
-
-/*
- * called from isr context
- */
-int set_dss_ovl_addr(struct dsscomp_buffer *buf)
-{
-	struct omap_overlay_manager *mgr = NULL;
-	int ix;
-	int r;
-	/* check overlay number */
-	if (!buf)
-		return -EINVAL;
-	for (ix = 0; ix < omap_dss_get_num_overlays(); ix++) {
-		struct omap_overlay_info info;
-		struct omap_overlay *ovl;
-		struct dss2_ovl_cfg *cfg;
-		union rect crop, win, vis;
-		int c;
-		
-		if (!avos_isr.ovls[ix].valid)
-			continue;
-
-		ovl = omap_dss_get_overlay(ix);
-
-		/* just in case there are new fields, we get the current info */
-		ovl->get_overlay_info(ovl, &info);
-
-		cfg = &avos_isr.ovls[ix].cfg;
-		avos_isr.addr.ba = buf->ba;
-		avos_isr.addr.uv = buf->uv;
-		avos_isr.addr.stride = buf->stride;
-
-		avos_isr.addr.ilace = buf->ilace;
-		avos_isr.addr.color_mode = buf->color_mode;
-
-		info.enabled = cfg->enabled;
-		if (!cfg->enabled) {
-			continue;
-		}
-
-		/* copied params */
-		info.zorder = cfg->zorder;
-
-		if (cfg->zonly)
-			continue;
-
-		info.global_alpha = cfg->global_alpha;
-		info.pre_mult_alpha = cfg->pre_mult_alpha;
-		info.rotation = cfg->rotation;
-		info.mirror = cfg->mirror;
-		info.color_mode = buf->color_mode;
-
-		/* crop to screen */
-		crop.r = cfg->crop;
-		win.r = cfg->win;
-		vis.x = vis.y = 0;
-		vis.w = ovl->manager->device->panel.timings.x_res;
-		vis.h = ovl->manager->device->panel.timings.y_res;
-
-		if (crop_to_rect(&crop, &win, &vis, cfg->rotation, cfg->mirror) ||
-									vis.w < 2) {
-			info.enabled = false;
-			goto done;
-		}
-
-		/* adjust crop to UV pixel boundaries */
-		for (c = 0; c < (info.color_mode == OMAP_DSS_COLOR_NV12 ? 2 :
-			(info.color_mode &
-			 (OMAP_DSS_COLOR_YUV2 | OMAP_DSS_COLOR_UYVY)) ? 1 : 0); c++) {
-			/* keep the output window to avoid trembling edges */
-			crop.wh[c] += crop.xy[c] & 1;	/* round down start */
-			crop.xy[c] &= ~1;
-			crop.wh[c] += crop.wh[c] & 1;	/* round up end */
-
-			/*
-			 * Buffer is aligned on UV pixel boundaries, so no
-			 * worries about extending crop region.
-			 */
-		}
-
-		info.width  = crop.w;
-		info.height = crop.h;
-		if (cfg->rotation & 1)
-			/* DISPC uses swapped height/width for 90/270 degrees */
-			swap(info.width, info.height);
-		info.pos_x = win.x;
-		info.pos_y = win.y;
-		info.out_width = win.w;
-		info.out_height = win.h;
-
-		/* calculate addresses and cropping */
-		info.paddr = buf->ba;
-		info.p_uv_addr = (info.color_mode == OMAP_DSS_COLOR_NV12) ? buf->uv : 0;
-		info.vaddr = NULL;
-
-		/* check for TILER 2D buffer */
-		if (info.paddr >= 0x60000000 && info.paddr < 0x78000000) {
-			int bpp = 1 << ((info.paddr >> 27) & 3);
-			struct tiler_view_t t;
-
-			/* crop to top-left */
-
-			/*
-			 * DSS supports YUV422 on 32-bit mode, but its technically
-			 * 2 bytes-per-pixel.
-			 * Also RGB24-888 is 3 bytes-per-pixel even though no
-			 * tiler pixel format matches this.
-			 */
-			if (info.color_mode &
-					(OMAP_DSS_COLOR_YUV2 | OMAP_DSS_COLOR_UYVY))
-				bpp = 2;
-			else if (info.color_mode == OMAP_DSS_COLOR_RGB24P)
-				bpp = 3;
-
-			tilview_create(&t, info.paddr, cfg->width, cfg->height);
-			info.paddr -= t.tsptr;
-			tilview_crop(&t, 0, crop.y, cfg->width, crop.h);
-			info.paddr += t.tsptr + bpp * crop.x;
-
-			info.rotation_type = OMAP_DSS_ROT_TILER;
-			info.screen_width = 0;
-
-			/* for NV12 format also crop NV12 */
-			if (info.color_mode == OMAP_DSS_COLOR_NV12) {
-				tilview_create(&t, info.p_uv_addr,
-						cfg->width >> 1, cfg->height >> 1);
-				info.p_uv_addr -= t.tsptr;
-				tilview_crop(&t, 0, crop.y >> 1, cfg->width >> 1,
-									crop.h >> 1);
-				info.p_uv_addr += t.tsptr + bpp * crop.x;
-			}
-		} else {
-			/* program tiler 1D as SDMA */
-
-			int bpp = color_mode_to_bpp(info.color_mode);
-			info.screen_width = buf->stride * 8 / (bpp == 12 ? 8 : bpp);
-			info.paddr += crop.x * (bpp / 8) + crop.y * buf->stride;
-
-			/* for NV12 format also crop NV12 */
-			if (info.color_mode == OMAP_DSS_COLOR_NV12)
-				info.p_uv_addr += crop.x * (bpp / 8) +
-					(crop.y >> 1) * buf->stride;
-
-			/* no rotation on DMA buffer */
-			if (cfg->rotation & 3 || cfg->mirror)
-				return -EINVAL;
-
-			info.rotation_type = OMAP_DSS_ROT_DMA;
-		}
-
-		info.max_x_decim = cfg->decim.max_x ? : 255;
-		info.max_y_decim = cfg->decim.max_y ? : 255;
-		info.min_x_decim = cfg->decim.min_x ? : 1;
-		info.min_y_decim = cfg->decim.min_y ? : 1;
-#if 0
-		info.pic_height = cfg->height;
-
-		info.field = 0;
-		if (cfg->ilace & OMAP_DSS_ILACE_SEQ)
-			info.field |= OMAP_FLAG_IBUF;
-		if (cfg->ilace & OMAP_DSS_ILACE_SWAP)
-			info.field |= OMAP_FLAG_ISWAP;
-		/*
-		 * Ignore OMAP_DSS_ILACE as there is no real support yet for
-		 * interlaced interleaved vs progressive buffers
-		 */
-		if (ovl->manager &&
-		    ovl->manager->device &&
-		    !strcmp(ovl->manager->device->name, "hdmi") &&
-		    is_hdmi_interlaced())
-			info.field |= OMAP_FLAG_IDEV;
-
-		info.out_wb = 0;
-#endif
-
-		info.cconv = cfg->cconv;
-
-	done:
-#if 0
-		pr_debug("ovl%d: en=%d %x/%x (%dx%d|%d) => (%dx%d) @ (%d,%d) rot=%d "
-			"mir=%d col=%x z=%d al=%02x prem=%d pich=%d ilace=%d\n",
-			ovl->id, info.enabled, info.paddr, info.p_uv_addr, info.width,
-			info.height, info.screen_width, info.out_width, info.out_height,
-			info.pos_x, info.pos_y, info.rotation, info.mirror,
-			info.color_mode, info.zorder, info.global_alpha,
-			info.pre_mult_alpha, info.pic_height, info.field);
-#else
-		pr_debug("isr_ovl%d: en=%d %x/%x (%dx%d|%d) => (%dx%d) @ (%d,%d) rot=%d "
-			"mir=%d col=%x z=%d al=%02x prem=%d\n",
-			ovl->id, info.enabled, info.paddr, info.p_uv_addr, info.width,
-			info.height, info.screen_width, info.out_width, info.out_height,
-			info.pos_x, info.pos_y, info.rotation, info.mirror,
-			info.color_mode, info.zorder, info.global_alpha,
-			info.pre_mult_alpha);
-#endif
-		/* set overlay info */
-		if( (r = ovl->set_overlay_info(ovl, &info)) ) {
-			return r;
-		}
-
-		if( mgr != ovl->manager ) {
-			if( mgr ) {	
-				// there is an (old) manager that needs apply
-				if( (r = mgr->apply(mgr)) ) {
-					return r;
-				}
-			}
-			mgr = ovl->manager;
-		}
-	}
-	
-	// there is a manager that needs apply?
-	if( mgr ) {
-		return mgr->apply(mgr);
-	}
-	return r;
-}
-
-int set_dss_wb_info(struct dss2_ovl_info *oi,
-	enum omap_writeback_source src)
+int set_dss_wb_info(struct dss2_ovl_info *oi)
 {
 	struct omap_writeback_info info;
 	struct omap_writeback *wb;
 	struct dss2_ovl_cfg *cfg;
 	union rect crop, win;
-	struct omap_overlay_manager *manager;
 
 	/* check overlay number */
 	if (!oi || oi->cfg.ix != OMAP_DSS_WB)
 		return -EINVAL;
 
-	/* current support only for manager capture mode */
-	if (src != oi->cfg.mgr_ix)
-		return -EINVAL;
-
 	cfg = &oi->cfg;
 	wb = omap_dss_get_wb(0);
-	manager = omap_dss_get_overlay_manager(cfg->mgr_ix);
 
 	/* just in case there are new fields, we get the current info */
 	wb->get_wb_info(wb, &info);
@@ -680,18 +393,9 @@ int set_dss_wb_info(struct dss2_ovl_info *oi,
 	if (!cfg->enabled)
 		goto done;
 
-	/* Currently, we always use output of manager for WB input */
-	info.source = manager->id;
+	info.source = cfg->wb_source;
+	info.mode = cfg->wb_mode;
 	info.capturemode = OMAP_WB_CAPTURE_ALL;
-	info.mode = OMAP_WB_CAPTURE_MODE;
-
-	/* WB overlay does not support cropping */
-	if ((cfg->crop.w != manager->device->panel.timings.x_res) ||
-		(cfg->crop.h != manager->device->panel.timings.y_res) ||
-		(cfg->crop.x != 0) || (cfg->crop.y != 0)) {
-		info.enabled = false;
-		goto done;
-	}
 
 	/* calculate input/output height and width */
 	crop.r = cfg->crop;
@@ -754,7 +458,8 @@ struct omap_overlay_manager *find_dss_mgr(int display_ix)
 	return NULL;
 }
 
-int set_dss_mgr_info(struct dss2_mgr_info *mi, struct omapdss_ovl_cb *cb)
+int set_dss_mgr_info(struct dss2_mgr_info *mi, struct omapdss_ovl_cb *cb,
+								bool m2m_mode)
 {
 	struct omap_overlay_manager_info info;
 	struct omap_overlay_manager *mgr;
@@ -777,6 +482,7 @@ int set_dss_mgr_info(struct dss2_mgr_info *mi, struct omapdss_ovl_cb *cb)
 	info.cpr_coefs = mi->cpr_coefs;
 	info.cpr_enable = mi->cpr_enabled;
 	info.cb = *cb;
+	info.wb_only = m2m_mode;
 
 	return mgr->set_manager_info(mgr, &info);
 }

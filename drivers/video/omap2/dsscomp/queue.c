@@ -30,11 +30,8 @@
 #include <plat/dsscomp.h>
 
 #include <linux/debugfs.h>
-#include <asm/mach-types.h>
 
 #include "dsscomp.h"
-#include "../dss/dss.h"
-#include "../dss/dss_features.h"
 /* queue state */
 
 static DEFINE_MUTEX(mtx);
@@ -55,8 +52,6 @@ static struct {
 
 static struct workqueue_struct *cb_wkq;		/* callback work queue */
 static struct dsscomp_dev *cdev;
-
-static unsigned long current_bandwidth = 0;
 
 #ifdef CONFIG_DEBUG_FS
 LIST_HEAD(dbg_comps);
@@ -298,11 +293,7 @@ int dsscomp_set_ovl(dsscomp_t comp, struct dss2_ovl_info *ovl)
 
 		/* and disabled (unless forced) if on another manager */
 		o = cdev->ovls[ovl->cfg.ix];
-		if (ovl->cfg.ix == OMAP_DSS_WB) {
-			struct omap_writeback *wb = cdev->wb_ovl;
-			if (wb && wb->info.enabled && wb->info.source != ix)
-				goto done;
-		} else {
+		if (ovl->cfg.ix != OMAP_DSS_WB) {
 			if (o->info.enabled &&
 			   (!o->manager || o->manager->id != ix))
 				goto done;
@@ -470,7 +461,7 @@ static void dsscomp_mgr_delayed_cb(struct work_struct *work)
 	mutex_unlock(&mtx);
 }
 
-static u32 dsscomp_mgr_callback(void *data, int id, int status)
+u32 dsscomp_mgr_callback(void *data, int id, int status)
 {
 	struct dsscomp_data *comp = data;
 
@@ -497,6 +488,7 @@ static u32 dsscomp_mgr_callback(void *data, int id, int status)
 	/* get each callback only once */
 	return ~status;
 }
+EXPORT_SYMBOL(dsscomp_mgr_callback);
 
 static inline bool dssdev_manually_updated(struct omap_dss_device *dev)
 {
@@ -504,102 +496,9 @@ static inline bool dssdev_manually_updated(struct omap_dss_device *dev)
 		dev->driver->get_update_mode(dev) != OMAP_DSS_UPDATE_AUTO;
 }
 
-static int color_mode_to_bytes(enum omap_color_mode color_mode)
-{
-	switch (color_mode) {
-	case OMAP_DSS_COLOR_CLUT1:
-	case OMAP_DSS_COLOR_CLUT2:
-	case OMAP_DSS_COLOR_CLUT4:
-	case OMAP_DSS_COLOR_CLUT8:
-	case OMAP_DSS_COLOR_NV12:
-		return 1;
-	case OMAP_DSS_COLOR_RGB12U:
-	case OMAP_DSS_COLOR_RGB16:
-	case OMAP_DSS_COLOR_ARGB16:
-	case OMAP_DSS_COLOR_YUV2:
-	case OMAP_DSS_COLOR_UYVY:
-	case OMAP_DSS_COLOR_RGBA16:
-	case OMAP_DSS_COLOR_RGBX16:
-	case OMAP_DSS_COLOR_ARGB16_1555:
-	case OMAP_DSS_COLOR_XRGB16_1555:
-		return 2;
-	case OMAP_DSS_COLOR_RGB24P:
-	case OMAP_DSS_COLOR_RGB24U:
-	case OMAP_DSS_COLOR_ARGB32:
-	case OMAP_DSS_COLOR_RGBA32:
-	case OMAP_DSS_COLOR_RGBX32:
-		return 4;
-	default:
-		return 4;
-	}
-}
-
-#define MAX(a, b) (a > b ? a : b)
-#define MIN(a, b) (a < b ? a : b)
-static inline int intersect(int *dw, int *dh, int r1_x1, int r1_y1, int r1_w, int r1_h, int r2_x1, int r2_y1, int r2_w, int r2_h)
-{
-	int r1_x2 = r1_x1 + r1_w - 1;
-	int r1_y2 = r1_y1 + r1_h - 1;
-	int r2_x2 = r2_x1 + r2_w - 1;
-	int r2_y2 = r2_y1 + r2_h - 1;
-
-	int isect = (r2_x1 < r1_x2
-				&& r2_x2 > r1_x1
-				&& r2_y1 < r1_y2
-				&& r2_y2 > r1_y1);
-
-	if(isect) {
-		*dw = MIN(r1_x2, r2_x2) - MAX(r1_x1, r2_x1) + 1;
-		*dh = MIN(r1_y2, r2_y2) - MAX(r1_y1, r2_y1) + 1;
-	} else {
-		*dw = 0;
-		*dh = 0;
-	}
-	return isect;
-}
-
-static unsigned long get_min_bandwidth(dsscomp_t comp, struct omap_overlay_manager *mgr)
-{
-	struct dsscomp_setup_mgr_data *d = &comp->frm;
-	struct omap_dss_device *dssdev = cdev->displays[d->mgr.ix];
-	struct omap_video_timings t;
-	int i;
-	unsigned long bandwidth = 0;
-	unsigned long pixClk = 74250;
-
-	if (!mgr) return 0;
-
-	if (dssdev->driver->get_timings) {
-		dssdev->driver->get_timings(dssdev, &t);
-		pixClk = t.pixel_clock;
-	}
-
-	if (d) {
-		for (i=0; i < dss_feat_get_num_ovls(); i++)
-		{
-			struct dss2_ovl_info *ovl = &d->ovls[i];
-			if (ovl && ovl->cfg.enabled) {
-				if ((ovl->cfg.win.h != 0) && (ovl->cfg.win.w != 0)) {
-					unsigned long tmp;
-					tmp = (((ovl->cfg.crop.w * color_mode_to_bytes(ovl->cfg.color_mode) * ovl->cfg.crop.h / ovl->cfg.win.h) + 1000) * pixClk / ovl->cfg.win.w);
-					bandwidth += tmp;
-				}
-			}
-		}
-
-		mgr->tput_bandwidth = bandwidth;
-
-		bandwidth = 0;
-		for (i=0; i<cdev->num_mgrs; i++) {
-			bandwidth += cdev->mgrs[i]->tput_bandwidth;
-		}
-	}
-
-	return bandwidth;
-}
 /* apply composition */
 /* at this point the composition is not on any queue */
-static int dsscomp_apply(dsscomp_t comp)
+int dsscomp_apply(dsscomp_t comp)
 {
 	int i, r = -EFAULT;
 	u32 dmask, display_ix;
@@ -608,11 +507,12 @@ static int dsscomp_apply(dsscomp_t comp)
 	struct omap_overlay_manager *mgr;
 	struct omap_overlay *ovl;
 	struct dsscomp_setup_mgr_data *d;
+	struct omap_writeback_info wb_info;
+	struct omap_writeback *wb;
 	u32 oix;
 	bool cb_programmed = false;
-	struct omap_writeback *wb = cdev->wb_ovl;
 	bool wb_apply = false;
-	unsigned long new_bandwidth = 0;
+	bool m2m_mgr_mode = false;
 
 	struct omapdss_ovl_cb cb = {
 		.fn = dsscomp_mgr_callback,
@@ -640,37 +540,75 @@ static int dsscomp_apply(dsscomp_t comp)
 
 	dump_comp_info(cdev, d, "apply");
 
+	wb = omap_dss_get_wb(0);
+	wb->get_wb_info(wb, &wb_info);
+
 	r = 0;
 	dmask = 0;
+
+	/* In some cases overlay cropping is based on WB resolution.
+	 * Because of that we need to apply WB settings before configuring
+	 * the rest of overlays. */
 	for (oix = 0; oix < comp->frm.num_ovls; oix++) {
 		struct dss2_ovl_info *oi = comp->ovls + oix;
 
-		/* keep track of disabled overlays */
-		if (!oi->cfg.enabled)
-			dmask |= 1 << oi->cfg.ix;
-
-		if (r && !comp->must_apply)
+		if (!comp->must_apply)
 			continue;
-
-		dump_ovl_info(cdev, oi);
-
-		if (oi->cfg.ix >= cdev->num_ovls && oi->cfg.ix != OMAP_DSS_WB) {
-			r = -EINVAL;
-			continue;
-		}
 
 		if (oi->cfg.ix == OMAP_DSS_WB) {
-			enum omap_writeback_source src;
-			if (wb->info.enabled && wb->info.source != mgr->id) {
+			/* update status of WB */
+			if (!oi->cfg.enabled)
 				dmask |= 1 << oi->cfg.ix;
+
+			wb_apply = true;
+
+			wb = omap_dss_get_wb(0);
+			wb->get_wb_info(wb, &wb_info);
+			/* if prev comp was with M2M WB */
+			if (wb_info.mode == OMAP_WB_MEM2MEM_MODE &&
+							wb_info.enabled) {
+				if (wb->wait_framedone(wb))
+					dev_warn(DEV(cdev),
+						"WB Framedone expired\n");
+			}
+
+			/* if wb is disabled and wb was enabled in prev
+			 * comp - set m2m flag. */
+			if (!oi->cfg.enabled && wb_info.enabled &&
+						wb_info.source == mgr->id &&
+					wb_info.mode == OMAP_WB_MEM2MEM_MODE)
+				m2m_mgr_mode = true;
+
+			/* set m2m_mgr_mode if we will capture in m2m mode
+			 * from the manager */
+			if (oi->cfg.enabled &&
+				oi->cfg.wb_mode == OMAP_WB_MEM2MEM_MODE &&
+						oi->cfg.wb_source == mgr->id)
+				m2m_mgr_mode = true;
+
+			r = set_dss_wb_info(oi);
+			break;
+		}
+	}
+
+	for (oix = 0; oix < comp->frm.num_ovls; oix++) {
+		struct dss2_ovl_info *oi = comp->ovls + oix;
+
+		if (oi->cfg.ix != OMAP_DSS_WB) {
+			/* keep track of disabled overlays */
+			if (!oi->cfg.enabled)
+				dmask |= 1 << oi->cfg.ix;
+
+			if (r && !comp->must_apply)
+				continue;
+
+			dump_ovl_info(cdev, oi);
+
+			if (oi->cfg.ix >= cdev->num_ovls) {
+				r = -EINVAL;
 				continue;
 			}
-			/* update status of WB */
-			wb_apply = true;
-			src = mgr->id;
 
-			r = set_dss_wb_info(oi, src);
-		} else {
 			ovl = cdev->ovls[oi->cfg.ix];
 
 			/* set overlays' manager & info */
@@ -678,15 +616,32 @@ static int dsscomp_apply(dsscomp_t comp)
 				r = -EBUSY;
 				goto skip_ovl_set;
 			}
+
 			if (ovl->manager != mgr) {
-				/*
-				 * Ideally, we should call ovl->unset_manager(ovl),
-				 * but it may block on go even though the disabling
-				 * of the overlay already went through.  So instead,
-				 * we are just clearing the manager.
-				 */
-				ovl->manager = NULL;
-				r = ovl->set_manager(ovl, mgr);
+				mutex_lock(&mtx);
+				if (!mgrq[comp->ix].blanking || m2m_mgr_mode) {
+					/*
+					 * Ideally, we should call
+					 * ovl->unset_manager(ovl),
+					 * but it may block on go
+					 * even though the disabling
+					 * of the overlay already
+					 * went through. So instead,
+					 * we are just clearing the manager.
+					 */
+					ovl->manager = NULL;
+					r = ovl->set_manager(ovl, mgr);
+				} else	{
+					/* Ignoring manager change
+					during blanking. */
+					pr_info_ratelimited("dsscomp_apply "
+						"skip set_manager(%s) for "
+						"ovl%d while blank."
+						, mgr->name, oi->cfg.ix);
+					r = -ENODEV;
+				}
+				mutex_unlock(&mtx);
+
 				if (r)
 					goto skip_ovl_set;
 			}
@@ -709,7 +664,7 @@ skip_ovl_set:
 	 * composition.  Otherwise, we can skip the composition now.
 	 */
 	if (!r || comp->must_apply) {
-		r = set_dss_mgr_info(&d->mgr, &cb);
+		r = set_dss_mgr_info(&d->mgr, &cb, m2m_mgr_mode);
 		cb_programmed = r == 0;
 	}
 
@@ -768,17 +723,30 @@ skip_ovl_set:
 	if (!d->win.h && !d->win.y)
 		d->win.h = dssdev->panel.timings.y_res - d->win.y;
 
-	mutex_lock(&mtx);
+	/* Report m2m_only mode to a manager. A manager will apply a new
+	 * composition and will free a previous composition immediately. */
+	mgr->m2m_only = comp->m2m_only;
 
-	new_bandwidth = get_min_bandwidth(comp, mgr);
+	/* turn on clock if m2m_only mode is enabled (LCD is OFF) */
+	/* turn off clock if LCD goes ON and prev comp was m2m_only */
+	dss_m2m_clock_handling(mgr);
 
-	if (new_bandwidth > current_bandwidth) {
-		omap_dss_request_bandwidth(new_bandwidth);
+	if (wb_apply) {
+		struct omap_writeback_info wb_info;
+		struct omap_writeback *wb;
+
+		wb = omap_dss_get_wb(0);
+		wb->get_wb_info(wb, &wb_info);
+
+		if (wb_info.mode == OMAP_WB_MEM2MEM_MODE &&
+			wb_info.enabled)
+			wb->register_framedone(wb);
 	}
 
-	if (mgrq[comp->ix].blanking) {
+	mutex_lock(&mtx);
+	if (mgrq[comp->ix].blanking && !m2m_mgr_mode) {
 		pr_info_ratelimited("ignoring apply mgr(%s) while blanking\n",
-				    mgr->name);
+								mgr->name);
 		r = -ENODEV;
 	} else {
 		if (wb_apply) {
@@ -789,20 +757,13 @@ skip_ovl_set:
 		}
 		r = mgr->apply(mgr);
 		if (r)
-			dev_err(DEV(cdev), "failed while applying %d", r);
+			dev_err(DEV(cdev),
+					"failed while applying mgr[%d] r:%d\n",
+								mgr->id, r);
 		/* keep error if set_mgr_info failed */
 		if (!r && !cb_programmed)
 			r = -EINVAL;
 	}
-
-	if (new_bandwidth < current_bandwidth) {
-		//TODO should be better to use a worker instead of blocking here, waiting for vsync
-		mgr->wait_for_vsync(mgr); //Wait for the current frame to have been displayed before reducing the bandwidth
-		omap_dss_request_bandwidth(new_bandwidth);
-	}
-
-	current_bandwidth = new_bandwidth;
-
 	mutex_unlock(&mtx);
 
 	/*
@@ -818,11 +779,25 @@ skip_ovl_set:
 		if (omap_dss_manager_unregister_callback(mgr, &cb))
 			r = 0;
 	}
+
+	/* This blanking is needed, when we received composition without WB for
+	 * disabling pipes, which are sources for manager, which is source for
+	 * WB. In this case manager apply operation is skipped and we need to
+	 * update caches and to invoke callback functions to free the buffers.
+	 */
+	if (!m2m_mgr_mode && wb_info.mode == OMAP_WB_MEM2MEM_MODE &&
+				wb_info.source == mgr->id && mgr->device &&
+			mgr->device->state != OMAP_DSS_DISPLAY_ACTIVE &&
+							comp->must_apply) {
+		mgr->blank(mgr, true);
+		goto done;
+	}
+
 	/* if failed to apply, kick out prior composition */
 	if (comp->must_apply && r)
 		mgr->blank(mgr, true);
 
-	if (!r && (d->mode & DSSCOMP_SETUP_MODE_DISPLAY)) {
+	if (!r && (d->mode & DSSCOMP_SETUP_MODE_DISPLAY) && !m2m_mgr_mode) {
 		if (dssdev_manually_updated(dssdev) && drv->update) {
 			r = drv->update(dssdev, d->win.x,
 					d->win.y, d->win.w, d->win.h);
@@ -836,14 +811,15 @@ skip_ovl_set:
 				 */
 				r = 0;
 			}
-		}
-		else
+		} else
 			/* wait for sync to do smooth animations */
 			mgr->wait_for_vsync(mgr);
 	}
+
 done:
 	return r;
 }
+EXPORT_SYMBOL(dsscomp_apply);
 
 int dsscomp_state_notifier(struct notifier_block *nb,
 						unsigned long arg, void *ptr)
@@ -981,9 +957,9 @@ void dsscomp_dbg_comps(struct seq_file *s)
 #endif
 }
 
-#ifdef CONFIG_DSSCOMP_DEBUG_LOG
 void dsscomp_dbg_events(struct seq_file *s)
 {
+#ifdef CONFIG_DSSCOMP_DEBUG_LOG
 	u32 i;
 	struct dbg_event_t *d;
 
@@ -1000,9 +976,9 @@ void dsscomp_dbg_events(struct seq_file *s)
 		seq_printf(s, "\n");
 	}
 	mutex_unlock(&dbg_mtx);
-
-}
 #endif
+}
+
 /*
  * ===========================================================================
  *		EXIT

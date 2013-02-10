@@ -525,7 +525,7 @@ static int generic_dpi_panel_probe(struct omap_dss_device *dssdev)
 
 	dssdev->panel.width_in_um = panel_config->width_in_um;
 	dssdev->panel.height_in_um = panel_config->height_in_um;
-	dssdev->panel.is_virtual = panel_config->is_virtual;
+//	dssdev->panel.is_virtual = panel_config->is_virtual;
 
 	drv_data = kzalloc(sizeof(*drv_data), GFP_KERNEL);
 	if (!drv_data)

@@ -67,12 +67,6 @@ struct dsscomp_dev {
 	u32 num_displays;
 	struct omap_dss_device *displays[MAX_DISPLAYS];
 	struct notifier_block state_notifiers[MAX_DISPLAYS];
-
-	__u32 vsync_src;
-	__u32 vsync_cnt;
-	__u32 scale;
-	__u32 rate;
-	__u8 isr_registered;
 };
 
 extern int debug;
@@ -119,7 +113,7 @@ struct dsscomp_data {
 	void (*extra_cb)(void *data, int status);
 	void *extra_cb_data;
 	bool must_apply;	/* whether composition must be applied */
-
+	bool m2m_only;
 #ifdef CONFIG_DEBUG_FS
 	struct list_head dbg_q;
 	u32 dbg_used;
@@ -145,19 +139,24 @@ void dsscomp_gralloc_exit(void);
 int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_dispc_data *d);
 int dsscomp_wait(struct dsscomp_sync_obj *sync, enum dsscomp_wait_phase phase,
 								int timeout);
-int dsscomp_gralloc_query_tiler_budget_ioctl(int *budget);
-
 int dsscomp_state_notifier(struct notifier_block *nb,
 						unsigned long arg, void *ptr);
 
 /* basic operation - if not using queues */
 int set_dss_ovl_info(struct dss2_ovl_info *oi);
-int set_dss_wb_info(struct dss2_ovl_info *oi,
-	enum omap_writeback_source src);
-int set_dss_mgr_info(struct dss2_mgr_info *mi, struct omapdss_ovl_cb *cb);
+int set_dss_wb_info(struct dss2_ovl_info *oi);
+int set_dss_mgr_info(struct dss2_mgr_info *mi, struct omapdss_ovl_cb *cb,
+								bool m2m_mode);
 struct omap_overlay_manager *find_dss_mgr(int display_ix);
 void swap_rb_in_ovl_info(struct dss2_ovl_info *oi);
 void swap_rb_in_mgr_info(struct dss2_mgr_info *mi);
+
+static inline u32 tiler1d_slot_size(struct dsscomp_dev *cdev)
+{
+	struct dsscomp_platform_data *pdata;
+	pdata = (struct dsscomp_platform_data *)cdev->pdev->platform_data;
+	return pdata->tiler1d_slotsz;
+}
 
 /*
  * Debug functions
@@ -225,15 +224,3 @@ void __log_event(u32 ix, u32 ms, void *data, const char *fmt, u32 a1, u32 a2)
 	DO_IF_DEBUG_FS(__log_event(ix, ms, data, fmt, a1, a2))
 
 #endif
-
-/* 
- * ISR queue functions
- */
-long isr_start( struct dsscomp_dev *cdev, void __user *ptr );
-long isr_stop( struct dsscomp_dev *cdev );
-long isr_reftime( struct dsscomp_dev *cdev, void __user *ptr );
-long isr_put( struct dsscomp_dev *cdev, void __user *ptr );
-long isr_get( struct dsscomp_dev *cdev, void __user *ptr );
-long isr_flush( struct dsscomp_dev *cdev );
-long isr_resume( struct dsscomp_dev *cdev );
-long isr_suspend( struct dsscomp_dev *cdev );
