@@ -793,9 +793,10 @@ err:
 static void twl6030_start_usb_charger(struct twl6030_bci_device_info *di)
 {
 #ifdef CONFIG_FUEL_GAUGE
-	if (di->cell.cc)
+	if (di->cell.full)
 		return;
 #endif
+
 
 	if (di->use_hw_charger)
 		twl6032_start_usb_charger_hw(di);
@@ -833,7 +834,7 @@ static void twl6030_start_ac_charger(struct twl6030_bci_device_info *di)
 	int ret;
 
 #ifdef CONFIG_FUEL_GAUGE
-	if (di->cell.cc)
+	if (di->cell.full)
 		return;
 #endif
 
@@ -1848,7 +1849,7 @@ static int capacity_changed(struct twl6030_bci_device_info *di)
 
 	/* Stop the charger */
 	if ((di->charge_status == POWER_SUPPLY_STATUS_CHARGING)
-		&& di->cell.cc)
+		&& di->cell.full)
 			twl6030_stop_charger(di);
 
 	/* Gas gauge requested CC autocalibration */
