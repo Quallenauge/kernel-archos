@@ -933,7 +933,7 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 	int calcsz;
 	struct dsscomp_setup_dispc_data *psDssData = &(psHwcData->dsscomp_data);
 	int iMemIdx = 0;
-	int iUseBltFB;
+	int iUseBltFB = 0;
 #ifdef CONFIG_DRM_OMAP_DMM_TILER
 	enum tiler_fmt fmt;
 #endif
@@ -945,9 +945,12 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 
 
 	psDssData = &(psHwcData->dsscomp_data);
+
+	WARN(1, "CalcSZ calculation: sizeof(*psHwcData): %d, sizeof(struct rgz_blt_entry): %d, rgz_items: %d, rgz_flags: %d", sizeof(*psHwcData), sizeof(struct rgz_blt_entry), rgz_items, psHwcData->blit_data.rgz_flags);
+
 	calcsz = sizeof(*psHwcData) +
 		(sizeof(struct rgz_blt_entry) * rgz_items);
-	iUseBltFB = psHwcData->blit_data.rgz_flags & HWC_BLT_FLAG_USE_FB;
+//	iUseBltFB = psHwcData->blit_data.rgz_flags & HWC_BLT_FLAG_USE_FB;
 
 	if (!iUseBltFB && rgz_items > 0) {
 		WARN(1, "Trying to blit without a pipe configured for the blit FB");

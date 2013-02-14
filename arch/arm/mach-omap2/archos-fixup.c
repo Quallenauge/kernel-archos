@@ -52,35 +52,35 @@ static char command_line[][COMMAND_LINE_SIZE] __initdata = {
 #endif
 };
 
-#define DEFAULT_TABLET_FB_RAM_SIZE (16 * SZ_1M)
-
-static struct omapfb_platform_data tablet_fb_pdata = {
-	.mem_desc = {
-		.region_cnt = 1,
-		.region = {
-			[0] = {
-				.size = DEFAULT_TABLET_FB_RAM_SIZE,
-			},
-		},
-	},
-};
+//#define DEFAULT_TABLET_FB_RAM_SIZE (16 * SZ_1M)
+//
+//static struct omapfb_platform_data tablet_fb_pdata = {
+//	.mem_desc = {
+//		.region_cnt = 1,
+//		.region = {
+//			[0] = {
+//				.size = DEFAULT_TABLET_FB_RAM_SIZE,
+//			},
+//		},
+//	},
+//};
 
 void __init fixup_archos(struct machine_desc *desc,
 		struct tag *tags, char **cmdline, struct meminfo *mi)
 {
 	struct tag *t = tags;
-	unsigned long *vram_size = &tablet_fb_pdata.mem_desc.region[0].size;
-
-	if (machine_is_archos_a80s() || machine_is_archos_a80h())
-		*vram_size = (6 * SZ_1M);
-	if (machine_is_archos_a101s() || machine_is_archos_a101h())
-		*vram_size = (7 * SZ_1M + 832 * SZ_1K);
-
-	omap_vram_set_sdram_vram(*vram_size, 0);
-	omapfb_set_platform_data(&tablet_fb_pdata);
+//	unsigned long *vram_size = &tablet_fb_pdata.mem_desc.region[0].size;
+//
+//	if (machine_is_archos_a80s() || machine_is_archos_a80h())
+//		*vram_size = (6 * SZ_1M);
+//	if (machine_is_archos_a101s() || machine_is_archos_a101h())
+//		*vram_size = (7 * SZ_1M + 832 * SZ_1K);
+//
+//	omap_vram_set_sdram_vram(*vram_size, 0);
+//	omapfb_set_platform_data(&tablet_fb_pdata);
 
 	if (machine_is_archos_a80s() || machine_is_archos_a101s()
-	 || machine_is_archos_a80h() || machine_is_archos_a101h()
+	 || machine_is_archos_a80h() || machine_is_archos_a101h() 
 	) {
 		*cmdline = command_line[0];
 	} else {
@@ -105,9 +105,6 @@ void __init fixup_archos(struct machine_desc *desc,
 			}
 			break;
 		}
-
-
-
 
 	printk("fixup_archos: [%s]\n", *cmdline);
 }

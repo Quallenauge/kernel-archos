@@ -706,6 +706,7 @@ extern int __init archos_camera_ov7675_init(void);
 extern int __init archos_pcb_temp_sensor_init(void);
 
 extern void __init archos_reserve(void);
+extern void __init board_memory_prepare(void);
 extern int __init archos_memory_init(void);
 
 //extern int __init archos_leds_init(void);

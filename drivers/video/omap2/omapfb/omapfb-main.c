@@ -890,7 +890,7 @@ static void omapfb_calc_addr(const struct omapfb_info *ofbi,
 			     int rotation, u32 *paddr, void __iomem **vaddr)
 {
 	printk(KERN_DEBUG"%s:%i\n", __func__, __LINE__);
-	dump_stack();
+//	dump_stack();
 
 	u32 data_start_p;
 	void __iomem *data_start_v;

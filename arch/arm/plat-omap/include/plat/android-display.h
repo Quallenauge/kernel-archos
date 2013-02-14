@@ -20,6 +20,16 @@
 
 #define NUM_ANDROID_TILER1D_SLOTS 2
 
+struct omap_android_display_data {
+	/* members with default values */
+	u32 width;
+	u32 height;
+	u32 bpp;		/* must be 2 or 4 */
+
+	/* members with no default value */
+	u32 tiler1d_mem;
+};
+
 void omap_android_display_setup(struct omap_dss_board_info *dss,
 				struct dsscomp_platform_data *dsscomp,
 				struct sgx_omaplfb_platform_data *sgx,
@@ -27,5 +37,8 @@ void omap_android_display_setup(struct omap_dss_board_info *dss,
 				struct omap_ion_platform_data *ion);
 
 bool omap_android_display_is_default(struct omap_dss_device *device);
+
+void set_tiler1d_slot_size(struct dsscomp_platform_data *dsscomp,
+				  struct omap_android_display_data *mem);
 
 #endif

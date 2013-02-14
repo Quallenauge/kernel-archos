@@ -15,95 +15,101 @@
 #include <plat/common.h>
 #include <plat/remoteproc.h>
 
-#include "omap4_ion.h"
+//#include "omap4_ion.h"
 #include "omap_ram_console.h"
+
+#include "mach/omap4_ion.h"
+#include "omap_ram_console.h"
+#include "plat/android-display.h"
+
+#include <asm/mach-types.h>
 
 //#define FORCE_TI_DEFAULT
 
 static struct emif_device_details *emif_config;
 
 
-#define ARCHOS_PHYS_ADDR_DUCATI_SIZE		(SZ_1M * 25)
-
-#define ARCHOS_OMAP4_ION_HEAP_TILER_SIZE	(SZ_512K)
-#define ARCHOS_OMAP4_ION_HEAP_SECURE_SIZE       (SZ_512K)
-#define ARCHOS_PHYS_ADDR_DUCATI_MEM		(0x80000000 + SZ_512M - ARCHOS_PHYS_ADDR_DUCATI_SIZE)
-#define ARCHOS_PHYS_ADDR_HEAP_TILER		(ARCHOS_PHYS_ADDR_DUCATI_MEM - ARCHOS_OMAP4_ION_HEAP_TILER_SIZE)
-#define ARCHOS_PHYS_ADDR_HEAP_SECURE		(ARCHOS_PHYS_ADDR_HEAP_TILER - ARCHOS_OMAP4_ION_HEAP_SECURE_SIZE)
-#define ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE	(ARCHOS_PHYS_ADDR_HEAP_SECURE - ARCHOS_OMAP_RAM_CONSOLE_SIZE)
-#define ARCHOS_OMAP_RAM_CONSOLE_SIZE 		(SZ_1M)
-
-enum map_id{
-  ARCHOS_POOL = 0,
-  TI_POOL,
-};
-
-#ifdef CONFIG_ION_OMAP_DYNAMIC
-#define MAP_POOL	ARCHOS_POOL
-#else
-#define MAP_POOL	TI_POOL
-#endif
-
-static int ducati_phys_addr_data[2] = {
-	//512 MB device
-	ARCHOS_PHYS_ADDR_DUCATI_MEM,
-	//1GB device
-	PHYS_ADDR_DUCATI_MEM,
-};
-
-static struct ion_platform_data ti_ion_heap = {
-	.nr = 3,
-	.heaps = {
-		{
-			.type = ION_HEAP_TYPE_CARVEOUT,
-			.id = OMAP_ION_HEAP_SECURE_INPUT,
-			.name = "secure_input",
-			.base = PHYS_ADDR_SMC_MEM -
-					OMAP4_ION_HEAP_SECURE_INPUT_SIZE,
-			.size = OMAP4_ION_HEAP_SECURE_INPUT_SIZE,
-		},
-		{	.type = OMAP_ION_HEAP_TYPE_TILER,
-			.id = OMAP_ION_HEAP_TILER,
-			.name = "tiler",
-			.base = PHYS_ADDR_DUCATI_MEM -
-					OMAP4_ION_HEAP_TILER_SIZE,
-			.size = OMAP4_ION_HEAP_TILER_SIZE,
-		},
-		{
-			.type = OMAP_ION_HEAP_TYPE_TILER,
-			.id = OMAP_ION_HEAP_NONSECURE_TILER,
-			.name = "nonsecure_tiler",
-			.base = 0x80000000 + SZ_512M + SZ_2M,
-			.size = OMAP4_ION_HEAP_NONSECURE_TILER_SIZE,
-		},
-	},
-};
-//We need structure for mempool
-// So declare at least one heap of each kind with 1MB size
-static struct ion_platform_data archos_ion_heap = {
-	.nr = 2,
-	.heaps = {
-		{
-			.type = ION_HEAP_TYPE_CARVEOUT,
-			.id = OMAP_ION_HEAP_SECURE_INPUT,
-			.name = "secure_input",
-			.base = ARCHOS_PHYS_ADDR_HEAP_SECURE,
-			.size = ARCHOS_OMAP4_ION_HEAP_SECURE_SIZE,
-		},
-		{	.type = OMAP_ION_HEAP_TYPE_TILER,
-			.id = OMAP_ION_HEAP_TILER,
-			.name = "tiler",
-			.base = ARCHOS_PHYS_ADDR_HEAP_TILER,
-			.size = ARCHOS_OMAP4_ION_HEAP_TILER_SIZE,
-		},
-	},
-};
-
-static struct ion_platform_data *archos_ion_data[2] = {
-	&archos_ion_heap,
-	&ti_ion_heap,
-
-};
+//#define ARCHOS_PHYS_ADDR_DUCATI_SIZE		(SZ_1M * 25)
+//
+//#define ARCHOS_OMAP4_ION_HEAP_TILER_SIZE	(SZ_512K)
+//#define ARCHOS_OMAP4_ION_HEAP_SECURE_SIZE       (SZ_512K)
+//#define ARCHOS_PHYS_ADDR_DUCATI_MEM		(0x80000000 + SZ_512M - ARCHOS_PHYS_ADDR_DUCATI_SIZE)
+//#define ARCHOS_PHYS_ADDR_HEAP_TILER		(ARCHOS_PHYS_ADDR_DUCATI_MEM - ARCHOS_OMAP4_ION_HEAP_TILER_SIZE)
+//#define ARCHOS_PHYS_ADDR_HEAP_SECURE		(ARCHOS_PHYS_ADDR_HEAP_TILER - ARCHOS_OMAP4_ION_HEAP_SECURE_SIZE)
+//#define ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE	(ARCHOS_PHYS_ADDR_HEAP_SECURE - ARCHOS_OMAP_RAM_CONSOLE_SIZE)
+//#define ARCHOS_OMAP_RAM_CONSOLE_SIZE 		(SZ_1M)
+//
+//enum map_id{
+//  ARCHOS_POOL = 0,
+//  TI_POOL,
+//};
+//
+//#ifdef CONFIG_ION_OMAP_DYNAMIC
+//#define MAP_POOL	ARCHOS_POOL
+//#else
+//#define MAP_POOL	TI_POOL
+//#endif
+//
+//static int ducati_phys_addr_data[2] = {
+//	//512 MB device
+//	ARCHOS_PHYS_ADDR_DUCATI_MEM,
+//	//1GB device
+//	PHYS_ADDR_DUCATI_MEM,
+//};
+//
+//static struct ion_platform_data ti_ion_heap = {
+//	.nr = 3,
+//	.heaps = {
+//		{
+//			.type = ION_HEAP_TYPE_CARVEOUT,
+//			.id = OMAP_ION_HEAP_SECURE_INPUT,
+//			.name = "secure_input",
+//			.base = PHYS_ADDR_SMC_MEM -
+//					OMAP4_ION_HEAP_SECURE_INPUT_SIZE,
+//			.size = OMAP4_ION_HEAP_SECURE_INPUT_SIZE,
+//		},
+//		{	.type = OMAP_ION_HEAP_TYPE_TILER,
+//			.id = OMAP_ION_HEAP_TILER,
+//			.name = "tiler",
+//			.base = PHYS_ADDR_DUCATI_MEM -
+//					OMAP4_ION_HEAP_TILER_SIZE,
+//			.size = OMAP4_ION_HEAP_TILER_SIZE,
+//		},
+//		{
+//			.type = OMAP_ION_HEAP_TYPE_TILER,
+//			.id = OMAP_ION_HEAP_NONSECURE_TILER,
+//			.name = "nonsecure_tiler",
+//			.base = 0x80000000 + SZ_512M + SZ_2M,
+//			.size = OMAP4_ION_HEAP_NONSECURE_TILER_SIZE,
+//		},
+//	},
+//};
+////We need structure for mempool
+//// So declare at least one heap of each kind with 1MB size
+//static struct ion_platform_data archos_ion_heap = {
+//	.nr = 2,
+//	.heaps = {
+//		{
+//			.type = ION_HEAP_TYPE_CARVEOUT,
+//			.id = OMAP_ION_HEAP_SECURE_INPUT,
+//			.name = "secure_input",
+//			.base = ARCHOS_PHYS_ADDR_HEAP_SECURE,
+//			.size = ARCHOS_OMAP4_ION_HEAP_SECURE_SIZE,
+//		},
+//		{	.type = OMAP_ION_HEAP_TYPE_TILER,
+//			.id = OMAP_ION_HEAP_TILER,
+//			.name = "tiler",
+//			.base = ARCHOS_PHYS_ADDR_HEAP_TILER,
+//			.size = ARCHOS_OMAP4_ION_HEAP_TILER_SIZE,
+//		},
+//	},
+//};
+//
+//static struct ion_platform_data *archos_ion_data[2] = {
+//	&archos_ion_heap,
+//	&ti_ion_heap,
+//
+//};
 
 /*
  * LPDDR2 Configuration Data
@@ -154,32 +160,52 @@ static struct emif_device_details emif_devices[] = {
 	},
 };
 
-static void __init setup_archos_ion_data(int configId)
-{
-	omap_ion_set_platform_data(archos_ion_data[configId]);
+//static void __init setup_archos_ion_data(int configId)
+//{
+//	omap_ion_set_platform_data(archos_ion_data[configId]);
+//
+//	if (configId != TI_POOL) {
+//		/* do the static reservations first */
+//		memblock_remove(ducati_phys_addr_data[configId], PHYS_ADDR_DUCATI_SIZE);
+//		/* ipu needs to recognize secure input buffer area as well */
+//#ifdef CONFIG_ION_OMAP_DYNAMIC
+//		omap_ipu_set_static_mempool(ducati_phys_addr_data[configId],
+//						PHYS_ADDR_DUCATI_SIZE);
+//#else
+//		omap_ipu_set_static_mempool(ducati_phys_addr_data[configId],
+//						PHYS_ADDR_DUCATI_SIZE + ARCHOS_OMAP4_ION_HEAP_SECURE_SIZE);
+//#endif
+//	} else {
+//		/* do the static reservations first */
+//		memblock_remove(PHYS_ADDR_SMC_MEM, PHYS_ADDR_SMC_SIZE);
+//		memblock_remove(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE);
+//		/* ipu needs to recognize secure input buffer area as well */
+//		omap_ipu_set_static_mempool(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE +
+//						OMAP4_ION_HEAP_SECURE_INPUT_SIZE);
+//	}
+//}
 
-	if (configId != TI_POOL) {
-		/* do the static reservations first */
-		memblock_remove(ducati_phys_addr_data[configId], PHYS_ADDR_DUCATI_SIZE);
-		/* ipu needs to recognize secure input buffer area as well */
-#ifdef CONFIG_ION_OMAP_DYNAMIC
-		omap_ipu_set_static_mempool(ducati_phys_addr_data[configId],
-						PHYS_ADDR_DUCATI_SIZE);
+#ifdef CONFIG_FB_OMAP2_NUM_FBS
+#define OMAPLFB_NUM_DEV CONFIG_FB_OMAP2_NUM_FBS
 #else
-		omap_ipu_set_static_mempool(ducati_phys_addr_data[configId],
-						PHYS_ADDR_DUCATI_SIZE + ARCHOS_OMAP4_ION_HEAP_SECURE_SIZE);
+#define OMAPLFB_NUM_DEV 1
 #endif
-	} else {
-		/* do the static reservations first */
-		memblock_remove(PHYS_ADDR_SMC_MEM, PHYS_ADDR_SMC_SIZE);
-		memblock_remove(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE);
-		/* ipu needs to recognize secure input buffer area as well */
-		omap_ipu_set_static_mempool(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE +
-						OMAP4_ION_HEAP_SECURE_INPUT_SIZE);
-	}
-}
 
-static void __init board_memory_prepare(void)
+static struct sgx_omaplfb_config omaplfb_config_wuxga[OMAPLFB_NUM_DEV] = {
+	{
+	.vram_buffers = 3,
+	.swap_chain_length = 3,
+	}
+};
+
+static struct sgx_omaplfb_config omaplfb_config_hdmi_default_display[OMAPLFB_NUM_DEV] = {
+	{
+	.vram_buffers = 3,
+	.swap_chain_length = 3,
+	}
+};
+
+void __init board_memory_prepare(void)
 {
 	struct feature_tag_sdram *sdram;
 
@@ -221,7 +247,7 @@ static void __init board_memory_prepare(void)
 		printk(KERN_INFO "DDR type unknown\n");
 		emif_config = &emif_devices[0];
 	}
-	setup_archos_ion_data(MAP_POOL);
+//	setup_archos_ion_data(MAP_POOL);
 }
 
 int __init archos_memory_init(void)
@@ -240,8 +266,8 @@ void __init archos_reserve(void)
 {
 	//Check the ram chip
 	board_memory_prepare();
-	omap_ram_console_init(ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE,
-                        ARCHOS_OMAP_RAM_CONSOLE_SIZE);
+//	omap_ram_console_init(ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE,
+//                        ARCHOS_OMAP_RAM_CONSOLE_SIZE);
 
 #ifdef CONFIG_ION_OMAP
 	omap_ion_init();

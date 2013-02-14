@@ -120,6 +120,9 @@ int dsscomp_queue_init(struct dsscomp_dev *cdev_)
 	u32 i, j;
 	cdev = cdev_;
 
+	pr_err("%s:\n",__func__);
+//	dump_stack();
+
 	if (ARRAY_SIZE(mgrq) < cdev->num_mgrs)
 		return -EINVAL;
 
@@ -260,9 +263,13 @@ int dsscomp_set_ovl(dsscomp_t comp, struct dss2_ovl_info *ovl)
 	BUG_ON(!ovl);
 	BUG_ON(comp->state != DSSCOMP_STATE_ACTIVE);
 
+//	dev_err(DEV(cdev), "%s\n",__func__ );
+//	dump_stack();
+
 	ix = comp->ix;
 
 	if (ovl->cfg.ix >= cdev->num_ovls && ovl->cfg.ix != OMAP_DSS_WB) {
+		dev_err(DEV(cdev), "%s: ovl->cfg.ix <%d>, cdev->num_ovls <%d>",__func__, ovl->cfg.ix, cdev->num_ovls );
 		r = -EINVAL;
 		goto done;
 	}
