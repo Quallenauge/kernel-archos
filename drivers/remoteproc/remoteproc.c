@@ -600,8 +600,6 @@ static int rproc_watchdog_isr(struct rproc *rproc)
 	return 0;
 }
 
-void imt_cleanup( void );
-
 static int rproc_crash(struct rproc *rproc)
 {
 	init_completion(&rproc->error_comp);
@@ -619,13 +617,6 @@ static int rproc_crash(struct rproc *rproc)
 				rproc->last_trace_len1);
 	rproc->state = RPROC_CRASHED;
 
-#ifdef CONFIG_VIDEO_OMAP_IMT
-	// this is ugly, but so far no better place to put
-	// as there is no crash callback yet in place
-	if( !strcmp( rproc->name, "ipu" ) ) {
-		imt_cleanup();
-	}
-#endif	
 	return 0;
 }
 
@@ -814,7 +805,7 @@ static int rproc_check_poolmem(struct rproc *rproc, u32 size, phys_addr_t pa)
 	}
 
 	if (pa < pool->st_base || pa + size > pool->st_base + pool->st_size) {
-		pr_warn("section size does not fit within carveout memory pa=%p size=0x%x pool (pa=%p, size=%d)\n", pa, size, pool->st_base,pool->st_size);
+		pr_warn("section size does not fit within carveout memory\n");
 		return -ENOSPC;
 	}
 
@@ -903,9 +894,6 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 				}
 				rsc->pa = pa;
 			} else {
-#ifdef CONFIG_ION_OMAP_DYNAMIC
-				if (strcmp(rsc->name, "IPU_MEM_IOBUFS") != 0)
-#endif
 				ret = rproc_check_poolmem(rproc, rsc->len, pa);
 				/*
 				 * ignore the error for DSP buffers as they can
@@ -1133,7 +1121,7 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 	u64 bootaddr = 0;
 	struct fw_header *image;
 	struct fw_section *section;
-	int left, ret;
+	int left, ret = -EINVAL;
 
 	if (!fw) {
 		dev_err(dev, "%s: failed to load %s\n", __func__, fwfile);
@@ -1155,7 +1143,7 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 		goto out;
 	}
 
-	dev_info(dev, "BIOS image version is %d\n", image->version);
+	dev_dbg(dev, "BIOS image version is %d\n", image->version);
 
 	rproc->header = kzalloc(image->header_len, GFP_KERNEL);
 	if (!rproc->header) {
@@ -1180,6 +1168,10 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 
 	left = fw->size - sizeof(struct fw_header) - image->header_len;
 
+	/* event currently used to bump the remoteproc to max freq
+	 * while booting.  */
+	_event_notify(rproc, RPROC_PRELOAD, NULL);
+
 	ret = rproc_process_fw(rproc, section, left, &bootaddr);
 	if (ret) {
 		dev_err(dev, "Failed to process the image: %d\n", ret);
@@ -1193,6 +1185,8 @@ out:
 complete_fw:
 	/* allow all contexts calling rproc_put() to proceed */
 	complete_all(&rproc->firmware_loading_complete);
+	if (ret)
+		_event_notify(rproc, RPROC_LOAD_ERROR, NULL);
 }
 
 static int rproc_loader(struct rproc *rproc)
