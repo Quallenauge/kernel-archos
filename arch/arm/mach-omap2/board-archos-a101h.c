@@ -77,7 +77,17 @@
 #include "pm.h"
 #include "prm-regbits-44xx.h"
 #include "prm44xx.h"
-#include "omap4_ion.h"
+#include "mach/omap4_ion.h"
+
+
+#include "omap_ram_console.h"
+#include <plat/remoteproc.h>
+#include <linux/memblock.h>
+
+#include <plat/omap_apps_brd_id.h>
+#include <plat/cpu.h>
+
+#include <plat/android-display.h>
 
 static struct mma8453q_pdata board_mma8453q_pdata;
 static struct akm8975_platform_data board_akm8975_pdata;
@@ -98,6 +108,19 @@ static struct gpio_vbus_mach_info archos_vbus_info;
 #define GPIO_VCC_PWRON           35	/* fixme: from config tags? */
 #define GPIO_VBUS_MUSB_PWRON    111	/* fixme: from config tags? */
 #define HDMI_GPIO_HPD		 63  	/* Hot plug pin for HDMI */
+
+#define DEFAULT_TABLET_FB_RAM_SIZE (16 * SZ_1M)
+
+static struct omapfb_platform_data tablet_fb_pdata = {
+	.mem_desc = {
+		.region_cnt = 1,
+		.region = {
+			[0] = {
+				.size = DEFAULT_TABLET_FB_RAM_SIZE,
+			},
+		},
+	},
+};
 
 static void remux_regulator_gpio(int gpio)
 {
@@ -968,10 +991,10 @@ static __init int archos_hdmi_init(void)
 	return 0;
 }
 
-static struct omap_dss_device board_lcd_device;
+extern struct omap_dss_device auo_wxga_10_dss_device;
 
 static struct omap_dss_device *board_dss_devices[] = {
-	&board_lcd_device,
+	&auo_wxga_10_dss_device,
 #ifdef CONFIG_OMAP4_DSS_HDMI
 	&archos_4430_hdmi_device,
 #endif /* CONFIG_OMAP4_DSS_HDMI */
@@ -1628,12 +1651,16 @@ static void __init board_buttons_init(void)
 	}
 }
 
+#define TABLET_FB_RAM_SIZE                (SZ_1M * 9) /*1024*768*4 * 3 */
+
 static void omap_board_display_init(void)
 {
-	if (panel_auo_wxga_10_init(&board_lcd_device) == 0)
-		board_dss_data.default_device = &board_lcd_device;
+	if (panel_auo_wxga_10_init(&auo_wxga_10_dss_device) == 0)
+		board_dss_data.default_device = &auo_wxga_10_dss_device;
 
 	archos_hdmi_init();
+
+	omapfb_set_platform_data(&tablet_fb_pdata);
 
 	omap_display_init(&board_dss_data);
 }
@@ -1720,9 +1747,71 @@ static void __init board_map_io(void)
 	omap44xx_map_common_io();
 }
 
+#ifdef CONFIG_FB_OMAP2_NUM_FBS
+#define OMAPLFB_NUM_DEV CONFIG_FB_OMAP2_NUM_FBS
+#else
+#define OMAPLFB_NUM_DEV 1
+#endif
+
+static struct sgx_omaplfb_config omaplfb_config_config_cpt_xga8_wuxga[OMAPLFB_NUM_DEV] = {
+	{
+//	.tiler2d_buffers = 3,
+	.vram_buffers = 3,
+	.swap_chain_length = 3,
+	}
+};
+
+static struct sgx_omaplfb_platform_data omaplfb_plat_data_cpt_xga8_wuxga = {
+	.num_configs = OMAPLFB_NUM_DEV,
+	.configs = omaplfb_config_config_cpt_xga8_wuxga,
+};
+
+
+/* Allocate ( 18 + 9 ) MB for TILER1D slot size for WUXGA panel, total of
+ * 54 MB of TILER1D
+ */
+static struct dsscomp_platform_data dsscomp_config_cpt_xga8_wuxga = {
+		.tiler1d_slotsz = (SZ_16M + SZ_2M + SZ_8M + SZ_1M),
+};
+
+static void tablet_android_display_setup(struct omap_ion_platform_data *ion)
+{
+//	panel_cpt_xga_8_preinit(&auo_wxga_10_dss_device);
+	board_dss_data.default_device = &auo_wxga_10_dss_device;
+
+	omap_android_display_setup(&board_dss_data,
+				   &dsscomp_config_cpt_xga8_wuxga,
+				   &omaplfb_plat_data_cpt_xga8_wuxga,
+				   &tablet_fb_pdata,
+				   ion);
+}
+
+static void __init omap_tablet_reserve(void)
+{
+	omap_init_ram_size();
+	board_memory_prepare();
+#ifdef CONFIG_ION_OMAP
+	tablet_android_display_setup(get_omap_ion_platform_data());
+	omap_ion_init();
+#else
+	tablet_android_display_setup(NULL);
+#endif
+	omap_ram_console_init(OMAP_RAM_CONSOLE_START_DEFAULT,
+			OMAP_RAM_CONSOLE_SIZE_DEFAULT);
+
+	/* do the static reservations first */
+	memblock_remove(PHYS_ADDR_SMC_MEM, PHYS_ADDR_SMC_SIZE);
+	memblock_remove(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE);
+	/* ipu needs to recognize secure input buffer area as well */
+	omap_ipu_set_static_mempool(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE +
+					OMAP4_ION_HEAP_SECURE_INPUT_SIZE +
+					OMAP4_ION_HEAP_SECURE_OUTPUT_WFDHDCP_SIZE);
+	omap_reserve();
+}
+
 MACHINE_START(ARCHOS_A101H, "ARCHOS A101H board")
 	.boot_params	= 0x80000100,
-	.reserve	= archos_reserve,
+	.reserve	= omap_tablet_reserve,
 	.map_io		= board_map_io,
 	.fixup		= fixup_archos,
 	.init_early	= board_init_early,
