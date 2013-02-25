@@ -120,6 +120,23 @@ static LIST_HEAD(rpmsg_omx_services_list);
 #endif
 #endif
 
+/*
+ * TODO: Need to do this using lookup with rproc, but rproc is not
+ * visible to rpmsg_omx
+ */
+#define TILER_START	0x60000000
+#define TILER_END	0x80000000
+
+#ifdef CONFIG_ION_OMAP_DYNAMIC
+#define ION_1D_START	0x82700000
+#define ION_1D_END	0x99700000
+#define ION_1D_VA	0x88000000
+#else
+#define ION_1D_START	0xBA300000
+#define ION_1D_END	0xBFD00000
+#define ION_1D_VA	0x88000000
+#endif
+
 static int _rpmsg_pa_to_da(struct rpmsg_omx_instance *omx, u32 pa, u32 *da)
 {
 	int ret;

@@ -51,6 +51,10 @@
 
 #include <asm/mach-types.h>
 
+
+#define ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE	(PHYS_ADDR_ION_HEAP_SECURE_INPUT_MEM - ARCHOS_OMAP_RAM_CONSOLE_SIZE)
+#define ARCHOS_OMAP_RAM_CONSOLE_SIZE 		(SZ_1M)
+
 struct omap_dss_device;
 struct omap_dss_platform_data;
 struct machine_desc;
