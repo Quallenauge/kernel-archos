@@ -2219,6 +2219,7 @@ static int twl6030_usb_notifier_call(struct notifier_block *nb,
 		di->usb_max_power = *((unsigned int *) data);
 		break;
 	case USB_EVENT_CHARGER:
+		break;
 	case USB_EVENT_NONE:
 		break;
 	case USB_EVENT_ID:
