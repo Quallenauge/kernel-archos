@@ -86,8 +86,8 @@ static OMAPLFB_DEVINFO *gapsDevInfo[OMAPLFB_MAX_NUM_DEVICES];
 static PFN_DC_GET_PVRJTABLE gpfnGetPVRJTable = NULL;
 
 static IMG_BOOL gbBvInterfacePresent;
-static IMG_BOOL gbBvReady = IMG_FALSE;
-static IMG_BOOL bBltReady = IMG_FALSE;
+
+static bool bBltReady[FB_MAX];
 
 static inline unsigned long RoundUpToMultiple(unsigned long x, unsigned long y)
 {
@@ -604,8 +604,7 @@ static PVRSRV_ERROR DestroyDCSwapChain(IMG_HANDLE hDevice,
 	}
 
 	OMAPLFBDeInitBltFBs(psDevInfo);
-	gbBvReady = IMG_FALSE;
-	bBltReady = IMG_FALSE;
+	bBltReady[psDevInfo->uiFBDevID] = IMG_FALSE;
 
 	OMAPLFBFreeKernelMem(psSwapChain->psBuffer);
 	OMAPLFBFreeKernelMem(psSwapChain);
@@ -965,7 +964,7 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 		rgz_items = 0; /* Prevent blits */
 	}
 
-	if (iUseBltFB && !bBltReady)
+	if (iUseBltFB && !bBltReady[psDevInfo->uiFBDevID])
 	{
 		/* Defer allocation and mapping of blit buffers */
 		if (OMAPLFBInitBltFBs(psDevInfo) != OMAPLFB_OK)
@@ -974,7 +973,7 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 			return IMG_FALSE;
 		}
 
-		bBltReady = IMG_TRUE;
+		bBltReady[psDevInfo->uiFBDevID] = IMG_TRUE;
 	}
 
 	memset(asMemInfo, 0, sizeof(asMemInfo));
@@ -997,6 +996,7 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 		iMemIdx++;
 		/* Increment the Blt framebuffer and get new address */
 		OMAPLFBGetBltFBsBvHndl(&psDevInfo->sFBInfo, &asMemInfo[0].uiAddr);
+
 	}
 
 	for (i = 0, k = iMemIdx; i < ui32NumMemInfos && k < ARRAY_SIZE(apsTilerPAs) &&
@@ -1596,7 +1596,6 @@ static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)
 		goto ErrorExit;
 	}
 
-	
 	memset(psDevInfo, 0, sizeof(OMAPLFB_DEVINFO));
 
 	psDevInfo->uiFBDevID = uiFBDevID;
