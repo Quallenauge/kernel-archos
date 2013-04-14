@@ -18,6 +18,8 @@
 #include <asm/mach-types.h>
 #include <asm/feature_list.h>
 
+static bool is512MByteArchosModel=true;
+
 static char command_line[][COMMAND_LINE_SIZE] __initdata = {
 	[0] = CONFIG_CMDLINE_DEFAULT,
 #ifdef CONFIG_CMDLINE_AXYZ
@@ -102,11 +104,16 @@ void __init fixup_archos(struct machine_desc *desc,
 						sz/(1024*1024) - 512, st + 512*1024*1024);
 
 				strlcat(*cmdline, mem, COMMAND_LINE_SIZE);
+				is512MByteArchosModel=false;
 			}
 			break;
 		}
 
 	printk("fixup_archos: [%s]\n", *cmdline);
+}
+
+bool __init is512MbyteG9Model(){
+	return is512MByteArchosModel;
 }
 
 #if defined(CONFIG_SERIAL_OMAP_CONSOLE) && defined(CONFIG_FEATURE_LIST)

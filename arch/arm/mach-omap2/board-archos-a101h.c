@@ -1796,8 +1796,18 @@ static void __init omap_tablet_reserve(void)
 #else
 	tablet_android_display_setup(NULL);
 #endif
-	omap_ram_console_init(ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE,
-			ARCHOS_OMAP_RAM_CONSOLE_SIZE);
+	/*
+	 * If we are on a 512MByte device, we need to use the specific memory constants from archos.
+	 * If start on a 1GByte device, we use the standard TI values. Note, that when using the archos values in a 1GByte device,
+	 * only 512MByte are available to the kernel.
+	 */
+	if (is512MbyteG9Model()){
+		omap_ram_console_init(ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE,
+				ARCHOS_OMAP_RAM_CONSOLE_SIZE);
+	}else{
+		omap_ram_console_init(OMAP_RAM_CONSOLE_START_DEFAULT,
+				OMAP_RAM_CONSOLE_SIZE_DEFAULT);
+	}
 
 	/* do the static reservations first */
 	memblock_remove(PHYS_ADDR_SMC_MEM, PHYS_ADDR_SMC_SIZE);

@@ -1,4 +1,6 @@
 /*
+
+
  * linux/include/asm-arm/arch-omap/board-archos.h
  *
  * Hardware definitions for TI ARCHOS boards.
@@ -678,6 +680,7 @@ extern int __init ads7846_dev_init(void);
 extern void __init fixup_archos(struct machine_desc *,
 		struct tag *, char **, struct meminfo *);
 
+extern bool __init is512MbyteG9Model();
 extern void archos_power_off(void);
 
 extern int __init panel_boe_wsvga_10_init(struct omap_dss_device *);

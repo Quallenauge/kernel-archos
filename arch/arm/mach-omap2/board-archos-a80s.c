@@ -88,6 +88,8 @@
 
 #include <plat/android-display.h>
 
+extern bool is512MByteArchosModel;
+
 static struct mma8453q_pdata board_mma8453q_pdata;
 static struct akm8975_platform_data board_akm8975_pdata;
 static struct gpio_vbus_mach_info archos_vbus_info;
@@ -1801,10 +1803,19 @@ static void __init omap_tablet_reserve(void)
 
 	printk(KERN_ERR "Archos Console values OMAP_RAM_CONSOLE_START_DEFAULT: 0x%x OMAP_RAM_CONSOLE_SIZE_DEFAULT: 0x%x!\n", OMAP_RAM_CONSOLE_START_DEFAULT, OMAP_RAM_CONSOLE_SIZE_DEFAULT);
 	printk(KERN_ERR "Archos Console values ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE: 0x%x ARCHOS_OMAP_RAM_CONSOLE_SIZE: 0x%x!\n", ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE, ARCHOS_OMAP_RAM_CONSOLE_SIZE);
-//	omap_ram_console_init(OMAP_RAM_CONSOLE_START_DEFAULT,
-//			OMAP_RAM_CONSOLE_SIZE_DEFAULT);
-	omap_ram_console_init(ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE,
-			ARCHOS_OMAP_RAM_CONSOLE_SIZE);
+
+	/*
+	 * If we are on a 512MByte device, we need to use the specific memory constants from archos.
+	 * If start on a 1GByte device, we use the standard TI values. Note, that when using the archos values in a 1GByte device,
+	 * only 512MByte are available to the kernel.
+	 */
+	if (is512MbyteG9Model()){
+		omap_ram_console_init(ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE,
+				ARCHOS_OMAP_RAM_CONSOLE_SIZE);
+	}else{
+		omap_ram_console_init(OMAP_RAM_CONSOLE_START_DEFAULT,
+				OMAP_RAM_CONSOLE_SIZE_DEFAULT);
+	}
 
 	/* do the static reservations first */
 	memblock_remove(PHYS_ADDR_SMC_MEM, PHYS_ADDR_SMC_SIZE);
