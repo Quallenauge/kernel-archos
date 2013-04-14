@@ -39,6 +39,8 @@
 #include "_tiler.h"
 #include "tcm/tcm-sita.h"		/* TCM algorithm */
 
+#include "linux/delay.h"
+
 static bool ssptr_id = CONFIG_TILER_SSPTR_ID;
 static uint granularity = CONFIG_TILER_GRANULARITY;
 static uint tiler_alloc_debug;
@@ -1837,6 +1839,7 @@ tiler_blk_handle tiler_alloc_block_area(enum tiler_fmt fmt, u32 width,
 
 	if (IS_ERR_OR_NULL(mi)){
 		pr_err("tiler_alloc_block_area: Can't alloc block area!");
+		msleep(5);
 		goto done;
 	}
 
@@ -1864,8 +1867,11 @@ tiler_blk_handle tiler_alloc_block_area_aligned(enum tiler_fmt fmt, u32 width,
 	mi = alloc_block_area(fmt, width, height, 0, 0, __get_si(token, true,
 				SECURE_BY_TOKEN), align, offset);
 
-	if (IS_ERR_OR_NULL(mi))
+	if (IS_ERR_OR_NULL(mi)){
+		pr_err("tiler_alloc_block_area_aligned: Can't allocate block area aligned!");
+		msleep(5);
 		goto done;
+	}
 
 	fill_virt_array(&mi->blk, virt_array);
 	*ssptr = mi->blk.phys;
