@@ -1772,8 +1772,8 @@ static void __init omap_tablet_reserve(void)
 #else
 	tablet_android_display_setup(NULL);
 #endif
-	omap_ram_console_init(OMAP_RAM_CONSOLE_START_DEFAULT,
-			OMAP_RAM_CONSOLE_SIZE_DEFAULT);
+	omap_ram_console_init(ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE,
+			ARCHOS_OMAP_RAM_CONSOLE_SIZE);
 
 	/* do the static reservations first */
 	memblock_remove(PHYS_ADDR_SMC_MEM, PHYS_ADDR_SMC_SIZE);
