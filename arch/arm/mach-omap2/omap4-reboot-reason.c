@@ -55,15 +55,16 @@ static int __init omap_reboot_reason_init(void)
 	if (sar_base){
 		char android_reboot_reason[OMAP_REBOOT_REASON_SIZE] ; 
 		strncpy(android_reboot_reason,sar_base + OMAP_REBOOT_REASON_OFFSET, OMAP_REBOOT_REASON_SIZE);
-		printk("android_reboot_reason:%s\n\toffset:%x size:%d\n",android_reboot_reason,OMAP_REBOOT_REASON_OFFSET, OMAP_REBOOT_REASON_SIZE);
-		if(!strncmp(android_reboot_reason,"recovery",OMAP_REBOOT_REASON_SIZE)) {
-			strlcat(saved_command_line," androidboot.mode=recovery",COMMAND_LINE_SIZE);
+		if(strlen(android_reboot_reason)>0)
+			printk("android_reboot_reason:%s\n\toffset:%x size:%d\n",android_reboot_reason,OMAP_REBOOT_REASON_OFFSET, OMAP_REBOOT_REASON_SIZE);
+		if(!strncmp(android_reboot_reason,"android",OMAP_REBOOT_REASON_SIZE)) {
+			strlcat(saved_command_line," androidboot.mode=android",COMMAND_LINE_SIZE);
 		}else{
-			strlcat(saved_command_line," androidboot.mode=android",COMMAND_LINE_SIZE);		
+			strlcat(saved_command_line," androidboot.mode=recovery",COMMAND_LINE_SIZE);		
 		}
 	}else{ // noram , what the fuck are you thinking
-			strlcat(saved_command_line," androidboot.mode=android",COMMAND_LINE_SIZE);		
+			strlcat(saved_command_line," androidboot.mode=recovery",COMMAND_LINE_SIZE);		
 	}
 	return register_reboot_notifier(&omap_reboot_notifier);
 }
-late_initcall(omap_reboot_reason_init);
+core_initcall(omap_reboot_reason_init);
