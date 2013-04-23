@@ -30,12 +30,18 @@
 
 void omap_temp_sensor_resume_idle(void)
 {
-	omap_temp_sensor_idle(0);
+	if (cpu_is_omap446x() || cpu_is_omap447x())
+		omap_temp_sensor_idle(0);
+	if (cpu_is_omap443x())
+		omap443x_temp_sensor_idle(0);
 }
 
 void omap_temp_sensor_prepare_idle(void)
 {
-	omap_temp_sensor_idle(1);
+	if (cpu_is_omap446x() || cpu_is_omap447x())
+		omap_temp_sensor_idle(1);
+	if (cpu_is_omap443x())
+		omap443x_temp_sensor_idle(1);
 }
 
 static struct omap_device_pm_latency omap_temp_sensor_latency[] = {
@@ -85,11 +91,15 @@ done:
 
 int __init omap_devinit_temp_sensor(void)
 {
-	if (!cpu_is_omap446x() && !cpu_is_omap447x())
-		return 0;
-
-	return omap_hwmod_for_each_by_class("thermal_sensor",
+	if (cpu_is_omap446x() || cpu_is_omap447x())
+		return omap_hwmod_for_each_by_class("thermal_sensor",
 			temp_sensor_dev_init, NULL);
+
+	if (cpu_is_omap443x())
+		return omap_hwmod_for_each_by_class("bandgap",
+			temp_sensor_dev_init, NULL);
+
+	return 0;
 }
 
 arch_initcall(omap_devinit_temp_sensor);

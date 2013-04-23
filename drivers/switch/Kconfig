@@ -12,4 +12,10 @@ config SWITCH_GPIO
 	help
 	  Say Y here to enable GPIO based switch support.
 
+config SWITCH_SUSPEND
+	tristate "Suspend/Resume Swith support"
+	depends on PM
+	help
+	  Say Y here to enable Suspend/Resume switch support.
+
 endif # SWITCH

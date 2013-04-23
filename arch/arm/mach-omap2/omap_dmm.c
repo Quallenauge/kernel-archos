@@ -48,9 +48,13 @@ void __init omap_dmm_init(void)
 	struct omap_hwmod *oh = NULL;
 	struct omap_device *od = NULL;
 
+	printk(KERN_ERR "%s\n", __func__);
+
 	oh = omap_hwmod_lookup(dmm_data.oh_name);
-	if (!oh)
+	if (!oh){
+		printk(KERN_ERR "Unable to register OMAP Tiler device. hwmod_lookup failed for oh_name: %s\n", dmm_data.oh_name);
 		return;
+	}
 
 	dmm_data.base = omap_hwmod_get_mpu_rt_va(oh);
 	dmm_data.irq = oh->mpu_irqs[0].irq;

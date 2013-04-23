@@ -28,15 +28,15 @@
 #include <plat/dsscomp.h>
 #include <plat/vram.h>
 
-struct omap_android_display_data {
-	/* members with default values */
-	u32 width;
-	u32 height;
-	u32 bpp;		/* must be 2 or 4 */
-
-	/* members with no default value */
-	u32 tiler1d_mem;
-};
+//struct omap_android_display_data {
+//	/* members with default values */
+//	u32 width;
+//	u32 height;
+//	u32 bpp;		/* must be 2 or 4 */
+//
+//	/* members with no default value */
+//	u32 tiler1d_mem;
+//};
 
 /*
  * We need to peek at omapdss settings so that we have enough memory for swap
@@ -113,7 +113,7 @@ done:
 	return;
 }
 
-static void set_tiler1d_slot_size(struct dsscomp_platform_data *dsscomp,
+void set_tiler1d_slot_size(struct dsscomp_platform_data *dsscomp,
 				  struct omap_android_display_data *mem)
 {
 	struct dsscomp_platform_data data = {
@@ -259,8 +259,8 @@ void omap_android_display_setup(struct omap_dss_board_info *dss,
 
 	struct omap_android_display_data mem = {
 		.bpp = 4,
-		.width = 1920,
-		.height = 1080,
+		.width = 1024,
+		.height = 768,
 	};
 
 	if (!sgx || !sgx->configs)

@@ -80,5 +80,9 @@ void omap_init_ram_size(void)
 
 phys_addr_t omap_total_ram_size(void)
 {
+#if defined(CONFIG_ION_OMAP_DYNAMIC)
+	return SZ_512M;
+#else
 	return omap4_total_ram_size;
+#endif
 }

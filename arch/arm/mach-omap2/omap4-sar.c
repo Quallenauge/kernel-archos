@@ -1160,6 +1160,7 @@ static void sar_save(u32 nb_regs, u32 sar_bank, const u32 sar_layout_table[][4])
 static void save_sar_bank3(void)
 {
 	struct clockdomain *l4_secure_clkdm;
+	struct clockdomain *l3_2_clkdm;
 
 	/*
 	 * Not supported on ES1.0 silicon
@@ -1170,7 +1171,10 @@ static void save_sar_bank3(void)
 	}
 
 	l4_secure_clkdm = clkdm_lookup("l4_secure_clkdm");
+	l3_2_clkdm = clkdm_lookup("l3_2_clkdm");
 	clkdm_wakeup(l4_secure_clkdm);
+	clkdm_deny_idle(l3_2_clkdm);
+	clkdm_wakeup(l3_2_clkdm);
 
 	if (cpu_is_omap446x())
 		sar_save(ARRAY_SIZE(omap446x_sar_ram3_layout), SAR_BANK3_OFFSET,
@@ -1183,6 +1187,7 @@ static void save_sar_bank3(void)
 			 omap443x_sar_ram3_layout);
 
 	clkdm_allow_idle(l4_secure_clkdm);
+	clkdm_allow_idle(l3_2_clkdm);
 }
 
 static int omap4_sar_not_accessible(void)

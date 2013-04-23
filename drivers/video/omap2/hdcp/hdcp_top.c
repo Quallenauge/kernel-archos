@@ -65,6 +65,12 @@ static DECLARE_WAIT_QUEUE_HEAD(hdcp_down_wait_queue);
 
 #define DSS_POWER
 
+static void setHdcpAuthState(int state) {
+	hdcp.auth_state = state;
+	if (hdcp.secure.state != state)
+		switch_set_state(&hdcp.secure, (state == HDCP_STATE_AUTH_3RD_STEP)?1:0);
+}
+
 /*-----------------------------------------------------------------------------
  * Function: hdcp_request_dss
  *-----------------------------------------------------------------------------
@@ -147,7 +153,7 @@ static void hdcp_wq_start_authentication(void)
 		hdcp_wq_authentication_failure();
 	} else {
 		hdcp.hdcp_state = HDCP_WAIT_R0_DELAY;
-		hdcp.auth_state = HDCP_STATE_AUTH_1ST_STEP;
+		setHdcpAuthState(HDCP_STATE_AUTH_1ST_STEP);
 		hdcp.pending_wq_event = hdcp_submit_work(HDCP_R0_EXP_EVENT,
 							 HDCP_R0_DELAY);
 	}
@@ -173,7 +179,7 @@ static void hdcp_wq_check_r0(void)
 					 "successful - Repeater\n");
 
 			hdcp.hdcp_state = HDCP_WAIT_KSV_LIST;
-			hdcp.auth_state = HDCP_STATE_AUTH_2ND_STEP;
+			setHdcpAuthState(HDCP_STATE_AUTH_2ND_STEP);
 
 			hdcp.pending_wq_event =
 				hdcp_submit_work(HDCP_KSV_TIMEOUT_EVENT,
@@ -184,7 +190,7 @@ static void hdcp_wq_check_r0(void)
 					 "successful - Receiver\n");
 
 			hdcp.hdcp_state = HDCP_LINK_INTEGRITY_CHECK;
-			hdcp.auth_state = HDCP_STATE_AUTH_3RD_STEP;
+			setHdcpAuthState(HDCP_STATE_AUTH_3RD_STEP);
 
 			/* Restore retry counter */
 			if (hdcp.en_ctrl->nb_retry == 0)
@@ -219,7 +225,7 @@ static void hdcp_wq_step2_authentication(void)
 				 "successful\n");
 
 		hdcp.hdcp_state = HDCP_LINK_INTEGRITY_CHECK;
-		hdcp.auth_state = HDCP_STATE_AUTH_3RD_STEP;
+		setHdcpAuthState(HDCP_STATE_AUTH_3RD_STEP);
 
 		/* Restore retry counter */
 		if (hdcp.en_ctrl->nb_retry == 0)
@@ -236,7 +242,7 @@ static void hdcp_wq_step2_authentication(void)
 static void hdcp_wq_authentication_failure(void)
 {
 	if (hdcp.hdmi_state == HDMI_STOPPED) {
-		hdcp.auth_state = HDCP_STATE_AUTH_FAILURE;
+		setHdcpAuthState(HDCP_STATE_AUTH_FAILURE);
 		return;
 	}
 
@@ -258,7 +264,7 @@ static void hdcp_wq_authentication_failure(void)
 					 "retrying\n");
 
 		hdcp.hdcp_state = HDCP_AUTHENTICATION_START;
-		hdcp.auth_state = HDCP_STATE_AUTH_FAIL_RESTARTING;
+		setHdcpAuthState(HDCP_STATE_AUTH_FAIL_RESTARTING);
 
 		hdcp.pending_wq_event = hdcp_submit_work(HDCP_AUTH_REATT_EVENT,
 							 HDCP_REAUTH_DELAY);
@@ -266,7 +272,7 @@ static void hdcp_wq_authentication_failure(void)
 		printk(KERN_INFO "HDCP: authentication failed - "
 				 "HDCP disabled\n");
 		hdcp.hdcp_state = HDCP_ENABLE_PENDING;
-		hdcp.auth_state = HDCP_STATE_AUTH_FAILURE;
+		setHdcpAuthState(HDCP_STATE_AUTH_FAILURE);
 	}
 
 }
@@ -557,7 +563,7 @@ static void hdcp_irq_cb(int status)
 			hdcp_submit_work(HDCP_KSV_LIST_RDY_EVENT, 0);
 	}
 
-	if (status & HDMI_HPD_LOW) {
+	if ((status & HDMI_HPD_LOW) && (hdcp.hdcp_state > HDCP_ENABLE_PENDING)) {
 		hdcp.pending_disable = 1;	/* Used to exit on-going HDCP
 						 * work */
 		hdcp.hpd_low = 0;		/* Used to cancel HDCP works */
@@ -576,7 +582,7 @@ static void hdcp_irq_cb(int status)
 		 */
 		hdcp.hdmi_state = HDMI_STOPPED;
 		hdcp.hdcp_state = HDCP_ENABLE_PENDING;
-		hdcp.auth_state = HDCP_STATE_DISABLED;
+		setHdcpAuthState(HDCP_STATE_DISABLED);
 	}
 }
 
@@ -960,6 +966,10 @@ static int __init hdcp_init(void)
 
 	mutex_lock(&hdcp.lock);
 
+	hdcp.secure.name = "hdcp_support";
+	hdcp.secure.state = HDCP_STATE_DISABLED;
+	switch_dev_register(&hdcp.secure);
+
 	/* Variable init */
 	hdcp.en_ctrl  = 0;
 	hdcp.hdcp_state = HDCP_DISABLED;
@@ -1029,6 +1039,8 @@ static void __exit hdcp_exit(void)
 
 	/* Un-register HDCP callbacks to HDMI library */
 	omapdss_hdmi_register_hdcp_callbacks(0, 0, 0);
+
+	switch_dev_unregister(&hdcp.secure);
 
 	hdcp_release_dss();
 

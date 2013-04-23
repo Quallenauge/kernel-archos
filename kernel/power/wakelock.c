@@ -83,14 +83,44 @@ int get_expired_time(struct wake_lock *lock, ktime_t *expire_time)
 }
 
 
-static int print_lock_stat(struct seq_file *m, struct wake_lock *lock)
+static int print_col(struct seq_file *m, int pos, int col_size, const char *str, ...)
+{
+	va_list args;
+	int ret;
+	
+	if (str && m->count < m->size) {
+		va_start(args, str);
+		ret = vsnprintf(m->buf + m->count, m->size - m->count, str, args);
+		va_end(args);
+		if (m->count + ret >= m->size) {
+			m->count = m->size;
+			return -1;
+		}
+			
+		m->count += ret;		
+		pos += ret;
+		
+		if (ret >= col_size)
+			return pos;
+		
+		col_size -= ret;
+	}
+
+	for (; col_size>=0; pos++, col_size--)
+		ret = seq_putc(m, ' ');
+		
+	return pos;
+}
+
+static int print_lock_stat(struct seq_file *m, struct wake_lock *lock, int name_col_size, int col_size, int time_col_size)
 {
 	int lock_count = lock->stat.count;
 	int expire_count = lock->stat.expire_count;
 	ktime_t active_time = ktime_set(0, 0);
 	ktime_t total_time = lock->stat.total_time;
 	ktime_t max_time = lock->stat.max_time;
-
+	int pos;
+	
 	ktime_t prevent_suspend_time = lock->stat.prevent_suspend_time;
 	if (lock->flags & WAKE_LOCK_ACTIVE) {
 		ktime_t now, add_time;
@@ -111,13 +141,21 @@ static int print_lock_stat(struct seq_file *m, struct wake_lock *lock)
 			max_time = add_time;
 	}
 
-	return seq_printf(m,
-		     "\"%s\"\t%d\t%d\t%d\t%lld\t%lld\t%lld\t%lld\t%lld\n",
-		     lock->name, lock_count, expire_count,
-		     lock->stat.wakeup_count, ktime_to_ns(active_time),
-		     ktime_to_ns(total_time),
-		     ktime_to_ns(prevent_suspend_time), ktime_to_ns(max_time),
-		     ktime_to_ns(lock->stat.last_time));
+	if (ktime_to_ns(active_time) > 0)
+		seq_putc(m, '*');
+	else
+		seq_putc(m, ' ');
+	pos = print_col(m, 1, name_col_size, "\"%s\"", lock->name);
+	if (pos >= 0) pos = print_col(m, pos, col_size, "%5u", lock_count);
+	if (pos >= 0) pos = print_col(m, pos, col_size, "%5u", expire_count);
+	if (pos >= 0) pos = print_col(m, pos, col_size, "%5u", lock->stat.wakeup_count);
+	if (pos >= 0) pos = print_col(m, pos, time_col_size, "%llu", ktime_to_ns(active_time));
+	if (pos >= 0) pos = print_col(m, pos, time_col_size, "%llu", ktime_to_ns(total_time));
+	if (pos >= 0) pos = print_col(m, pos, time_col_size, "%llu", ktime_to_ns(prevent_suspend_time));
+	if (pos >= 0) pos = print_col(m, pos, time_col_size, "%llu", ktime_to_ns(max_time));
+	if (pos >= 0) pos = print_col(m, pos, time_col_size, "%llu", ktime_to_ns(lock->stat.last_time));
+	if (pos >= 0) seq_putc(m, '\n');
+	return pos;
 }
 
 static int wakelock_stats_show(struct seq_file *m, void *unused)
@@ -126,16 +164,45 @@ static int wakelock_stats_show(struct seq_file *m, void *unused)
 	struct wake_lock *lock;
 	int ret;
 	int type;
-
+	int max_name_length = 4;
+	int tab_size = 13;
+	int tab_size_time = 14;
+	int pos = 0;
+	
 	spin_lock_irqsave(&list_lock, irqflags);
 
-	ret = seq_puts(m, "name\tcount\texpire_count\twake_count\tactive_since"
-			"\ttotal_time\tsleep_time\tmax_time\tlast_change\n");
+	list_for_each_entry(lock, &inactive_locks, link) {
+		int len = strlen(lock->name);
+		if (max_name_length < len)
+			max_name_length = len;
+	}
+	for (type = 0; type < WAKE_LOCK_TYPE_COUNT; type++) {
+		list_for_each_entry(lock, &active_wake_locks[type], link) {
+			int len = strlen(lock->name);
+			if (max_name_length < len)
+				max_name_length = len;
+		}
+	}
+
+	max_name_length += 4;
+		
+	seq_putc(m, ' ');
+	pos = print_col(m, 1, max_name_length, "name");
+	if (pos >= 0) pos = print_col(m, pos, tab_size, "count");
+	if (pos >= 0) pos = print_col(m, pos, tab_size, "expire_count");
+	if (pos >= 0) pos = print_col(m, pos, tab_size, "wake_count");
+	if (pos >= 0) pos = print_col(m, pos, tab_size_time, "active_since");
+	if (pos >= 0) pos = print_col(m, pos, tab_size_time, "total_time");
+	if (pos >= 0) pos = print_col(m, pos, tab_size_time, "sleep_time");
+	if (pos >= 0) pos = print_col(m, pos, tab_size_time, "max_time");
+	if (pos >= 0) pos = print_col(m, pos, tab_size_time, "last_change");
+	if (pos >= 0) seq_putc(m, '\n');
+
 	list_for_each_entry(lock, &inactive_locks, link)
-		ret = print_lock_stat(m, lock);
+		ret = print_lock_stat(m, lock, max_name_length, tab_size, tab_size_time);
 	for (type = 0; type < WAKE_LOCK_TYPE_COUNT; type++) {
 		list_for_each_entry(lock, &active_wake_locks[type], link)
-			ret = print_lock_stat(m, lock);
+			ret = print_lock_stat(m, lock, max_name_length, tab_size, tab_size_time);
 	}
 	spin_unlock_irqrestore(&list_lock, irqflags);
 	return 0;

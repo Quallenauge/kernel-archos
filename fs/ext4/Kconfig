@@ -83,3 +83,13 @@ config EXT4_DEBUG
 
 	  If you select Y here, then you will be able to turn on debugging
 	  with a command such as "echo 1 > /sys/kernel/debug/ext4/mballoc-debug"
+
+config EXT4_FS_UMODE
+	bool "Ext4 force permissions"
+	depends on EXT4_FS
+	default n
+	help
+	  allow to force a set of permissions on overy file, overriding the
+	  ext4 permissions, forced permissions will be or'ed to the ext ones
+
+	  If unsure, say N (only say Y if you REALLY, REALLY know what you are doing)

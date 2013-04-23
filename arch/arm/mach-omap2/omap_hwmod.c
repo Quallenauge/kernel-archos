@@ -2034,6 +2034,10 @@ int omap_hwmod_reset(struct omap_hwmod *oh)
 
 	spin_lock_irqsave(&oh->_lock, flags);
 	r = _reset(oh);
+	if (oh->class->sysc) {
+		_update_sysc_cache(oh);
+		_enable_sysc(oh);
+	}
 	spin_unlock_irqrestore(&oh->_lock, flags);
 
 	return r;

@@ -35,7 +35,7 @@
 #include "kerneldisplay.h"
 #include "omaplfb.h"
 
-static int debugbv = 0;
+static int debugbv = 1;
 extern struct ion_client *gpsIONClient;
 
 /*

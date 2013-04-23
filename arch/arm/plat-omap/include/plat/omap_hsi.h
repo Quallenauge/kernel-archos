@@ -530,7 +530,7 @@ inline int omap_hsi_prepare_suspend(int hsi_port,
 inline int omap_hsi_io_wakeup_check(void) { return -ENOSYS; }
 inline int omap_hsi_wakeup(int hsi_port) { return -ENOSYS; }
 inline bool omap_hsi_is_io_wakeup_from_hsi(int *hsi_port) { return false; }
-inline void omap_hsi_allow_registration(void) { return -ENOSYS; }
+inline void omap_hsi_allow_registration(void) { return;}
 #endif
 
 #endif /* __OMAP_HSI_H__ */

@@ -163,6 +163,19 @@
 #define MMC_PU				(0x1 << 3)
 #define MMC_PD				(0x1 << 2)
 
+/* TWL6030 vibrator registers */
+#define TWL6030_VIBCTRL			0x9B
+#define TWL6030_VIBMODE			0x9C
+#define TWL6030_PWM1ON			0xBA
+#define	TWL6030_PWM1OFF			0xBB
+#define TWL6030_PWM2ON			0xBD
+#define TWL6030_PWM2OFF			0xBE
+
+/* TWL6030 control interface  registers */
+#define TWL6030_TOGGLE1			0x90
+#define TWL6030_TOGGLE2			0x91
+#define TWL6030_TOGGLE3			0x92
+
 #define VLOW_INT_MASK			(0x1 << 2)
 
 #define TWL_SIL_TYPE(rev)		((rev) & 0x00FFFFFF)
@@ -636,9 +649,14 @@ struct twl4030_bci_platform_data {
 	unsigned int max_charger_currentmA;
 	unsigned int max_charger_voltagemV;
 	unsigned int termination_currentmA;
+        unsigned int bootup_limit_currentmA;
 
 	unsigned int max_bat_voltagemV;
 	unsigned int low_bat_voltagemV;
+#ifdef CONFIG_MACH_ARCHOS
+	bool usb_is_dc;
+	bool use_separate_charger;
+#endif
 
 	unsigned int sense_resistor_mohm;
 
@@ -702,6 +720,7 @@ enum twl4030_usb_mode {
 };
 
 struct twl4030_usb_data {
+	const char *name;
 	enum twl4030_usb_mode	usb_mode;
 	unsigned long		features;
 
@@ -711,6 +730,7 @@ struct twl4030_usb_data {
 	int		(*phy_power)(struct device *dev, int iD, int on);
 	/* suspend/resume of phy */
 	int		(*phy_suspend)(struct device *dev, int suspend);
+	void *platform;
 };
 
 struct twl4030_ins {

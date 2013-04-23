@@ -372,8 +372,14 @@ int musb_hub_control(
 			 * initialization logic, e.g. for OTG, or change any
 			 * logic relating to VBUS power-up.
 			 */
-			if (!(is_otg_enabled(musb) && hcd->self.is_b_host))
+			if (!(is_otg_enabled(musb) && hcd->self.is_b_host)) {
 				musb_start(musb);
+				if (musb->xceiv->last_event == USB_EVENT_ID) {
+					musb->xceiv->state = OTG_STATE_A_IDLE;
+					atomic_notifier_call_chain(&musb->xceiv->notifier,
+							USB_EVENT_ID, musb->xceiv->gadget);
+				}
+			}
 			break;
 		case USB_PORT_FEAT_RESET:
 			musb_port_reset(musb, true);

@@ -935,30 +935,6 @@ void musb_start(struct musb *musb)
 	musb->is_active = 0;
 	devctl = musb_readb(regs, MUSB_DEVCTL);
 	devctl &= ~MUSB_DEVCTL_SESSION;
-
-	/* Detects cold-boot scenario using omap2430_musb_enable() */
-	musb_platform_enable(musb);
-
-	if (is_otg_enabled(musb)) {
-		/* session started after:
-		 * (a) ID-grounded irq, host mode;
-		 * (b) vbus present/connect IRQ, peripheral mode;
-		 * (c) peripheral initiates, using SRP
-		 */
-		if (musb->xceiv->last_event == USB_EVENT_VBUS)
-			musb->is_active = 1;
-		else if (musb->xceiv->last_event == USB_EVENT_ID)
-			devctl |= MUSB_DEVCTL_SESSION;
-
-	} else if (is_host_enabled(musb)) {
-		/* assume ID pin is hard-wired to ground */
-		devctl |= MUSB_DEVCTL_SESSION;
-
-	} else /* peripheral is enabled */ {
-		if (musb->xceiv->last_event == USB_EVENT_VBUS)
-			musb->is_active = 1;
-	}
-	musb_writeb(regs, MUSB_DEVCTL, devctl);
 }
 
 
@@ -1012,8 +988,8 @@ static void musb_shutdown(struct platform_device *pdev)
 	unsigned long	flags;
 
 	pm_runtime_get_sync(musb->controller);
-	spin_lock_irqsave(&musb->lock, flags);
 	musb_platform_disable(musb);
+	spin_lock_irqsave(&musb->lock, flags);
 	musb_generic_disable(musb);
 	spin_unlock_irqrestore(&musb->lock, flags);
 

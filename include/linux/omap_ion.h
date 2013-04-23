@@ -53,6 +53,10 @@ int omap_tiler_pages(struct ion_client *client, struct ion_handle *handle,
 		     int *n, u32 ** tiler_pages);
 int omap_ion_share_fd_to_buffers(int fd, struct ion_buffer **buffers,
 				 int *num_handles);
+/* Archos extension for omapdce */
+int omap_ion_fd_to_handles(int fd, struct ion_client **client,
+		struct ion_handle **handles,
+		int *num_handles);
 int omap_tiler_vinfo(struct ion_client *client,
 			struct ion_handle *handle, unsigned int *vstride,
 			unsigned int *vsize);

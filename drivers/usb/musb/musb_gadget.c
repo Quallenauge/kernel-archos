@@ -1987,12 +1987,14 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		hcd->self.dma_align = 1;
 	}
 
-	if ((musb->xceiv->last_event == USB_EVENT_NONE) ||
-			(musb->xceiv->last_event == USB_EVENT_CHARGER)) {
-		musb->xceiv->state = OTG_STATE_B_IDLE;
-		pm_runtime_put(musb->controller);
-	}
+	pm_runtime_put(musb->controller);
 
+	/* send an vbus notifier event if externel vbus connected */
+	if (musb->xceiv->last_event == USB_EVENT_VBUS) {
+		musb->xceiv->state = OTG_STATE_B_IDLE;
+		atomic_notifier_call_chain(&musb->xceiv->notifier,
+				USB_EVENT_VBUS, musb->xceiv->gadget);
+	}
 	return 0;
 
 err2:

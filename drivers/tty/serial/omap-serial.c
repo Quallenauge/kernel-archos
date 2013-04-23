@@ -119,7 +119,7 @@ serial_omap_get_divisor(struct uart_port *port, unsigned int baud)
 {
 	unsigned int divisor;
 
-	if (baud > OMAP_MODE13X_SPEED && baud != 3000000)
+	if (baud > OMAP_MODE13X_SPEED && baud != 3000000 && baud != 1000000)
 		divisor = 13;
 	else
 		divisor = 16;
@@ -953,7 +953,7 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	serial_out(up, UART_EFR, up->efr);
 	serial_out(up, UART_LCR, cval);
 
-	if (baud > 230400 && baud != 3000000)
+	if (baud > 230400 && baud != 3000000 && baud != 1000000)
 		up->mdr1 = UART_OMAP_MDR1_13X_MODE;
 	else
 		up->mdr1 = UART_OMAP_MDR1_16X_MODE;

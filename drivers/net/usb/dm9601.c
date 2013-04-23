@@ -643,6 +643,14 @@ static const struct usb_device_id products[] = {
 	 .driver_info = (unsigned long)&dm9601_info,
 	 },
 	{
+	 USB_DEVICE(0x0a46, 0x9000),	/* DM9000E */
+	 .driver_info = (unsigned long)&dm9601_info,
+	 },
+	{
+	 USB_DEVICE(0x0a46, 0x9601),	/* DM9601E */
+	 .driver_info = (unsigned long)&dm9601_info,
+	 },
+	{
 	USB_DEVICE(0x0a47, 0x9601),	/* Hirose USB-100 */
 	.driver_info = (unsigned long)&dm9601_info,
 	 },

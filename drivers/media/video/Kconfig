@@ -451,6 +451,15 @@ config VIDEO_ADV7343
 	  To compile this driver as a module, choose M here: the
 	  module will be called adv7343.
 
+config VIDEO_AD9393
+	tristate "AD9393 Low Power HDMI Display Interface"
+	depends on I2C
+	default n
+	help
+	  Support for Analog Devices I2C bus based AD9393 HDMI input chip.
+
+
+
 config VIDEO_AK881X
 	tristate "AK8813/AK8814 video encoders"
 	depends on I2C
@@ -573,7 +582,11 @@ source "drivers/media/video/davinci/Kconfig"
 
 source "drivers/media/video/omap/Kconfig"
 
+source "drivers/media/video/omapdce/Kconfig"
+
 source "drivers/media/video/omapgfx/Kconfig"
+
+source "drivers/media/video/omapimt/Kconfig"
 
 source "drivers/media/video/bt8xx/Kconfig"
 

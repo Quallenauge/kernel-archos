@@ -1,0 +1,8 @@
+config VIDEO_OMAP_IMT
+	tristate "OMAP IVAHD Memory & Trace"
+	select OMAP_RPMSG
+	default n
+	help
+	  OMAP side IVAHD tracing and memory allocation
+	  
+

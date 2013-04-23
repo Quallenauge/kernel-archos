@@ -210,6 +210,21 @@ config USB_UAS
 
 	  If you compile this driver as a module, it will be named uas.
 
+config USB_STORAGE_JM20329
+	tristate "JM20329 SATA Controller"
+	depends on USB_STORAGE
+	
+	select USB_LIBUSUAL
+	---help---
+	  Say Y here if you want to use (ata pass through) on devices based
+	  on the JMicron JM20329 SATA  bridge.
+
+	  If you say no here your device will still work with the standard usb
+	  mass storage class.
+
+	  If this driver is compiled as a module, it will be named ums-jm20329.
+
+
 config USB_LIBUSUAL
 	bool "The shared table of common (or usual) storage devices"
 	depends on USB

@@ -94,6 +94,7 @@ static void omap2_gp_timer_set_mode(enum clock_event_mode mode,
 		omap_dm_timer_set_load_start(gptimer, 1, 0xffffffff - period);
 		break;
 	case CLOCK_EVT_MODE_ONESHOT:
+		omap_dm_timer_set_load(gptimer, 0, 0);
 		break;
 	case CLOCK_EVT_MODE_UNUSED:
 	case CLOCK_EVT_MODE_SHUTDOWN:

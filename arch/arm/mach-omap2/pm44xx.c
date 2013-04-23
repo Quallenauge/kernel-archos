@@ -25,6 +25,7 @@
 
 #include <asm/hardware/gic.h>
 #include <mach/omap4-common.h>
+#include <mach/emif.h>
 #include <plat/omap_hsi.h>
 #include <plat/common.h>
 #include <plat/temperature_sensor.h>
@@ -1124,6 +1125,7 @@ static void __init syscontrol_setup_regs(void)
 		OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO2_3);
 
 	syscontrol_lpddr_clk_io_errata(true);
+
 }
 
 static void __init prcm_setup_regs(void)

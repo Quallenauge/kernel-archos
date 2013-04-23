@@ -108,6 +108,13 @@ config HID_APPLE
 	Say Y here if you want support for keyboards of	Apple iBooks, PowerBooks,
 	MacBooks, MacBook Pros and Apple Aluminum.
 
+config HID_ARCHOS
+	bool "Archos Gen10 Keyboards"
+	depends on USB_HID
+	default n
+	---help---
+	Support for Archos Gen10 keyboards
+
 config HID_BELKIN
 	tristate "Belkin Flip KVM and Wireless keyboard" if EXPERT
 	depends on USB_HID
@@ -182,7 +189,7 @@ config HID_EMS_FF
 
 config HID_ELECOM
 	tristate "ELECOM BM084 bluetooth mouse"
-	depends on BT_HIDP
+	depends on (USB_HID || BT_HIDP)
 	---help---
 	Support for the ELECOM BM084 (bluetooth mouse).
 
@@ -295,7 +302,7 @@ config LOGIWII_FF
 
 config HID_MAGICMOUSE
 	tristate "Apple MagicMouse multi-touch support"
-	depends on BT_HIDP
+	depends on (USB_HID || BT_HIDP)
 	---help---
 	Support for the Apple Magic Mouse multi-touch.
 
@@ -578,7 +585,7 @@ config THRUSTMASTER_FF
 
 config HID_WACOM
 	tristate "Wacom Bluetooth devices support"
-	depends on BT_HIDP
+	depends on (USB_HID || BT_HIDP)
 	---help---
 	Support for Wacom Graphire Bluetooth tablet.
 

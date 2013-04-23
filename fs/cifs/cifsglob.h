@@ -41,7 +41,9 @@
 #define MAX_USERNAME_SIZE 256	/* reasonable maximum for current servers */
 #define MAX_PASSWORD_SIZE 512	/* max for windows seems to be 256 wide chars */
 
-#define CIFS_MIN_RCV_POOL 4
+/* Set CIFS_MIN_RCV_POOL to 8 since memory pool resize has been disabled */
+//#define CIFS_MIN_RCV_POOL 4
+#define CIFS_MIN_RCV_POOL 8
 
 #define MAX_REOPEN_ATT	5 /* these many maximum attempts to reopen a file */
 /*

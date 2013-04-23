@@ -17,6 +17,11 @@
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/i2c/twl.h>
+#include <asm/mach-types.h>
+
+#ifdef CONFIG_MACH_ARCHOS
+#include <mach/board-archos.h>
+#endif
 
 #include "voltage.h"
 
@@ -652,6 +657,34 @@ static __initdata struct omap_pmic_map omap_twl_map[] = {
 	{ .name = NULL, .pmic_data = NULL},
 };
 
+static __initdata struct omap_pmic_map archos_twl_map[] = {
+	{
+		.name = "mpu_iva",
+		.omap_chip = OMAP_CHIP_INIT(OMAP3_TWL4030_USED),
+		.pmic_data = &omap3_mpu_pmic,
+		.special_action = twl_set_sr,
+	},
+	{
+		.name = "core",
+		.omap_chip = OMAP_CHIP_INIT(OMAP3_TWL4030_USED),
+		.pmic_data = &omap3_core_pmic,
+	},
+	{
+		.name = "core",
+		.omap_chip = OMAP_CHIP_INIT(CHIP_IS_OMAP443X |
+						CHIP_IS_OMAP446X),
+		.pmic_data = &omap446x_core_pmic,
+		.special_action = twl_set_4460vcore,
+	},
+	{
+		.name = "iva",
+		.omap_chip = OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
+		.pmic_data = &omap443x_446x_iva_pmic,
+	},
+	/* Terminator */
+	{ .name = NULL, .pmic_data = NULL},
+};
+
 /* As per SWCS045 */
 static __initdata struct omap_pmic_description twl6030_pmic_desc = {
 	.pmic_lp_tshut = 500,	/* T-OFF */
@@ -661,7 +694,8 @@ static __initdata struct omap_pmic_description twl6030_pmic_desc = {
 int __init omap_twl_init(void)
 {
 	struct omap_pmic_description *desc = NULL;
-
+	struct omap_pmic_map *map = NULL;
+	
 	/* Reuse OMAP3430 values */
 	if (cpu_is_omap3630()) {
 		omap3_mpu_pmic.min_volt = OMAP3630_VP1_VLIMITTO_VDDMIN;
@@ -673,7 +707,13 @@ int __init omap_twl_init(void)
 	if (cpu_is_omap44xx())
 		desc = &twl6030_pmic_desc;
 
-	return omap_pmic_register_data(omap_twl_map, desc);
+	/* special Archos hardware, tps62361 also for OMAP4430 */
+	if (machine_has_tps62361())
+		map = archos_twl_map;
+	else
+		map = omap_twl_map;
+	
+	return omap_pmic_register_data(map, desc);
 }
 
 /**

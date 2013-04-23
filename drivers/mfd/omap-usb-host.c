@@ -158,6 +158,8 @@ struct usbhs_hcd_omap {
 	struct clk			*usbhost_p2_fck;
 	struct clk			*usbtll_p2_fck;
 	struct clk			*init_60m_fclk;
+	struct clk			*usbhost_hs_fck;
+	struct clk			*usbhost_ick;
 
 	struct clk			*hsic_p1_fck;
 	struct clk			*hsic_p1_480m_fck;
@@ -421,6 +423,20 @@ static int __devinit usbhs_omap_probe(struct platform_device *pdev)
 		goto err_usbtll_p2_fck;
 	}
 
+	omap->usbhost_hs_fck = clk_get(dev, "usb_host_hs_fck");
+	if (IS_ERR(omap->usbhost_hs_fck)) {
+		ret = PTR_ERR(omap->usbhost_hs_fck);
+		dev_err(dev, "usbhost_hs_fck failed error:%d\n", ret);
+		goto err_usbhost_hs_fck;
+	}
+
+	omap->usbhost_ick = clk_get(dev, "usbhost_ick");
+	if (IS_ERR(omap->usbhost_ick)) {
+		ret = PTR_ERR(omap->usbhost_ick);
+		dev_err(dev, "usbhost_ick failed error:%d\n", ret);
+		goto err_usbhost_ick;
+	}
+
 	omap->hsic_p1_fck = clk_get(dev, "usb_host_hs_hsic60m_p1_clk");
 	if (IS_ERR(omap->hsic_p1_fck)) {
 		ret = PTR_ERR(omap->hsic_p1_fck);
@@ -525,6 +541,12 @@ err_alloc:
 
 err_tll:
 	iounmap(omap->uhh_base);
+
+err_usbhost_ick:
+	clk_put(omap->usbhost_ick);
+
+err_usbhost_hs_fck:
+	clk_put(omap->usbhost_hs_fck);
 
 err_hsic_p2_480m_fck:
 	clk_put(omap->hsic_p2_480m_fck);

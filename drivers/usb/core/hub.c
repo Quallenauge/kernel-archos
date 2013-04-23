@@ -2099,9 +2099,9 @@ static unsigned hub_is_wusb(struct usb_hub *hub)
 }
 
 
-#define PORT_RESET_TRIES	5
+#define PORT_RESET_TRIES	2
 #define SET_ADDRESS_TRIES	2
-#define GET_DESCRIPTOR_TRIES	2
+#define GET_DESCRIPTOR_TRIES	1
 #define SET_CONFIG_TRIES	(2 * (use_both_schemes + 1))
 #define USE_NEW_SCHEME(i)	((i) / 2 == old_scheme_first)
 

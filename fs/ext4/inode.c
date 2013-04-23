@@ -4913,6 +4913,7 @@ struct inode *ext4_iget(struct super_block *sb, unsigned long ino)
 	journal_t *journal = EXT4_SB(sb)->s_journal;
 	long ret;
 	int block;
+	struct ext4_sb_info *sbi;
 
 	inode = iget_locked(sb, ino);
 	if (!inode)
@@ -4934,6 +4935,22 @@ struct inode *ext4_iget(struct super_block *sb, unsigned long ino)
 		inode->i_uid |= le16_to_cpu(raw_inode->i_uid_high) << 16;
 		inode->i_gid |= le16_to_cpu(raw_inode->i_gid_high) << 16;
 	}
+
+	sbi = EXT4_SB(inode->i_sb);
+#ifdef CONFIG_EXT4_FS_UMODE
+	if (S_ISDIR(inode->i_mode)) {
+		inode->i_mode |= (sbi->s_dmode & S_IRWXUGO);
+	} else {
+		inode->i_mode |= (sbi->s_fmode & S_IRWXUGO);
+	}
+
+	if (test_opt(inode->i_sb, FORCE_UID))
+		inode->i_uid = sbi->s_uid;
+
+	if (test_opt(inode->i_sb, FORCE_GID))
+		inode->i_gid = sbi->s_gid;
+#endif
+
 	inode->i_nlink = le16_to_cpu(raw_inode->i_links_count);
 
 	ext4_clear_state_flags(ei);	/* Only relevant on 32-bit archs */
@@ -5154,6 +5171,9 @@ static int ext4_do_update_inode(handle_t *handle,
 	struct buffer_head *bh = iloc->bh;
 	int err = 0, rc, block;
 	int need_datasync = 0;
+#ifdef CONFIG_EXT4_FS_UMODE
+	struct ext4_sb_info *sbi = EXT4_SB(inode->i_sb);
+#endif
 
 	/* For fields not not tracking in the in-memory inode,
 	 * initialise them to zero for new inodes. */
@@ -5161,7 +5181,25 @@ static int ext4_do_update_inode(handle_t *handle,
 		memset(raw_inode, 0, EXT4_SB(inode->i_sb)->s_inode_size);
 
 	ext4_get_inode_flags(ei);
+
+#ifdef CONFIG_EXT4_FS_UMODE
+	if (S_ISDIR(inode->i_mode)) {
+		inode->i_mode |= (sbi->s_dmode & S_IRWXUGO);
+	} else {
+		inode->i_mode |= (sbi->s_fmode & S_IRWXUGO);
+	}
+#endif
+
 	raw_inode->i_mode = cpu_to_le16(inode->i_mode);
+
+#ifdef CONFIG_EXT4_FS_UMODE
+	if (test_opt(inode->i_sb, FORCE_UID))
+		inode->i_uid = sbi->s_uid;
+
+	if (test_opt(inode->i_sb, FORCE_GID))
+		inode->i_gid = sbi->s_gid;
+#endif
+
 	if (!(test_opt(inode->i_sb, NO_UID32))) {
 		raw_inode->i_uid_low = cpu_to_le16(low_16_bits(inode->i_uid));
 		raw_inode->i_gid_low = cpu_to_le16(low_16_bits(inode->i_gid));

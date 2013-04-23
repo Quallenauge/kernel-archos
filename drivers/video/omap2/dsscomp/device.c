@@ -610,6 +610,7 @@ static int dsscomp_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, cdev);
 
 	pr_info("dsscomp: initializing.\n");
+//	dump_stack();
 
 	fill_cache(cdev);
 	fill_platform_info(cdev);

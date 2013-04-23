@@ -49,12 +49,21 @@
 #define OMAP_GRADIENT_CONST_4460  -9301
 #define OMAP_GRADIENT_SLOPE_4470    308
 #define OMAP_GRADIENT_CONST_4470  -7896
+/* 4430 config merged from archos kernel */
+#define OMAP_GRADIENT_SLOPE_4430     500	/* FIXME, get better parameters */
+#define OMAP_GRADIENT_CONST_4430  -12500 //30000 at 85deg. - nothing at 25deg.
+
 
 /* PCB sensor calculation constants */
 #define OMAP_GRADIENT_SLOPE_W_PCB_4460  1142
 #define OMAP_GRADIENT_CONST_W_PCB_4460  -393
 #define OMAP_GRADIENT_SLOPE_W_PCB_4470  1063
 #define OMAP_GRADIENT_CONST_W_PCB_4470  -477
+
+/* 4430 config merged from archos kernel */
+#define OMAP_GRADIENT_SLOPE_W_PCB_4430 1370
+#define OMAP_GRADIENT_CONST_W_PCB_4430 -635
+
 #define AVERAGE_NUMBER	      20
 
 struct omap_die_governor {
@@ -526,7 +535,12 @@ static int __init omap_die_governor_init(void)
 		return -ENOMEM;
 	}
 
-	if (cpu_is_omap446x()) {
+	if (cpu_is_omap443x()) {
+		omap_gov->gradient_slope = OMAP_GRADIENT_SLOPE_4430;
+		omap_gov->gradient_const = OMAP_GRADIENT_CONST_4430;
+		omap_gov->gradient_slope_w_pcb = OMAP_GRADIENT_SLOPE_W_PCB_4430;
+		omap_gov->gradient_const_w_pcb = OMAP_GRADIENT_CONST_W_PCB_4430;
+	}else if (cpu_is_omap446x()) {
 		omap_gov->gradient_slope = OMAP_GRADIENT_SLOPE_4460;
 		omap_gov->gradient_const = OMAP_GRADIENT_CONST_4460;
 		omap_gov->gradient_slope_w_pcb = OMAP_GRADIENT_SLOPE_W_PCB_4460;

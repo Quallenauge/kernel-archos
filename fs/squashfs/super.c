@@ -36,6 +36,7 @@
 #include <linux/module.h>
 #include <linux/magic.h>
 #include <linux/xattr.h>
+#include <linux/parser.h>
 
 #include "squashfs_fs.h"
 #include "squashfs_fs_sb.h"
@@ -73,6 +74,44 @@ static const struct squashfs_decompressor *supported_squashfs_filesystem(short
 	return decompressor;
 }
 
+enum {
+	Opt_cts_compat,
+};
+
+static const match_table_t tokens = {
+	{Opt_cts_compat, "cts_compat"},
+};
+
+static int parse_options(char *options, struct super_block *sb)
+{
+	struct squashfs_sb_info *msblk = sb->s_fs_info;
+	substring_t args[MAX_OPT_ARGS];
+	char *p;
+
+	if (!options)
+		return 1;
+
+	while ((p = strsep(&options, ",")) != NULL) {
+		int token;
+
+		if (!*p)
+			continue;
+
+		args[0].to = args[0].from = 0;
+
+		token = match_token(p, tokens, args);
+		switch (token) {
+			case Opt_cts_compat:
+				msblk->mount_opts |= CTS_COMPAT;
+				break;
+
+			default:
+				break;
+		}
+	}
+
+	return 0;
+}
 
 static int squashfs_fill_super(struct super_block *sb, void *data, int silent)
 {
@@ -94,6 +133,8 @@ static int squashfs_fill_super(struct super_block *sb, void *data, int silent)
 		return -ENOMEM;
 	}
 	msblk = sb->s_fs_info;
+
+	parse_options(data, sb);
 
 	msblk->devblksize = sb_min_blocksize(sb, BLOCK_SIZE);
 	msblk->devblksize_log2 = ffz(~msblk->devblksize);
@@ -348,13 +389,17 @@ static int squashfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 {
 	struct squashfs_sb_info *msblk = dentry->d_sb->s_fs_info;
 	u64 id = huge_encode_dev(dentry->d_sb->s_bdev->bd_dev);
+	int fakefree = 0;
 
 	TRACE("Entered squashfs_statfs\n");
+
+	if (msblk->mount_opts & CTS_COMPAT)
+		fakefree = 1;
 
 	buf->f_type = SQUASHFS_MAGIC;
 	buf->f_bsize = msblk->block_size;
 	buf->f_blocks = ((msblk->bytes_used - 1) >> msblk->block_log) + 1;
-	buf->f_bfree = buf->f_bavail = 0;
+	buf->f_bfree = buf->f_bavail = fakefree;
 	buf->f_files = msblk->inodes;
 	buf->f_ffree = 0;
 	buf->f_namelen = SQUASHFS_NAME_LEN;

@@ -51,6 +51,8 @@ struct squashfs_cache_entry {
 	void			**data;
 };
 
+#define CTS_COMPAT (1 << 0)
+
 struct squashfs_sb_info {
 	const struct squashfs_decompressor	*decompressor;
 	int					devblksize;
@@ -75,5 +77,6 @@ struct squashfs_sb_info {
 	long long				bytes_used;
 	unsigned int				inodes;
 	int					xattr_ids;
+	int					mount_opts;
 };
 #endif

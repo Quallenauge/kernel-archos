@@ -690,8 +690,11 @@ static void __init gpmc_mem_init(void)
 		if (!gpmc_cs_mem_enabled(cs))
 			continue;
 		gpmc_cs_get_memconf(cs, &base, &size);
-		if (gpmc_cs_insert_mem(cs, base, size) < 0)
-			BUG();
+		if (gpmc_cs_insert_mem(cs, base, size) < 0) {
+			printk("gpmc_mem_init: cannot add %u@%08x\n",
+				size, base);
+			//BUG();
+		}
 	}
 }
 

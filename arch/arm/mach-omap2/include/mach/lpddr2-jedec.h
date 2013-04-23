@@ -22,7 +22,7 @@
  * We need to keep timing tables for only the speed bins that we
  * are interested in
  */
-#define MAX_NUM_SPEEDBINS	4
+#define MAX_NUM_SPEEDBINS	5
 
 /* LPDDR2 Densities */
 #define LPDDR2_DENSITY_64Mb	0

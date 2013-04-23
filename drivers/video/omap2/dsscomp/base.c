@@ -518,11 +518,11 @@ void dump_ovl_info(struct dsscomp_dev *cdev, struct dss2_ovl_info *oi)
 
 	ci = get_color_info(c->color_mode);
 	if (c->zonly) {
-		dev_info(DEV(cdev), "ovl%d(%s z%d)\n",
+		dev_err(DEV(cdev), "ovl%d(%s z%d)\n",
 			c->ix, c->enabled ? "ON" : "off", c->zorder);
 		return;
 	}
-	dev_info(DEV(cdev), "ovl%d(%s z%d %s%s *%d%% %d*%d:%d,%d+%d,%d rot%d%s"
+	dev_err(DEV(cdev), "ovl%d(%s z%d %s%s *%d%% %d*%d:%d,%d+%d,%d rot%d%s"
 						" => %d,%d+%d,%d %p/%p|%d)\n",
 		c->ix, c->enabled ? "ON" : "off", c->zorder,
 		ci->name ? : "(none)",
@@ -552,7 +552,7 @@ void dump_comp_info(struct dsscomp_dev *cdev, struct dsscomp_setup_mgr_data *d,
 	if (!(debug & DEBUG_COMPOSITIONS))
 		return;
 
-	dev_info(DEV(cdev), "[%p] %s: %c%c%c ",
+	dev_err(DEV(cdev), "[%p] %s: %c%c%c ",
 		 *phase == 'q' ? (void *) d->sync_id : d, phase,
 		 (d->mode & DSSCOMP_SETUP_MODE_APPLY) ? 'A' : '-',
 		 (d->mode & DSSCOMP_SETUP_MODE_DISPLAY) ? 'D' : '-',
@@ -570,7 +570,7 @@ void dump_total_comp_info(struct dsscomp_dev *cdev,
 	if (!(debug & DEBUG_COMPOSITIONS))
 		return;
 
-	dev_info(DEV(cdev), "[%p] %s: %c%c%c ",
+	dev_err(DEV(cdev), "[%p] %s: %c%c%c ",
 		 *phase == 'q' ? (void *) d->sync_id : d, phase,
 		 (d->mode & DSSCOMP_SETUP_MODE_APPLY) ? 'A' : '-',
 		 (d->mode & DSSCOMP_SETUP_MODE_DISPLAY) ? 'D' : '-',

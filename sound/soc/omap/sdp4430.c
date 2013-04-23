@@ -685,39 +685,39 @@ static struct snd_soc_dai_driver dai[] = {
 },
 };
 
-struct snd_soc_dsp_link fe_media = {
+static struct snd_soc_dsp_link fe_media = {
 	.playback	= true,
 	.capture	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},
 };
 
-struct snd_soc_dsp_link fe_media_capture = {
+static struct snd_soc_dsp_link fe_media_capture = {
 	.capture	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},
 };
 
-struct snd_soc_dsp_link fe_tones = {
+static struct snd_soc_dsp_link fe_tones = {
 	.playback	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},
 };
 
-struct snd_soc_dsp_link fe_vib = {
+static struct snd_soc_dsp_link fe_vib = {
 	.playback	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},
 };
 
-struct snd_soc_dsp_link fe_modem = {
+static struct snd_soc_dsp_link fe_modem = {
 	.playback	= true,
 	.capture	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},
 };
 
-struct snd_soc_dsp_link fe_lp_media = {
+static struct snd_soc_dsp_link fe_lp_media = {
 	.playback	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},

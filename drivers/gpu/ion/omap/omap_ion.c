@@ -210,6 +210,37 @@ exit:
 }
 EXPORT_SYMBOL(omap_ion_share_fd_to_buffers);
 
+/*
+ * Archos extension for omapdce.
+ */
+int omap_ion_fd_to_handles(int fd, struct ion_client **client,
+		struct ion_handle **handles,
+		int *num_handles)
+{
+#ifdef CONFIG_PVR_SGX
+	if (*num_handles == 2)
+		PVRSRVExportFDToIONHandles(fd, client, handles);
+	else if (*num_handles == 1)
+		handles[0] = PVRSRVExportFDToIONHandle(fd, client);
+	else
+		return -EINVAL;
+#else
+	if (export_fd_to_ion_handles) {
+		export_fd_to_ion_handles(fd,
+				client,
+				handles,
+				num_handles);
+	} else {
+		pr_err("%s: export_fd_to_ion_handles"
+				"not initiazied",
+				__func__);
+		return -EINVAL;
+	}
+#endif
+
+	return 0;
+}
+
 static struct platform_driver ion_driver = {
 	.probe = omap_ion_probe,
 	.remove = omap_ion_remove,

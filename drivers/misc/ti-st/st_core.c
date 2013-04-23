@@ -354,7 +354,7 @@ void st_int_recv(void *disc_data,
 
 			if ((type >= ST_MAX_CHANNELS) ||
 					(st_gdata->list[type] == NULL)) {
-				pr_err("chip/interface misbehavior "
+				pr_err("chip/interface misbehavior: "
 						"dropping frame starting "
 						"with 0x%02x\n", type);
 				goto done;
@@ -521,10 +521,23 @@ long st_register(struct st_proto_s *new_proto)
 
 	st_kim_ref(&st_gdata, 0);
 	pr_info("%s(%d)\n", __func__, new_proto->chnl_id);
-	if (st_gdata == NULL || new_proto == NULL || new_proto->recv == NULL
-	    || new_proto->reg_complete_cb == NULL) {
-		pr_err("gdata/new_proto/recv or reg_complete_cb not ready\n");
+	if (st_gdata == NULL){
+		pr_err("gdata not ready\n");
 		return -EINVAL;
+	}
+
+	if (new_proto == NULL){
+			pr_err("new_proto not ready\n");
+			return -EINVAL;
+	}
+
+	if (new_proto->recv == NULL){
+			pr_err("new_proto->recv not ready\n");
+			return -EINVAL;
+	}
+	if (new_proto->reg_complete_cb == NULL){
+			pr_err("new_proto->reg_complete_cb not ready\n");
+			return -EINVAL;
 	}
 
 	if (new_proto->chnl_id >= ST_MAX_CHANNELS) {

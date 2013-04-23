@@ -444,6 +444,7 @@ struct file;
 #define FB_MISC_PRIM_COLOR	1
 #define FB_MISC_1ST_DETAIL	2	/* First Detailed Timing is preferred */
 #define FB_MISC_HDMI		4	/* display supports HDMI signaling */
+#define FB_MISC_UNDERSCAN	8
 
 struct fb_chroma {
 	__u32 redx;	/* in fraction of 1024 */
@@ -1104,6 +1105,9 @@ extern void fb_edid_to_monspecs(unsigned char *edid,
 				struct fb_monspecs *specs);
 extern void fb_edid_add_monspecs(unsigned char *edid,
 				 struct fb_monspecs *specs);
+#ifdef CONFIG_SUPPORT_PANEL_EXTRA_MODE
+void fb_extrapolate_modedb(struct fb_monspecs *specs);
+#endif
 extern void fb_destroy_modedb(struct fb_videomode *modedb);
 extern int fb_find_mode_cvt(struct fb_videomode *mode, int margins, int rb);
 extern unsigned char *fb_ddc_read(struct i2c_adapter *adapter);

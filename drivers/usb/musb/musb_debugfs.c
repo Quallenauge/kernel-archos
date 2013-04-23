@@ -124,6 +124,8 @@ static int musb_regdump_show(struct seq_file *s, void *unused)
 	struct musb		*musb = s->private;
 	unsigned		i;
 
+	pm_runtime_get_sync(musb->controller);
+
 	seq_printf(s, "MUSB (M)HDRC Register Dump\n");
 
 	for (i = 0; i < ARRAY_SIZE(musb_regmap); i++) {
@@ -143,6 +145,8 @@ static int musb_regdump_show(struct seq_file *s, void *unused)
 		}
 	}
 
+	pm_runtime_put_sync(musb->controller);
+
 	return 0;
 }
 
@@ -155,6 +159,8 @@ static int musb_test_mode_show(struct seq_file *s, void *unused)
 {
 	struct musb		*musb = s->private;
 	unsigned		test;
+
+	pm_runtime_get_sync(musb->controller);
 
 	test = musb_readb(musb->mregs, MUSB_TESTMODE);
 
@@ -181,6 +187,8 @@ static int musb_test_mode_show(struct seq_file *s, void *unused)
 
 	if (test & MUSB_TEST_SE0_NAK)
 		seq_printf(s, "test SE0 NAK\n");
+
+	pm_runtime_put_sync(musb->controller);
 
 	return 0;
 }

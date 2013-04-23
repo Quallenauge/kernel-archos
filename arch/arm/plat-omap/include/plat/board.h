@@ -34,6 +34,8 @@ enum {
 #define OMAP_TAG_STI_CONSOLE	0x4f09
 #define OMAP_TAG_CAMERA_SENSOR	0x4f0a
 
+#define OMAP_TAG_DIE_GOVERNOR	0x4f10
+
 #define OMAP_TAG_BOOT_REASON    0x4f80
 #define OMAP_TAG_FLASH_PART	0x4f81
 #define OMAP_TAG_VERSION_STR	0x4f82
@@ -119,6 +121,14 @@ struct omap_pwm_led_platform_data {
 	int intensity_timer;
 	int blink_timer;
 	void (*set_power)(struct omap_pwm_led_platform_data *self, int on_off);
+	void (*set_pad)(struct omap_pwm_led_platform_data *Self, int on_off);
+#ifdef CONFIG_LEDS_OMAP_PWM
+	const char *default_trigger;
+	unsigned int bkl_freq;
+	unsigned char bkl_max;
+	unsigned char bkl_min;
+	unsigned invert;
+#endif
 };
 
 struct omap_uart_config {
@@ -126,6 +136,40 @@ struct omap_uart_config {
 	unsigned int enabled_uarts;
 };
 
+/*
+ * omap_die_governor platform data
+ *
+ * Temperature levels for the different thermal zones:
+ * @fatal_temp 	- CPU fatal temperature level
+ * @panic_temp 	- CPU panic temperature level
+ * @alert_temp 	- CPU alert temperature level
+ * @monitor_temp - CPU monitoring temperature level
+ * @safe_temp	- CPU temperature level for safe zone
+ *
+ * @hysteresis_value
+ * @normal_temp_monitoring_rate - rate in ms during normal monitoring
+ * @fast_temp_monitoring_rate	- rate in ms during fast monitoring
+ */
+struct omap_die_governor_config {
+	int fatal_temp;
+	int panic_temp;
+	int alert_temp;
+	int monitor_temp;
+	int safe_temp;
+
+	int pcb_fatal_temp;
+	int pcb_panic_temp;
+	int pcb_alert_temp;
+	int pcb_monitor_temp;
+	int pcb_safe_temp;
+
+	int hysteresis_value;
+	int pcb_hysteresis_value;
+	int normal_temp_monitoring_rate;
+	int fast_temp_monitoring_rate;
+	int use_separate_pcb_zone_definition;
+	int pcb_panic_guard_treshold;
+};
 
 struct omap_flash_part_config {
 	char part_table[0];

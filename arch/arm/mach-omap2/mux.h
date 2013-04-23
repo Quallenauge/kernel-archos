@@ -288,6 +288,12 @@ static struct omap_board_mux *board_mux __initdata __maybe_unused;
  */
 struct omap_mux *omap_mux_get_gpio(int gpio);
 
+/**
+ * omap_mux_get_signal() - get mux struct based on signal name
+ * @signal:		name of the signal
+ */
+int omap_mux_get_signal(const char* signal, struct omap_mux *mux);
+
 /** omap_mux_set_wakeupenable() - set the wakeupenable bit on a mux struct
  * @m:			mux struct
  */

@@ -14,6 +14,8 @@
  * GNU General Public License for more details.
  */
 #include <linux/platform_device.h>
+#include <linux/init.h>
+#include <asm/setup.h>
 #include <linux/reboot.h>
 #include <linux/notifier.h>
 
@@ -29,7 +31,7 @@ static int omap_reboot_notifier_call(struct notifier_block *this,
 					unsigned long code, void *cmd)
 {
 	void __iomem *sar_base;
-	char *reason = "normal";
+	char *reason = "android";
 
 #ifdef CONFIG_OMAP4_DPLL_CASCADING
 	pr_info("%s: exit DPLL cascading\n", __func__);
@@ -40,13 +42,13 @@ static int omap_reboot_notifier_call(struct notifier_block *this,
 
 	if (!sar_base)
 		return notifier_from_errno(-ENOMEM);
-
+	
 	/* Save reboot mode in scratch memory */
 	if (code == SYS_RESTART && cmd != NULL && strlen(cmd))
 		reason = cmd;
 	else if (code == SYS_POWER_OFF)
 		reason = "off";
-
+	printk("omap_reboot_notifier_call: code: %lu %s\n",code,reason);
 	strncpy(sar_base + OMAP_REBOOT_REASON_OFFSET,
 			reason, OMAP_REBOOT_REASON_SIZE);
 	return NOTIFY_DONE;
@@ -58,13 +60,20 @@ static struct notifier_block omap_reboot_notifier = {
 
 static int __init omap_reboot_reason_init(void)
 {
-	void __iomem *sar_base;
-
-	sar_base = omap4_get_sar_ram_base();
-	if (sar_base)
-		strncpy(sar_base + OMAP_REBOOT_REASON_OFFSET,
-			"", OMAP_REBOOT_REASON_SIZE);
-
+	void __iomem *sar_base = omap4_get_sar_ram_base();
+	if (sar_base){
+		char android_reboot_reason[OMAP_REBOOT_REASON_SIZE] ; 
+		strncpy(android_reboot_reason,sar_base + OMAP_REBOOT_REASON_OFFSET, OMAP_REBOOT_REASON_SIZE);
+		if(strlen(android_reboot_reason)>0)
+			printk("android_reboot_reason:%s\n\toffset:%x size:%d\n",android_reboot_reason,OMAP_REBOOT_REASON_OFFSET, OMAP_REBOOT_REASON_SIZE);
+		if(!strncmp(android_reboot_reason,"android",OMAP_REBOOT_REASON_SIZE)) {
+			strlcat(saved_command_line," androidboot.mode=android",COMMAND_LINE_SIZE);
+		}else{
+			strlcat(saved_command_line," androidboot.mode=recovery",COMMAND_LINE_SIZE);		
+		}
+	}else{ // noram , what the fuck are you thinking
+			strlcat(saved_command_line," androidboot.mode=recovery",COMMAND_LINE_SIZE);		
+	}
 	return register_reboot_notifier(&omap_reboot_notifier);
 }
-late_initcall(omap_reboot_reason_init);
+core_initcall(omap_reboot_reason_init);
