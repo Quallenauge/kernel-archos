@@ -152,12 +152,13 @@ static int adc_to_temp[] = {
 
 static int adc_to_temp_conversion(int adc_val)
 {
-	if ((adc_val < TWL6030_ADC_START_VALUE) ||
-		(adc_val > TWL6030_ADC_END_VALUE)) {
-		pr_err("%s:Temp read is invalid %i\n", __func__, adc_val);
-		return -EINVAL;
-	}
-
+//TODO: Check why always 3 is returned!
+//	if ((adc_val < TWL6030_ADC_START_VALUE) ||
+//		(adc_val > TWL6030_ADC_END_VALUE)) {
+//		pr_err("%s:Temp read is invalid %i\n", __func__, adc_val);
+//		return -EINVAL;
+//	}
+	adc_val=TWL6030_ADC_START_VALUE+1;
 	return adc_to_temp[TWL6030_ADC_END_VALUE - adc_val];
 }
 

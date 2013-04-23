@@ -35,6 +35,7 @@
 
 #include <linux/skbuff.h>
 #include <linux/ti_wilink_st.h>
+#include <linux/module.h>
 
 
 #define MAX_ST_DEVICES	3	/* Imagine 1 on each UART for now */
@@ -206,8 +207,8 @@ static long read_local_version(struct kim_data_s *kim_gdata, char *bts_scr_name)
 		return -EIO;
 	}
 
-	if (!wait_for_completion_timeout
-	    (&kim_gdata->kim_rcvd, msecs_to_jiffies(CMD_RESP_TIME))) {
+	if (!wait_for_completion_interruptible_timeout(
+		&kim_gdata->kim_rcvd, msecs_to_jiffies(CMD_RESP_TIME))) {
 		pr_err(" waiting for ver info- timed out ");
 		return -ETIMEDOUT;
 	}
@@ -369,9 +370,9 @@ static long download_firmware(struct kim_data_s *kim_gdata)
 			break;
 		case ACTION_WAIT_EVENT:  /* wait */
 			pr_debug("W");
-			if (!wait_for_completion_timeout
-					(&kim_gdata->kim_rcvd,
-					 msecs_to_jiffies(CMD_RESP_TIME))) {
+			if (!wait_for_completion_interruptible_timeout(
+					&kim_gdata->kim_rcvd,
+					msecs_to_jiffies(CMD_RESP_TIME))) {
 				pr_err("response timeout during fw download ");
 				/* timed out */
 				release_firmware(kim_gdata->fw_entry);
@@ -382,7 +383,8 @@ static long download_firmware(struct kim_data_s *kim_gdata)
 		case ACTION_DELAY:	/* sleep */
 			pr_info("sleep command in scr");
 			action_ptr = &(((struct bts_action *)ptr)->data[0]);
-			mdelay(((struct bts_action_delay *)action_ptr)->msec);
+			msleep_interruptible(
+				((struct bts_action_delay *)action_ptr)->msec);
 			break;
 		}
 		len =
@@ -451,13 +453,13 @@ long st_kim_start(void *kim_data)
 	do {
 		/* platform specific enabling code here */
 		if (pdata->chip_enable)
-			pdata->chip_enable();
+			pdata->chip_enable(kim_gdata);
 
 		/* Configure BT nShutdown to HIGH state */
 		gpio_set_value(kim_gdata->nshutdown, GPIO_LOW);
 		mdelay(5);	/* FIXME: a proper toggle */
 		gpio_set_value(kim_gdata->nshutdown, GPIO_HIGH);
-		mdelay(100);
+		msleep_interruptible(100);
 		/* re-initialize the completion */
 		INIT_COMPLETION(kim_gdata->ldisc_installed);
 		/* send notification to UIM */
@@ -466,8 +468,8 @@ long st_kim_start(void *kim_data)
 		sysfs_notify(&kim_gdata->kim_pdev->dev.kobj,
 				NULL, "install");
 		/* wait for ldisc to be installed */
-		err = wait_for_completion_timeout(&kim_gdata->ldisc_installed,
-				msecs_to_jiffies(LDISC_TIME));
+		err = wait_for_completion_interruptible_timeout(
+			&kim_gdata->ldisc_installed, msecs_to_jiffies(LDISC_TIME));
 		if (!err) {
 			/* ldisc installation timeout,
 			 * flush uart, power cycle BT_EN */
@@ -525,8 +527,8 @@ long st_kim_stop(void *kim_data)
 	sysfs_notify(&kim_gdata->kim_pdev->dev.kobj, NULL, "install");
 
 	/* wait for ldisc to be un-installed */
-	err = wait_for_completion_timeout(&kim_gdata->ldisc_installed,
-			msecs_to_jiffies(LDISC_TIME));
+	err = wait_for_completion_interruptible_timeout(
+		&kim_gdata->ldisc_installed, msecs_to_jiffies(LDISC_TIME));
 	if (!err) {		/* timeout */
 		pr_err(" timed out waiting for ldisc to be un-installed");
 		err = -ETIMEDOUT;
@@ -541,7 +543,7 @@ long st_kim_stop(void *kim_data)
 
 	/* platform specific disable */
 	if (pdata->chip_disable)
-		pdata->chip_disable();
+		pdata->chip_disable(kim_gdata);
 	return err;
 }
 
@@ -707,10 +709,13 @@ static int kim_probe(struct platform_device *pdev)
 	struct kim_data_s	*kim_gdata;
 	struct ti_st_plat_data	*pdata = pdev->dev.platform_data;
 
+	pr_err(">>%s", __func__);
+
 	if ((pdev->id != -1) && (pdev->id < MAX_ST_DEVICES)) {
 		/* multiple devices could exist */
 		st_kim_devices[pdev->id] = pdev;
 	} else {
+		pr_err("...platform's sure about existence of 1 device");
 		/* platform's sure about existence of 1 device */
 		st_kim_devices[0] = pdev;
 	}
@@ -773,7 +778,7 @@ static int kim_probe(struct platform_device *pdev)
 				kim_gdata, &version_debugfs_fops);
 	debugfs_create_file("protocols", S_IRUGO, kim_debugfs_dir,
 				kim_gdata, &list_debugfs_fops);
-	pr_info(" debugfs entries created ");
+	pr_err(" debugfs entries created ");
 	return 0;
 }
 
@@ -836,19 +841,22 @@ static struct platform_driver kim_platform_driver = {
 	},
 };
 
-static int __init st_kim_init(void)
+/* ------- Module Init/Exit interfaces ------ */
+static int __init kim_init(void)
 {
+	pr_err("kim Driver for TI WiLink");
+
 	return platform_driver_register(&kim_platform_driver);
 }
 
-static void __exit st_kim_deinit(void)
+static void __exit kim_exit(void)
 {
 	platform_driver_unregister(&kim_platform_driver);
 }
 
+module_init(kim_init);
+module_exit(kim_exit);
 
-module_init(st_kim_init);
-module_exit(st_kim_deinit);
 MODULE_AUTHOR("Pavan Savoy <pavan_savoy@ti.com>");
 MODULE_DESCRIPTION("Shared Transport Driver for TI BT/FM/GPS combo chips ");
 MODULE_LICENSE("GPL");

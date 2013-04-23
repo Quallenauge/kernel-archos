@@ -1605,26 +1605,47 @@ static int twl6040_hw_params(struct snd_pcm_substream *substream,
 	struct twl6040 *twl6040 = codec->control_data;
 	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
 	unsigned int sysclk;
-	int rate;
-	int ret;
+	int rate, ret = 0;
 
 	rate = params_rate(params);
-	switch (rate) {
-	case 11250:
-	case 22500:
-	case 88200:
-		sysclk = 17640000;
+	switch (priv->pll) {
+	case TWL6040_HPPLL_ID:
+		switch (rate) {
+		case 8000:
+		case 16000:
+		case 32000:
+		case 44100:
+		case 48000:
+		case 96000:
+			sysclk = 19200000;
+			break;
+		default:
+			dev_err(codec->dev, "unsupported rate %d\n", rate);
+			return -EINVAL;
+		}
 		break;
-	case 8000:
-	case 16000:
-	case 32000:
-	case 44100:
-	case 48000:
-	case 96000:
-		sysclk = 19200000;
+	case TWL6040_LPPLL_ID:
+		switch (rate) {
+		case 11250:
+		case 22500:
+		case 88200:
+			sysclk = 17640000;
+			break;
+		case 8000:
+		case 16000:
+		case 32000:
+		case 44100:
+		case 48000:
+		case 96000:
+			sysclk = 19200000;
+			break;
+		default:
+			dev_err(codec->dev, "unsupported rate %d\n", rate);
+			return -EINVAL;
+		}
 		break;
 	default:
-		dev_err(codec->dev, "unsupported rate %d\n", rate);
+		dev_err(codec->dev, "unsupported clock ID %d\n", TWL6040_LPPLL_ID);
 		return -EINVAL;
 	}
 
@@ -1634,7 +1655,7 @@ static int twl6040_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
-	priv->sysclk = sysclk;
+	priv->sysclk = twl6040_get_sysclk(twl6040);
 
 	return 0;
 }

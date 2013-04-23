@@ -780,13 +780,12 @@ static int irq_thread(void *data)
 	current->irqaction = action;
 
 	while (!irq_wait_for_interrupt(action)) {
-
 		irq_thread_check_affinity(desc, action);
 
 		atomic_inc(&desc->threads_active);
 
 		raw_spin_lock_irq(&desc->lock);
-		if (unlikely(irqd_irq_disabled(&desc->irq_data))) {
+		if (!(action->flags & IRQF_SYNC_PENDINGTHREAD) && unlikely(irqd_irq_disabled(&desc->irq_data))) {
 			/*
 			 * CHECKME: We might need a dedicated
 			 * IRQ_THREAD_PENDING flag here, which

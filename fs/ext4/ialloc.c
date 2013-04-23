@@ -995,6 +995,21 @@ got:
 	} else
 		inode_init_owner(inode, dir, mode);
 
+
+#ifdef CONFIG_EXT4_FS_UMODE
+	if (S_ISDIR(mode)) {
+		inode->i_mode |= (sbi->s_dmode & S_IRWXUGO);
+	} else {
+		inode->i_mode |= (sbi->s_fmode & S_IRWXUGO);
+	}
+
+	if (test_opt(inode->i_sb, FORCE_UID))
+		inode->i_uid = sbi->s_uid;
+
+	if (test_opt(inode->i_sb, FORCE_GID))
+		inode->i_gid = sbi->s_gid;
+#endif
+
 	inode->i_ino = ino + group * EXT4_INODES_PER_GROUP(sb);
 	/* This is the optimal IO size (for stat), not the fs block size */
 	inode->i_blocks = 0;

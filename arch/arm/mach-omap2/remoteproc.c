@@ -226,10 +226,10 @@ static int __init omap_rproc_init(void)
 		if (omap_total_ram_size() == SZ_512M) {
 			if (!strcmp("ipu", omap4_rproc_data[i].name))
 				omap4_rproc_data[i].firmware =
-					"ducati-m3.512MB.bin";
+					"ducati-m3.bin"; //TODO: Use new name on image "ducati-m3.512MB.bin";
 			else if (!strcmp("dsp", omap4_rproc_data[i].name))
 				omap4_rproc_data[i].firmware =
-					"tesla-dsp.512MB.bin";
+					"tesla-dsp.bin"; //TODO: Use new name on image  "tesla-dsp.512MB.bin"
 		}
 
 		oh[0] = omap_hwmod_lookup(oh_name);

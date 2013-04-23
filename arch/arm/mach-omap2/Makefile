@@ -30,7 +30,8 @@ clock-common				= clock.o clock_common_data.o \
 obj-$(CONFIG_ARCH_OMAP2) += $(omap-2-3-common) $(hwmod-common)
 obj-$(CONFIG_ARCH_OMAP3) += $(omap-2-3-common) $(hwmod-common)
 obj-$(CONFIG_ARCH_OMAP4) += prm44xx.o $(hwmod-common)
-obj-$(CONFIG_ARCH_OMAP4) += emif.o lpddr2_jedec_data.o lpddr2_elpida_data.o
+obj-$(CONFIG_ARCH_OMAP4) += emif.o lpddr2_jedec_data.o lpddr2_elpida_data.o \
+			    lpddr2_micron_data.o
 
 obj-$(CONFIG_OMAP_MCBSP) += mcbsp.o
 
@@ -293,6 +294,81 @@ obj-$(CONFIG_MACH_OMAP4_PANDA)		+= board-omap4panda.o \
 					   board-44xx-identity.o \
 					   omap4_apps_brd_id.o \
 					   omap_phy_internal.o
+
+# Archos OMAP4 products
+obj-$(CONFIG_MACH_ARCHOS_A80S)		+= board-archos-a80s.o \
+					   hsmmc.o \
+					   omap_phy_internal.o \
+					   archos-lcd-cpt-xga8.o \
+					   archos-audio-twl6040.o \
+					   archos-accel-mma8453q.o \
+					   archos-compass.o \
+					   archos-nl5550.o \
+					   archos-touchscreen-tma340.o \
+					   archos-touchscreen-tr16c0-8.o \
+					   archos-camera-mt9m114.o \
+					   omap4_apps_brd_id.o \
+					   archos-usb-musb.o \
+					   archos-usb-ehci.o \
+					   archos-usb-3g-rfkill.o
+
+obj-$(CONFIG_MACH_ARCHOS_A80H)		+= board-archos-a80h.o \
+					   hsmmc.o \
+					   omap_phy_internal.o \
+					   archos-lcd-cpt-xga8.o \
+					   archos-audio-twl6040.o \
+					   archos-accel-mma8453q.o \
+					   archos-compass.o \
+					   archos-nl5550.o \
+					   archos-touchscreen-tma340.o \
+					   archos-touchscreen-tr16c0-8.o \
+					   archos-camera-mt9m114.o \
+					   omap4_apps_brd_id.o \
+					   archos-usb-musb.o \
+					   archos-usb-ehci.o \
+					   archos-usb-3g-rfkill.o \
+					   archos-jm20329.o
+
+obj-$(CONFIG_MACH_ARCHOS_A101S)		+= board-archos-a101s.o \
+					   hsmmc.o \
+					   omap_phy_internal.o \
+					   archos-camera-mt9m114.o \
+					   archos-audio-twl6040.o \
+					   archos-accel-mma8453q.o \
+					   archos-compass.o \
+					   archos-touchscreen-pixcir-10.o \
+					   archos-touchscreen-tr16c0-8.o \
+					   archos-touchscreen-cpt-10.o \
+					   archos-lcd-auo-wxga10.o \
+					   omap4_apps_brd_id.o \
+					   archos-usb-musb.o \
+					   archos-usb-ehci.o \
+					   archos-usb-3g-rfkill.o
+
+obj-$(CONFIG_MACH_ARCHOS_A101H)		+= board-archos-a101h.o \
+					   hsmmc.o \
+					   omap_phy_internal.o \
+					   archos-lcd-auo-wxga10.o \
+					   archos-audio-twl6040.o \
+					   archos-accel-mma8453q.o \
+					   archos-compass.o \
+					   archos-nl5550.o \
+					   archos-touchscreen-tma340.o \
+					   archos-touchscreen-tr16c0-8.o \
+					   archos-touchscreen-cpt-10.o \
+					   archos-camera-mt9m114.o \
+					   omap4_apps_brd_id.o \
+					   archos-usb-musb.o \
+					   archos-usb-ehci.o \
+					   archos-usb-3g-rfkill.o \
+					   archos-jm20329.o
+
+obj-$(CONFIG_MACH_ARCHOS)		+= archos-fixup.o \
+					   archos-battery.o \
+					   archos-leds.o \
+					   archos-memory.o \
+					   archos-die_id.o \
+					   board-archos-identity.o
 
 obj-$(CONFIG_MACH_OMAP3517EVM)		+= board-am3517evm.o \
 					   omap_phy_internal.o \

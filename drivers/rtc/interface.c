@@ -324,9 +324,12 @@ static int __rtc_set_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 	long now, scheduled;
 	int err;
 
-	err = rtc_valid_tm(&alarm->time);
-	if (err)
-		return err;
+	/* check if tm valid only if we're not disabling alarm.  */
+	if (alarm->enabled) {
+		err = rtc_valid_tm(&alarm->time);
+		if (err)
+			return err;
+	}
 	rtc_tm_to_time(&alarm->time, &scheduled);
 
 	/* Make sure we're not setting alarms in the past */

@@ -378,10 +378,9 @@ struct platform_device *dsi_get_dsidev_from_id(int module)
 
 static int dsi_get_dsidev_id(struct platform_device *dsidev)
 {
-	/* TEMP: Pass 0 as the dsi module index till the time the dsi platform
-	 * device names aren't changed to the form "omapdss_dsi.0",
-	 * "omapdss_dsi.1" and so on */
-	BUG_ON(dsidev->id != -1);
+	DSSDBG("dsi_get_dsidev_id %s\n", dsidev->name);
+
+	if (!strcmp(dsidev->name, "omapdss_dsi2")) return 1;
 
 	return 0;
 }
@@ -1062,7 +1061,9 @@ static u32 dsi_get_errors(struct platform_device *dsidev)
 int dsi_runtime_get(struct platform_device *dsidev)
 {
 	int r;
-	struct dsi_data *dsi = dsi_get_dsidrv_data(dsidev);
+	struct dsi_data *dsi;
+	if (!dsidev) return -1;
+	dsi = dsi_get_dsidrv_data(dsidev);
 
 	mutex_lock(&dsi->runtime_lock);
 
@@ -1654,6 +1655,9 @@ int dsi_pll_set_clock_div(struct platform_device *dsidev,
 	l = FLD_MOD(l, 0, 20, 20);	/* DSI_HSDIVBYPASS */
 	dsi_write_reg(dsidev, DSI_PLL_CONFIGURATION2, l);
 
+	// need to enable pll & hsdivider power on here to enable pll output
+	dsi_pll_power(dsidev, DSI_PLL_POWER_ON_ALL);
+	 
 	DSSDBG("PLL config done\n");
 err:
 	return r;
@@ -5148,14 +5152,26 @@ static struct platform_driver omap_dsi1hw_driver = {
 	},
 };
 
+static struct platform_driver omap_dsi2hw_driver = {
+	.probe          = omap_dsi1hw_probe,
+	.remove         = omap_dsi1hw_remove,
+	.driver         = {
+		.name   = "omapdss_dsi2",
+		.owner  = THIS_MODULE,
+	},
+};
+
 int dsi_init_platform_driver(void)
 {
-	return platform_driver_register(&omap_dsi1hw_driver);
+	int r = platform_driver_register(&omap_dsi1hw_driver);
+	if (r) return r;
+	return platform_driver_register(&omap_dsi2hw_driver);
 }
 
 void dsi_uninit_platform_driver(void)
 {
-	return platform_driver_unregister(&omap_dsi1hw_driver);
+	platform_driver_unregister(&omap_dsi1hw_driver);
+	platform_driver_unregister(&omap_dsi2hw_driver);
 }
 
 /* set extra videomode settings */

@@ -57,7 +57,11 @@ static unsigned timer_margin;
 module_param(timer_margin, uint, 0);
 MODULE_PARM_DESC(timer_margin, "initial watchdog timeout (in seconds)");
 
+#ifdef CONFIG_MACH_ARCHOS
+static int kernelpet = 0; /* we use a user space watchdog daemon */
+#else
 static int kernelpet = 1;
+#endif
 module_param(kernelpet, int, 0);
 MODULE_PARM_DESC(kernelpet, "pet watchdog in kernel via irq");
 
@@ -143,9 +147,12 @@ static void omap_wdt_set_timeout(struct omap_wdt_dev *wdev)
 		cpu_relax();
 
 	/* Set delay interrupt to half the watchdog interval. */
-	while (__raw_readl(base + OMAP_WATCHDOG_WPS) & 1 << 5)
-		cpu_relax();
-	__raw_writel(delay_period, base + OMAP_WATCHDOG_WDLY);
+	if (kernelpet && wdev->irq) {
+		while (__raw_readl(base + OMAP_WATCHDOG_WPS) & 1 << 5)
+			cpu_relax();
+
+		__raw_writel(delay_period, base + OMAP_WATCHDOG_WDLY);
+	}
 }
 
 
@@ -274,6 +281,7 @@ static long omap_wdt_ioctl(struct file *file, unsigned int cmd,
 		if (cpu_is_omap24xx())
 			return put_user(omap_prcm_get_reset_sources(),
 					(int __user *)arg);
+		return -ENOTTY;
 	case WDIOC_KEEPALIVE:
 		spin_lock(&wdt_lock);
 		omap_wdt_ping(wdev);

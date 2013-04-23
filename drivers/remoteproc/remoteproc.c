@@ -894,6 +894,9 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 				}
 				rsc->pa = pa;
 			} else {
+#ifdef CONFIG_ION_OMAP_DYNAMIC
+				if (strcmp(rsc->name, "IPU_MEM_IOBUFS") != 0)
+#endif
 				ret = rproc_check_poolmem(rproc, rsc->len, pa);
 				/*
 				 * ignore the error for DSP buffers as they can

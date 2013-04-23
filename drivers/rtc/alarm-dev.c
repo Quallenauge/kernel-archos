@@ -54,6 +54,7 @@ static DECLARE_WAIT_QUEUE_HEAD(alarm_wait_queue);
 static uint32_t alarm_pending;
 static uint32_t alarm_enabled;
 static uint32_t wait_pending;
+int android_alarm_ignored_on_suspend;
 
 static struct alarm alarms[ANDROID_ALARM_TYPE_COUNT];
 
@@ -74,7 +75,8 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if ((file->f_flags & O_ACCMODE) == O_RDONLY)
 			return -EPERM;
 		if (file->private_data == NULL &&
-		    cmd != ANDROID_ALARM_SET_RTC) {
+		    cmd != ANDROID_ALARM_SET_RTC && 
+		    cmd != ANDROID_ALARM_IGNORE_ON_SUSPEND) {
 			spin_lock_irqsave(&alarm_slock, flags);
 			if (alarm_opened) {
 				spin_unlock_irqrestore(&alarm_slock, flags);
@@ -182,7 +184,15 @@ from_old_alarm_set:
 			goto err1;
 		}
 		break;
-
+	case ANDROID_ALARM_IGNORE_ON_SUSPEND:
+		if (copy_from_user(&android_alarm_ignored_on_suspend,
+		    (void __user *)arg, sizeof(int))) {
+			rv = -EFAULT;
+			goto err1;
+		}
+		pr_alarm(IO, "alarm ignored on suspend set to %d\n",
+		    android_alarm_ignored_on_suspend != 0 ? 1 : 0);
+		break;
 	default:
 		rv = -EINVAL;
 		goto err1;

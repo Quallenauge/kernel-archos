@@ -147,6 +147,8 @@ static void omap2430_musb_set_vbus(struct musb *musb, int is_on)
 	 * that must be ignored.
 	 */
 
+	pm_runtime_get_sync(musb->controller);
+
 	devctl = musb_readb(musb->mregs, MUSB_DEVCTL);
 
 	if (is_on) {
@@ -193,6 +195,9 @@ static void omap2430_musb_set_vbus(struct musb *musb, int is_on)
 		/* otg %3x conf %08x prcm %08x */ "\n",
 		otg_state_string(musb->xceiv->state),
 		musb_readb(musb->mregs, MUSB_DEVCTL));
+
+	pm_runtime_put_sync(musb->controller);
+
 }
 
 static int omap2430_musb_set_mode(struct musb *musb, u8 musb_mode)
@@ -243,6 +248,8 @@ static int musb_otg_notifications(struct notifier_block *nb,
 	return 0;
 }
 
+static int xceiv_event_last = USB_EVENT_NONE;
+
 static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 {
 	u32 val;
@@ -256,14 +263,23 @@ static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 
 	kfree(otg_work);
 
+	if (xceiv_event == xceiv_event_last) {
+		/* sync pm runtime if already got */
+		if (xceiv_event == USB_EVENT_VBUS || xceiv_event == USB_EVENT_ID) {
+			pm_runtime_put_sync(musb->controller);
+		}
+	}
+
+	xceiv_event_last = xceiv_event;
+
 	switch (xceiv_event) {
 	case USB_EVENT_ID:
 		dev_dbg(musb->controller, "ID GND\n");
+		pm_runtime_get_sync(musb->controller);
 
 		if (is_otg_enabled(musb)) {
 #ifdef CONFIG_USB_GADGET_MUSB_HDRC
 			if (musb->gadget_driver) {
-				pm_runtime_get_sync(musb->controller);
 				val = musb_readl(musb->mregs, OTG_INTERFSEL);
 				otg_set_suspend(musb->xceiv, 1);
 				if (data->interface_type ==
@@ -281,7 +297,6 @@ static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 			}
 #endif
 		} else {
-			pm_runtime_get_sync(musb->controller);
 			val = musb_readl(musb->mregs, OTG_INTERFSEL);
 			otg_set_suspend(musb->xceiv, 1);
 			if (data->interface_type == MUSB_INTERFACE_UTMI) {
@@ -305,10 +320,10 @@ static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 
 	case USB_EVENT_VBUS:
 		dev_dbg(musb->controller, "VBUS Connect\n");
+		pm_runtime_get_sync(musb->controller);
 
 #ifdef CONFIG_USB_GADGET_MUSB_HDRC
 		if (musb->gadget_driver) {
-			pm_runtime_get_sync(musb->controller);
 			val = musb_readl(musb->mregs, OTG_INTERFSEL);
 			otg_set_suspend(musb->xceiv, 1);
 			if (data->interface_type ==
@@ -335,12 +350,15 @@ static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 		}
 
 		dev_dbg(musb->controller, "VBUS Disconnect\n");
-		pm_runtime_get_sync(musb->controller);
+
+//		pm_runtime_get_sync(musb->controller);
 
 		if (data->interface_type == MUSB_INTERFACE_UTMI) {
 			omap2430_musb_set_vbus(musb, 0);
 			if (musb->xceiv->set_vbus)
 				otg_set_vbus(musb->xceiv, 0);
+			/* hack! wait for DISCONNECT interrupt */
+			msleep(1);
 		}
 		otg_shutdown(musb->xceiv);
 		otg_set_suspend(musb->xceiv, 1);
@@ -348,19 +366,27 @@ static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 		val = musb_readl(musb->mregs, OTG_INTERFSEL);
 		val |= ULPI_12PIN;
 		musb_writel(musb->mregs, OTG_INTERFSEL, val);
-		pm_runtime_mark_last_busy(musb->controller);
-		pm_runtime_put_autosuspend(musb->controller);
 
 #ifdef CONFIG_USB_GADGET_MUSB_HDRC
-		if (is_otg_enabled(musb) || is_peripheral_enabled(musb))
+		if (is_otg_enabled(musb) || is_peripheral_enabled(musb)) {
 			if (musb->gadget_driver)
 #endif
+			{
+				pm_runtime_mark_last_busy(musb->controller);
 				pm_runtime_put_autosuspend(musb->controller);
+			}
+#ifdef CONFIG_USB_GADGET_MUSB_HDRC
+				else {
+					pm_runtime_put_sync(musb->controller);
+			}
+		} else {
+			pm_runtime_put_sync(musb->controller);
+		}
+#endif
 		break;
 	default:
 		dev_dbg(musb->controller, "ID float\n");
 	}
-
 }
 
 static int omap2430_musb_init(struct musb *musb)

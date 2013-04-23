@@ -1868,6 +1868,8 @@ UNUSUAL_DEV(  0x14cd, 0x6600, 0x0201, 0x0201,
 		USB_SC_DEVICE, USB_PR_DEVICE, NULL,
 		US_FL_IGNORE_RESIDUE ),
 
+#if !defined(CONFIG_USB_STORAGE_JM20329) && \
+		!defined(CONFIG_USB_STORAGE_JM20329_MODULE)
 /* Reported by Alexandre Oliva <oliva@lsd.ic.unicamp.br>
  * JMicron responds to USN and several other SCSI ioctls with a
  * residue that causes subsequent I/O requests to fail.  */
@@ -1876,7 +1878,7 @@ UNUSUAL_DEV(  0x152d, 0x2329, 0x0100, 0x0100,
 		"USB to ATA/ATAPI Bridge",
 		USB_SC_DEVICE, USB_PR_DEVICE, NULL,
 		US_FL_IGNORE_RESIDUE | US_FL_SANE_SENSE ),
-
+#endif
 /* Reported by Robert Schedel <r.schedel@yahoo.de>
  * Note: this is a 'super top' device like the above 14cd/6600 device */
 UNUSUAL_DEV(  0x1652, 0x6600, 0x0201, 0x0201,

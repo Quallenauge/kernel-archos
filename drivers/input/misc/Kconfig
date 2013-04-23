@@ -265,6 +265,15 @@ config INPUT_CM109
 	  To compile this driver as a module, choose M here: the module will be
 	  called cm109.
 
+config INPUT_CM119
+	tristate "C-Media CM109"
+	depends on EXPERIMENTAL
+	depends on USB_ARCH_HAS_HCD
+	select USB
+	help
+	  To compile this driver as a module, choose M here: the module will be
+	  called cm119.
+
 config INPUT_TWL4030_PWRBUTTON
 	tristate "TWL4030 Power button Driver"
 	depends on TWL4030_CORE
@@ -540,6 +549,31 @@ config INPUT_BMA180
 	help
 	  Say Y here if you want to use BMA-180 Tri-axis accelerometer
 	  through I2C interface.
+
+config INPUT_MMA7660FC
+	tristate "MMA7660FC Accelerometer input driver support"
+	depends on I2C
+	help
+	  MMA7660FC Accelerometer Driver.
+
+config INPUT_MMA8453Q
+	tristate "MMA8453Q Accelerometer input driver support"
+	depends on I2C
+	help
+	  MMA8453Q Accelerometer Driver.
+
+config INPUT_AK8975
+	tristate "AK8975 Compass support"
+	depends on I2C
+	help
+	  If you say yes here you get support for Asahi Kasei's 
+	  orientation sensor AK8975.
+
+config SENSORS_MAG3110
+	tristate "Freescale MAG3110 e-compass sensor"
+	depends on I2C && SYSFS
+	help
+	 Freescale MAG3110 e-compass sensor
 
 config INPUT_MPU3050
 	bool "MPU-3050 Tri-axis gyroscope"

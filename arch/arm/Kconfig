@@ -1843,6 +1843,11 @@ config KEXEC
 	  initially work for you.  It may help to enable device hotplugging
 	  support.
 
+config FEATURE_LIST
+	bool "Support feature tag list to setup board specific parameters"
+	default y
+	help
+
 config ATAGS_PROC
 	bool "Export atags in procfs"
 	depends on KEXEC

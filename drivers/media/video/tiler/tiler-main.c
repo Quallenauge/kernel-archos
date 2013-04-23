@@ -39,6 +39,8 @@
 #include "_tiler.h"
 #include "tcm/tcm-sita.h"		/* TCM algorithm */
 
+#include "linux/delay.h"
+
 static bool ssptr_id = CONFIG_TILER_SSPTR_ID;
 static uint granularity = CONFIG_TILER_GRANULARITY;
 static uint tiler_alloc_debug;
@@ -1599,6 +1601,9 @@ static s32 __init tiler_init(void)
 	struct tmm *tmm_pat = NULL;
 	struct pat_area area = {0};
 
+	printk(KERN_ERR "%s\n", __func__);
+	dump_stack();
+
 	tiler.alloc = alloc_block;
 	tiler.pin = pin_block;
 	tiler.lock = find_n_lock;
@@ -1629,8 +1634,10 @@ static s32 __init tiler_init(void)
 
 	/* check module parameters for correctness */
 	if (granularity < 1 || granularity > PAGE_SIZE ||
-	    granularity & (granularity - 1))
+	    granularity & (granularity - 1)){
+		printk(KERN_ERR "%s: Granularity %lld doesn't fits PAGE_SIZE: %d.\n", __func__, granularity, PAGE_SIZE);
 		return -EINVAL;
+	}
 
 	/*
 	 * Array of physical pages for PAT programming, which must be a 16-byte
@@ -1638,8 +1645,10 @@ static s32 __init tiler_init(void)
 	 */
 	dmac_va = dma_alloc_coherent(NULL, tiler.width * tiler.height *
 					sizeof(*dmac_va), &dmac_pa, GFP_ATOMIC);
-	if (!dmac_va)
+	if (!dmac_va){
+		printk(KERN_ERR "%s: No memory (requested %lld) for tiler wit params: width: %d, height: %d.\n", __func__, tiler.width * tiler.height * sizeof(*dmac_va), tiler.width, tiler.height);
 		return -ENOMEM;
+	}
 
 	/* Allocate tiler container manager (we share 1 on OMAP4) */
 	div_pt.x = tiler.width;   /* hardcoded default */
@@ -1698,6 +1707,8 @@ static s32 __init tiler_init(void)
 
 	tilerdev_class = class_create(THIS_MODULE, "tiler");
 
+	printk(KERN_ERR "class_create(): points to: %p\n", tilerdev_class);
+
 	if (IS_ERR(tilerdev_class)) {
 		printk(KERN_ERR "class_create():failed\n");
 		goto error;
@@ -1730,6 +1741,7 @@ static s32 __init tiler_init(void)
 error:
 	/* TODO: error handling for device registration */
 	if (r) {
+		printk(KERN_ERR "%s: Entering error handling! r=%d\n",__func__, r);
 #ifdef CONFIG_TILER_ENABLE_USERSPACE
 		kfree(tiler_device);
 #endif
@@ -1745,6 +1757,8 @@ error:
 static void __exit tiler_exit(void)
 {
 	int i, j;
+	dump_stack();
+	printk(KERN_ERR "%s\n", __func__);
 
 	mutex_lock(&mtx);
 
@@ -1808,18 +1822,26 @@ EXPORT_SYMBOL(tiler_free_block_area);
 tiler_blk_handle tiler_alloc_block_area(enum tiler_fmt fmt, u32 width,
 					u32 height, u32 *ssptr, u32 *virt_array)
 {
+	pr_err("tiler_alloc_block_area: Tiler FMT: %d, Width: %d, Height: %d", fmt, width, height);
+
 	struct mem_info *mi;
 	*ssptr = 0;
 
 	/* if tiler is not initialized fail gracefully */
-	if (!tilerdev_class)
+	if (!tilerdev_class){
+		pr_err("%s: tiler_alloc_block_area: Tilerdev class is not yet initialized...", __func__);
 		return NULL;
+	}
+
 
 	mi = alloc_block_area(fmt, width, height, 0, 0,
 				__get_si(0, true, SECURE_BY_PID), PAGE_SIZE, 0);
 
-	if (IS_ERR_OR_NULL(mi))
+	if (IS_ERR_OR_NULL(mi)){
+		pr_err("tiler_alloc_block_area: Can't alloc block area!");
+		msleep(5);
 		goto done;
+	}
 
 	fill_virt_array(&mi->blk, virt_array);
 	*ssptr = mi->blk.phys;
@@ -1837,14 +1859,19 @@ tiler_blk_handle tiler_alloc_block_area_aligned(enum tiler_fmt fmt, u32 width,
 	*ssptr = 0;
 
 	/* if tiler is not initialized fail gracefully */
-	if (!tilerdev_class)
+	if (!tilerdev_class){
+		pr_err("%s: tiler_alloc_block_area: Tilerdev class is not yet initialized...", __func__);
 		return NULL;
+	}
 
 	mi = alloc_block_area(fmt, width, height, 0, 0, __get_si(token, true,
 				SECURE_BY_TOKEN), align, offset);
 
-	if (IS_ERR_OR_NULL(mi))
+	if (IS_ERR_OR_NULL(mi)){
+		pr_err("tiler_alloc_block_area_aligned: Can't allocate block area aligned!");
+		msleep(5);
 		goto done;
+	}
 
 	fill_virt_array(&mi->blk, virt_array);
 	*ssptr = mi->blk.phys;

@@ -569,7 +569,29 @@ struct ext4_new_group_data {
 #define EXT4_IOC32_SETVERSION_OLD	FS_IOC32_SETVERSION
 #endif
 
-/* Max physical block we can address w/o extents */
+/*
+ * Structure to save mount options for ext4_remount's benefit
+ */
+struct ext4_mount_options {
+	unsigned long s_mount_opt;
+	unsigned long s_mount_opt2;
+	uid_t s_resuid;
+	gid_t s_resgid;
+	unsigned long s_commit_interval;
+	u32 s_min_batch_time, s_max_batch_time;
+#ifdef CONFIG_QUOTA
+	int s_jquota_fmt;
+	char *s_qf_names[MAXQUOTAS];
+#endif
+#ifdef CONFIG_EXT4_FS_UMODE
+	unsigned short s_fmode;
+	unsigned short s_dmode;
+	uid_t s_uid;
+	gid_t s_gid;
+#endif
+};
+
+/* Max physical block we can addres w/o extents */
 #define EXT4_MAX_BLOCK_FILE_PHYS	0xFFFFFFFF
 
 /*
@@ -917,6 +939,11 @@ struct ext4_inode_info {
 #define EXT4_MOUNT_DISCARD		0x40000000 /* Issue DISCARD requests */
 #define EXT4_MOUNT_INIT_INODE_TABLE	0x80000000 /* Initialize uninitialized itables */
 
+#ifdef CONFIG_EXT4_FS_UMODE
+#define EXT4_MOUNT_FORCE_UID		0x40000 /* Force a given UID */
+#define EXT4_MOUNT_FORCE_GID		0x200 /* Force a given GID */
+#endif
+
 #define clear_opt(sb, opt)		EXT4_SB(sb)->s_mount_opt &= \
 						~EXT4_MOUNT_##opt
 #define set_opt(sb, opt)		EXT4_SB(sb)->s_mount_opt |= \
@@ -1215,6 +1242,13 @@ struct ext4_sb_info {
 
 	/* Kernel thread for multiple mount protection */
 	struct task_struct *s_mmp_tsk;
+
+#ifdef CONFIG_EXT4_FS_UMODE
+	unsigned short s_fmode; 		/* allow to specify a mode that overrides all ext4 file perms */
+	unsigned short s_dmode; 		/* allow to specify a mode that overrides all ext4 directory perms */
+	uid_t s_uid;	 			/* allow to specify a uid that overrides all ext4 perms */
+	gid_t s_gid;	 			/* allow to specify a gid that overrides all ext4 perms */
+#endif	
 };
 
 static inline struct ext4_sb_info *EXT4_SB(struct super_block *sb)
@@ -1404,6 +1438,13 @@ static inline void ext4_clear_state_flags(struct ext4_inode_info *ei)
 #define	EXT4_DEF_RESGID		0
 
 #define EXT4_DEF_INODE_READAHEAD_BLKS	32
+
+#ifdef CONFIG_EXT4_FS_UMODE
+/*
+ * Default values for umode
+ */
+#define	EXT4_DEF_UMODE		0
+#endif
 
 /*
  * Default mount options

@@ -126,6 +126,27 @@ struct tag_cmdline {
 	char	cmdline[1];	/* this is the minimum size */
 };
 
+#ifdef CONFIG_MACH_ARCHOS
+/* avboot info */
+#define ATAG_AVBOOT_INFO	0x5441000A
+
+struct tag_avboot_info {
+	__u32		major;
+	__u32		minor;
+	__u32		extra;
+
+};
+#endif
+
+#ifdef CONFIG_FEATURE_LIST
+#define ATAG_FEATURE_LIST	0x5441000B
+
+struct tag_feature_list {
+	u32	size;
+	u8	data[0];
+};
+#endif
+
 /* acorn RiscPC specific information */
 #define ATAG_ACORN	0x41000101
 
@@ -155,6 +176,12 @@ struct tag {
 		struct tag_revision	revision;
 		struct tag_videolfb	videolfb;
 		struct tag_cmdline	cmdline;
+#ifdef CONFIG_MACH_ARCHOS
+		struct tag_avboot_info	avboot_info;
+#endif
+#ifdef CONFIG_FEATURE_LIST
+		struct tag_feature_list	feature_list;
+#endif
 
 		/*
 		 * Acorn specific

@@ -348,6 +348,7 @@ out:
  *
  * The maximum cpu frequency will be readjusted based on the required
  * cooling_level.
+ * ToDO: Archos changes!
 */
 static int cpufreq_apply_cooling(struct thermal_dev *dev,
 				int cooling_level)

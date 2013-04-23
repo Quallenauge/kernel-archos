@@ -1017,6 +1017,22 @@ static int ext4_show_options(struct seq_file *seq, struct vfsmount *vfs)
 	    le16_to_cpu(es->s_def_resgid) != EXT4_DEF_RESGID) {
 		seq_printf(seq, ",resgid=%u", sbi->s_resgid);
 	}
+
+#ifdef CONFIG_EXT4_FS_UMODE
+	if (sbi->s_fmode != EXT4_DEF_UMODE ) {
+		seq_printf(seq, ",fmode=%04o", sbi->s_fmode);
+	}
+	if (sbi->s_dmode != EXT4_DEF_UMODE ) {
+		seq_printf(seq, ",dmode=%04o", sbi->s_dmode);
+	}
+	if (test_opt(sb, FORCE_UID)) {
+		seq_printf(seq, ",uid=%u", sbi->s_uid);
+	}
+	if (test_opt(sb, FORCE_GID)) {
+		seq_printf(seq, ",gid=%u", sbi->s_gid);
+	}
+#endif	
+
 	if (test_opt(sb, ERRORS_RO)) {
 		if (def_errors == EXT4_ERRORS_PANIC ||
 		    def_errors == EXT4_ERRORS_CONTINUE) {
@@ -1293,6 +1309,11 @@ enum {
 	Opt_inode_readahead_blks, Opt_journal_ioprio,
 	Opt_dioread_nolock, Opt_dioread_lock,
 	Opt_discard, Opt_nodiscard, Opt_init_itable, Opt_noinit_itable,
+#ifdef CONFIG_EXT4_FS_UMODE
+	Opt_fmode, Opt_dmode,
+	Opt_uid, Opt_nouid,
+	Opt_gid, Opt_nogid,
+#endif
 };
 
 static const match_table_t tokens = {
@@ -1368,6 +1389,14 @@ static const match_table_t tokens = {
 	{Opt_init_itable, "init_itable=%u"},
 	{Opt_init_itable, "init_itable"},
 	{Opt_noinit_itable, "noinit_itable"},
+#ifdef CONFIG_EXT4_FS_UMODE
+	{Opt_fmode, "fmode=%o"},
+	{Opt_dmode, "dmode=%o"},	
+	{Opt_uid, "uid=%u"},
+	{Opt_nouid, "uid="},
+	{Opt_gid, "gid=%u"},
+	{Opt_nogid, "gid="},
+#endif
 	{Opt_err, NULL},
 };
 
@@ -1858,6 +1887,36 @@ set_qf_format:
 		case Opt_noinit_itable:
 			clear_opt(sb, INIT_INODE_TABLE);
 			break;
+#ifdef CONFIG_EXT4_FS_UMODE
+		case Opt_uid:
+			if (match_int(&args[0], &option))
+				return 0;
+			set_opt(sb, FORCE_UID);
+			sbi->s_uid = option;
+			break;
+		case Opt_nouid:
+			clear_opt(sb, FORCE_UID);
+			break;
+		case Opt_gid:
+			if (match_int(&args[0], &option))
+				return 0;
+			set_opt(sb, FORCE_GID);
+			sbi->s_gid = option;
+			break;
+		case Opt_nogid:
+			clear_opt(sb, FORCE_GID);
+			break;
+		case Opt_fmode:
+			if (match_octal(&args[0], &option))
+				return 0;
+			sbi->s_fmode = option;
+			break;
+		case Opt_dmode:
+			if (match_octal(&args[0], &option))
+				return 0;
+			sbi->s_dmode = option;
+			break;
+#endif
 		default:
 			ext4_msg(sb, KERN_ERR,
 			       "Unrecognized mount option \"%s\" "
@@ -4260,22 +4319,6 @@ static int ext4_unfreeze(struct super_block *sb)
 	return 0;
 }
 
-/*
- * Structure to save mount options for ext4_remount's benefit
- */
-struct ext4_mount_options {
-	unsigned long s_mount_opt;
-	unsigned long s_mount_opt2;
-	uid_t s_resuid;
-	gid_t s_resgid;
-	unsigned long s_commit_interval;
-	u32 s_min_batch_time, s_max_batch_time;
-#ifdef CONFIG_QUOTA
-	int s_jquota_fmt;
-	char *s_qf_names[MAXQUOTAS];
-#endif
-};
-
 static int ext4_remount(struct super_block *sb, int *flags, char *data)
 {
 	struct ext4_super_block *es;
@@ -4302,6 +4345,12 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 	old_opts.s_commit_interval = sbi->s_commit_interval;
 	old_opts.s_min_batch_time = sbi->s_min_batch_time;
 	old_opts.s_max_batch_time = sbi->s_max_batch_time;
+#ifdef CONFIG_EXT4_FS_UMODE
+	old_opts.s_fmode  = sbi->s_fmode;
+	old_opts.s_dmode  = sbi->s_dmode;
+	old_opts.s_uid = sbi->s_uid;
+	old_opts.s_gid = sbi->s_gid;
+#endif	
 #ifdef CONFIG_QUOTA
 	old_opts.s_jquota_fmt = sbi->s_jquota_fmt;
 	for (i = 0; i < MAXQUOTAS; i++)
@@ -4463,6 +4512,12 @@ restore_opts:
 	sbi->s_commit_interval = old_opts.s_commit_interval;
 	sbi->s_min_batch_time = old_opts.s_min_batch_time;
 	sbi->s_max_batch_time = old_opts.s_max_batch_time;
+#ifdef CONFIG_EXT4_FS_UMODE
+	sbi->s_fmode = old_opts.s_fmode;
+	sbi->s_dmode = old_opts.s_dmode;
+	sbi->s_uid = old_opts.s_uid;
+	sbi->s_gid = old_opts.s_gid;
+#endif	
 #ifdef CONFIG_QUOTA
 	sbi->s_jquota_fmt = old_opts.s_jquota_fmt;
 	for (i = 0; i < MAXQUOTAS; i++) {

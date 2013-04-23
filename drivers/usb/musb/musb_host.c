@@ -1750,6 +1750,11 @@ void musb_host_rx(struct musb *musb, u8 epnum)
 					| MUSB_RXCSR_AUTOCLEAR);
 				musb_writew(epio, MUSB_RXCSR, val);
 				/* REVISIT reset CSR */
+				/* Clear DMAENAB for the
+				 * PIO mode transfer
+				 */
+				rx_csr &= ~MUSB_RXCSR_DMAENAB;
+				musb_writew(epio, MUSB_RXCSR, rx_csr);
 			}
 		}
 #endif	/* Mentor DMA */

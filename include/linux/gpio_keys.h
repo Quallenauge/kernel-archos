@@ -1,6 +1,9 @@
 #ifndef _GPIO_KEYS_H
 #define _GPIO_KEYS_H
 
+#define GPIO_KEY_WAKEUP		0x01
+#define GPIO_KEY_AWAKE_ONLY	0x02
+
 struct gpio_keys_button {
 	/* Configuration parameters */
 	unsigned int code;	/* input event code (KEY_*, SW_*) */

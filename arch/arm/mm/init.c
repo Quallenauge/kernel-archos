@@ -344,12 +344,13 @@ void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 	}
 	if (phys_initrd_size) {
 		memblock_reserve(phys_initrd_start, phys_initrd_size);
-
 		/* Now convert initrd to virtual addresses */
 		initrd_start = __phys_to_virt(phys_initrd_start);
 		initrd_end = initrd_start + phys_initrd_size;
 	}
 #endif
+
+	pr_err("INITRD: phys_initrd_start=0x%08lx, phys_initrd_size=0x%08lx initrd_start=0x%x initrd_end=0x%x\n", phys_initrd_start, phys_initrd_size, initrd_start, initrd_end);
 
 	arm_mm_memblock_reserve();
 	arm_dt_memblock_reserve();

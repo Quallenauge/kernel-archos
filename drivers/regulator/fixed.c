@@ -33,6 +33,7 @@ struct fixed_voltage_data {
 	int microvolts;
 	int gpio;
 	unsigned startup_delay;
+	unsigned int min_disable_time;
 	bool enable_high;
 	bool is_enabled;
 };
@@ -50,8 +51,8 @@ static int fixed_voltage_enable(struct regulator_dev *dev)
 
 	if (gpio_is_valid(data->gpio)) {
 		gpio_set_value_cansleep(data->gpio, data->enable_high);
-		data->is_enabled = true;
 	}
+	data->is_enabled = true;
 
 	return 0;
 }
@@ -62,8 +63,8 @@ static int fixed_voltage_disable(struct regulator_dev *dev)
 
 	if (gpio_is_valid(data->gpio)) {
 		gpio_set_value_cansleep(data->gpio, !data->enable_high);
-		data->is_enabled = false;
 	}
+	data->is_enabled = false;
 
 	return 0;
 }
@@ -73,6 +74,13 @@ static int fixed_voltage_enable_time(struct regulator_dev *dev)
 	struct fixed_voltage_data *data = rdev_get_drvdata(dev);
 
 	return data->startup_delay;
+}
+
+static u32 fixed_voltage_min_disable_time(struct regulator_dev *dev)
+{
+	struct fixed_voltage_data *data = rdev_get_drvdata(dev);
+
+	return data->min_disable_time;
 }
 
 static int fixed_voltage_get_voltage(struct regulator_dev *dev)
@@ -98,6 +106,7 @@ static struct regulator_ops fixed_voltage_ops = {
 	.enable = fixed_voltage_enable,
 	.disable = fixed_voltage_disable,
 	.enable_time = fixed_voltage_enable_time,
+	.min_disable_time = fixed_voltage_min_disable_time,
 	.get_voltage = fixed_voltage_get_voltage,
 	.list_voltage = fixed_voltage_list_voltage,
 };
@@ -129,6 +138,7 @@ static int __devinit reg_fixed_voltage_probe(struct platform_device *pdev)
 	drvdata->microvolts = config->microvolts;
 	drvdata->gpio = config->gpio;
 	drvdata->startup_delay = config->startup_delay;
+	drvdata->min_disable_time = config->min_disable_time;
 
 	if (gpio_is_valid(config->gpio)) {
 		drvdata->enable_high = config->enable_high;
@@ -171,11 +181,14 @@ static int __devinit reg_fixed_voltage_probe(struct platform_device *pdev)
 			goto err_gpio;
 		}
 
+		if (config->remux)
+			config->remux(config->gpio);
+		
 	} else {
-		/* Regulator without GPIO control is considered
-		 * always enabled
+		/* Regulator without GPIO control just follows
+		 * enable/disable actions from regulator core
 		 */
-		drvdata->is_enabled = true;
+		drvdata->is_enabled = config->enabled_at_boot;
 	}
 
 	drvdata->dev = regulator_register(&drvdata->desc, &pdev->dev,

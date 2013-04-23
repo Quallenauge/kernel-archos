@@ -571,41 +571,51 @@ static void __init clean_rootfs(void)
 
 static int __init populate_rootfs(void)
 {
-	char *err = unpack_to_rootfs(__initramfs_start, __initramfs_size);
-	if (err)
-		panic(err);	/* Failed to decompress INTERNAL initramfs */
-	if (initrd_start) {
-#ifdef CONFIG_BLK_DEV_RAM
-		int fd;
-		printk(KERN_INFO "Trying to unpack rootfs image as initramfs...\n");
-		err = unpack_to_rootfs((char *)initrd_start,
-			initrd_end - initrd_start);
-		if (!err) {
-			free_initrd();
-			return 0;
-		} else {
-			clean_rootfs();
-			unpack_to_rootfs(__initramfs_start, __initramfs_size);
-		}
-		printk(KERN_INFO "rootfs image is not initramfs (%s)"
-				"; looks like an initrd\n", err);
-		fd = sys_open((const char __user __force *) "/initrd.image",
-			      O_WRONLY|O_CREAT, 0700);
-		if (fd >= 0) {
-			sys_write(fd, (char *)initrd_start,
-					initrd_end - initrd_start);
-			sys_close(fd);
-			free_initrd();
-		}
-#else
-		printk(KERN_INFO "Unpacking initramfs...\n");
-		err = unpack_to_rootfs((char *)initrd_start,
-			initrd_end - initrd_start);
+	char *err = NULL;
+	if(false && strstr(saved_command_line,"androidboot.mode=recovery") != NULL ) {
+		err = unpack_to_rootfs(__initramfs_start, __initramfs_size);
 		if (err)
-			printk(KERN_EMERG "Initramfs unpacking failed: %s\n", err);
-		free_initrd();
-#endif
+			panic(err);	/* Failed to decompress INTERNAL initramfs */
+	}else{
+		printk(KERN_ERR "Unpacking external provided ramdisk...\n");
+		if (initrd_start) {
+	#ifdef CONFIG_BLK_DEV_RAM
+			int fd;
+			printk(KERN_ERR "Trying to unpack rootfs image as initramfs...\n");
+			err = unpack_to_rootfs((char *)initrd_start,
+				initrd_end - initrd_start);
+			if (!err) {
+				free_initrd();
+				return 0;
+			} else {
+				clean_rootfs();
+				unpack_to_rootfs(__initramfs_start, __initramfs_size);
+			}
+			printk(KERN_ERR "rootfs image is not initramfs (%s)"
+					"; looks like an initrd\n", err);
+			fd = sys_open((const char __user __force *) "/initrd.image",
+					  O_WRONLY|O_CREAT, 0700);
+			if (fd >= 0) {
+				sys_write(fd, (char *)initrd_start,
+						initrd_end - initrd_start);
+				sys_close(fd);
+				free_initrd();
+			}
+			printk(KERN_ERR "End.\n");
+	#else
+			printk(KERN_ERR "Unpacking initramfs...\n");
+			err = unpack_to_rootfs((char *)initrd_start,
+				initrd_end - initrd_start);
+			if (err)
+				printk(KERN_EMERG "Initramfs unpacking failed: %s\n", err);
+			free_initrd();
+	#endif
+		}
+		else{
+			printk(KERN_ERR "No initrd start address given...skipping init of initramfs...\n");
+		}
 	}
+
 	return 0;
 }
 rootfs_initcall(populate_rootfs);

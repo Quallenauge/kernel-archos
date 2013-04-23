@@ -2596,4 +2596,28 @@ YAMAHA_DEVICE(0x7010, "UB99"),
 	}
 },
 
+{
+	/* used in Archos Gen10 Boombox and Dock */
+	USB_DEVICE(0x0d8c, 0x013a),
+	.driver_info = (unsigned long) & (const struct snd_usb_audio_quirk) {
+		.vendor_name = "C-Media Electronics Inc.",
+		.product_name = "USB PnP Sound Device",
+		.ifnum = QUIRK_ANY_INTERFACE,
+		.type = QUIRK_COMPOSITE,
+		.data = (const struct snd_usb_audio_quirk[]) {
+			{
+				.ifnum = 0,
+				.type = QUIRK_IGNORE_INTERFACE
+			},
+			{
+				.ifnum = 1,
+				.type = QUIRK_AUDIO_STANDARD_INTERFACE
+			},
+			{
+				.ifnum = -1
+			}
+		}
+	}
+},
+
 #undef USB_DEVICE_VENDOR_SPEC

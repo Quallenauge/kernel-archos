@@ -78,6 +78,11 @@ int omap4430_phy_init(struct device *dev)
 		pr_err("control module ioremap failed\n");
 		return -ENOMEM;
 	}
+
+	/* Enable session END and IDIG to high impedance. */
+	__raw_writel(SESSEND | IDDIG, ctrl_base +
+				USBOTGHS_CONTROL);
+
 	/* Power down the phy */
 	__raw_writel(PHY_PD, ctrl_base + CONTROL_DEV_CONF);
 
@@ -187,7 +192,7 @@ static void omap44xx_hsotg_ed_correction(void)
 
 int omap4430_phy_set_clk(struct device *dev, int on)
 {
-	static int state;
+	static int state = 0;
 
 	if (on && !state) {
 		/* Enable the phy clocks */
@@ -202,6 +207,24 @@ int omap4430_phy_set_clk(struct device *dev, int on)
 		clk_disable(clk32k);
 		state = 0;
 	}
+	return 0;
+}
+
+int omap4_enable_charger_detect(void)
+{
+	u32 usb2phycore = 0;
+	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+	usb2phycore &= ~USB2PHY_DISCHGDET;
+	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
+	return 0;
+}
+
+int omap4_disable_charger_detect(void)
+{
+	u32 usb2phycore = 0;
+	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+	usb2phycore |= USB2PHY_DISCHGDET;
+	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
 	return 0;
 }
 
@@ -261,27 +284,40 @@ int omap4_charger_detect(void)
 int omap4430_phy_power(struct device *dev, int ID, int on)
 {
 	if (on) {
+		/* enabled the clocks */
+		omap4430_phy_set_clk(dev, 1);
+		/* power on the phy */
+		if (__raw_readl(ctrl_base + CONTROL_DEV_CONF) & PHY_PD) {
+			__raw_writel(~PHY_PD, ctrl_base + CONTROL_DEV_CONF);
+			msleep(200);
+		}			
 
 #ifdef CONFIG_OMAP4_HSOTG_ED_CORRECTION
 		/* apply eye diagram improvement settings */
 		omap44xx_hsotg_ed_correction();
 #endif
 
-		if (ID)
+		if (ID) {
 			/* enable VBUS valid, IDDIG groung */
 			__raw_writel(AVALID | VBUSVALID, ctrl_base +
 							USBOTGHS_CONTROL);
-		else
+		} else {
+
 			/*
 			 * Enable VBUS Valid, AValid and IDDIG
 			 * high impedance
 			 */
 			__raw_writel(IDDIG | AVALID | VBUSVALID,
 						ctrl_base + USBOTGHS_CONTROL);
+		}
 	} else {
 		/* Enable session END and IDIG to high impedance. */
 		__raw_writel(SESSEND | IDDIG, ctrl_base +
 					USBOTGHS_CONTROL);
+		/* Power down the phy */
+		__raw_writel(PHY_PD, ctrl_base + CONTROL_DEV_CONF);
+		/* Disable the clocks */
+		omap4430_phy_set_clk(dev, 0);
 	}
 	return 0;
 }

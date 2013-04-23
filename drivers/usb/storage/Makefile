@@ -35,6 +35,7 @@ obj-$(CONFIG_USB_STORAGE_REALTEK)	+= ums-realtek.o
 obj-$(CONFIG_USB_STORAGE_SDDR09)	+= ums-sddr09.o
 obj-$(CONFIG_USB_STORAGE_SDDR55)	+= ums-sddr55.o
 obj-$(CONFIG_USB_STORAGE_USBAT)		+= ums-usbat.o
+obj-$(CONFIG_USB_STORAGE_JM20329)	+= ums-jm20329.o
 
 ums-alauda-y		:= alauda.o
 ums-cypress-y		:= cypress_atacb.o
@@ -49,3 +50,4 @@ ums-realtek-y		:= realtek_cr.o
 ums-sddr09-y		:= sddr09.o
 ums-sddr55-y		:= sddr55.o
 ums-usbat-y		:= shuttle_usbat.o
+ums-jm20329-y	:= jm20329.o

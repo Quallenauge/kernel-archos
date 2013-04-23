@@ -94,6 +94,22 @@ config NOP_USB_XCEIV
 	 built-in with usb ip or which are autonomous and doesn't require any
 	 phy programming such as ISP1x04 etc.
 
+config ARCHOS_USB_XCEIV
+	tristate "Archos Gen9 USB Transceiver Driver (fake id)"
+	depends on TWL4030_CORE && MACH_ARCHOS
+	select USB_OTG_UTILS
+	help
+	  Enable this to support the USB OTG transceiver on TWL6030
+	  family chips plus Archos Gen9 gpio based vbus and Id pin. 
+
+config ARCHOS_TWL6030_USB_XCEIV
+	tristate "Archos Gen9 USB Transceiver Driver"
+	depends on TWL4030_CORE && MACH_ARCHOS
+	select USB_OTG_UTILS
+	help
+	  Enable this to support the USB OTG transceiver on TWL6030
+	  family chips. 
+
 config USB_LANGWELL_OTG
 	tristate "Intel Langwell USB OTG dual-role support"
 	depends on USB && PCI && INTEL_SCU_IPC

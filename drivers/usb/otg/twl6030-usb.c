@@ -463,7 +463,7 @@ static int twl6030_enable_irq(struct otg_transceiver *x)
 	return 0;
 }
 
-unsigned int twl6030_get_usb_max_power(struct otg_transceiver *x)
+static unsigned int twl6030_get_usb_max_power(struct otg_transceiver *x)
 {
 	struct twl6030_usb *twl = xceiv_to_twl(x);
 
@@ -572,6 +572,7 @@ static int __devinit twl6030_usb_probe(struct platform_device *pdev)
 	twl->otg.shutdown	= twl6030_phy_shutdown;
 	twl->otg.set_suspend	= twl6030_phy_suspend;
 	twl->otg.start_srp	= twl6030_start_srp;
+	twl->otg.get_usb_max_power = twl6030_get_usb_max_power;
 	twl->otg.state		= OTG_STATE_UNDEFINED;
 
 	/* init spinlock for workqueue */

@@ -30,6 +30,9 @@
 #include <linux/usb/otg.h>
 #include <linux/gpio.h>
 
+#include <linux/usb/ulpi.h>
+#define ULPI_USBIO_PWR_MNGMNT	0x39
+
 #define	PORT_WAKE_BITS	(PORT_WKOC_E|PORT_WKDISC_E|PORT_WKCONN_E)
 
 #ifdef	CONFIG_PM
@@ -761,6 +764,7 @@ void uhh_omap_reset_link(struct ehci_hcd *ehci)
 	u32 temp_reg;
 	u8 count;
 	u16 orig_val, val;
+	unsigned long flags;
 
 	/* switch to internal 60Mhz clock */
 	temp_reg = omap_readl(L3INIT_HSUSBHOST_CLKCTRL);
@@ -794,8 +798,13 @@ void uhh_omap_reset_link(struct ehci_hcd *ehci)
 		pr_err("ehci:link_reset: soft-reset fail\n");
 
 	/* PHY reset via RESETB pin */
+	local_save_flags(flags);
+	spin_unlock(&ehci->lock);
+	local_irq_enable();
 	omap_ehci_hw_phy_reset(ehci_to_hcd(ehci));
-
+	local_irq_restore(flags);
+	spin_lock(&ehci->lock);
+	
 	/* switch back to external 60Mhz clock */
 	temp_reg &= ~(1 << 8);
 	temp_reg |= 1 << 24;
@@ -822,20 +831,20 @@ void uhh_omap_reset_link(struct ehci_hcd *ehci)
 	ehci_writel(ehci, PORT_POWER, &ehci->regs->port_status[0]);
 
 	/* Put PHY in good default state */
-	if (omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x20, 0x5, 20) < 0) {
+	if (omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x20, ULPI_SET(ULPI_FUNC_CTRL), 20) < 0) {
 		/* Toggle STP line */
 		orig_val = val = omap_readw(0x4A1000C4);
 		val |= 0x1F;
 		omap_writew(val, 0x4A1000C4);
 		mdelay(3);
 		omap_writew(orig_val, 0x4A1000C4);
-		omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x20, 0x5, 20);
+		omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x20, ULPI_SET(ULPI_FUNC_CTRL), 20);
 	}
 
-	omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x41, 0x4, 20);
-	omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x18, 0x7, 20);
-	omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x66, 0xA, 20);
-	omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x45, 0x4, 20);
+	omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x41, ULPI_FUNC_CTRL, 20);
+	omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x18, ULPI_IFC_CTRL, 20);
+	omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x66, ULPI_OTG_CTRL, 20);
+	omap_ehci_ulpi_write(ehci_to_hcd(ehci), 0x45, ULPI_FUNC_CTRL, 20);
 
 	handshake(ehci, &ehci->regs->port_status[0], PORT_CONNECT, 1, 2000);
 	ehci_writel(ehci, usbintr_backup, &ehci->regs->intr_enable);
@@ -1047,7 +1056,7 @@ static int ehci_hub_control (
 				/* restore registers value to its original state*/
 				if (ehci->resume_error_flag) {
 					omap_ehci_ulpi_write(hcd, 0x00, 0x32, 20);
-					omap_ehci_ulpi_write(hcd, 0x04, 0x39, 20);
+					omap_ehci_ulpi_write(hcd, 0x04, ULPI_USBIO_PWR_MNGMNT, 20);
 				}
 
 				temp &= ~(PORT_SUSPEND|PORT_RESUME|(3<<10));
@@ -1085,7 +1094,8 @@ static int ehci_hub_control (
 
 		/* transfer dedicated ports to the companion hc */
 		if ((temp & PORT_CONNECT) &&
-				test_bit(wIndex, &ehci->companion_ports)) {
+				test_bit(wIndex, &ehci->companion_ports)
+				&& !ehci->no_companion_port_handoff) {
 			temp &= ~PORT_RWC_BITS;
 			temp |= PORT_OWNER;
 			ehci_writel(ehci, temp, status_reg);
@@ -1181,7 +1191,7 @@ static int ehci_hub_control (
 			*/
 			if (ehci->resume_error_flag) {
 				omap_ehci_ulpi_write(hcd, 0x04, 0x32, 20);
-				omap_ehci_ulpi_write(hcd, 0x14, 0x39, 20);
+				omap_ehci_ulpi_write(hcd, 0x14, ULPI_USBIO_PWR_MNGMNT, 20);
 			}
 
 			/* After above check the port must be connected.
@@ -1244,7 +1254,8 @@ static int ehci_hub_control (
 			 */
 			if ((temp & (PORT_PE|PORT_CONNECT)) == PORT_CONNECT
 					&& !ehci_is_TDI(ehci)
-					&& PORT_USB11 (temp)) {
+					&& PORT_USB11 (temp)
+					&& !ehci->no_companion_port_handoff) {
 				ehci_dbg (ehci,
 					"port %d low speed --> companion\n",
 					wIndex + 1);

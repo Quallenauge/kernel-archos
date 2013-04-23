@@ -380,6 +380,7 @@ static int alarm_suspend(struct platform_device *pdev, pm_message_t state)
 	struct timespec     wall_time;
 	struct alarm_queue *wakeup_queue = NULL;
 	struct alarm_queue *tmp_queue = NULL;
+	extern int android_alarm_ignored_on_suspend;
 
 	pr_alarm(SUSPEND, "alarm_suspend(%p, %d)\n", pdev, state.event);
 
@@ -390,6 +391,9 @@ static int alarm_suspend(struct platform_device *pdev, pm_message_t state)
 	hrtimer_cancel(&alarms[ANDROID_ALARM_RTC_WAKEUP].timer);
 	hrtimer_cancel(&alarms[
 			ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP].timer);
+
+	if (android_alarm_ignored_on_suspend)
+		return 0;
 
 	tmp_queue = &alarms[ANDROID_ALARM_RTC_WAKEUP];
 	if (tmp_queue->first)

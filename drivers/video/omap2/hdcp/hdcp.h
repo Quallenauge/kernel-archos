@@ -34,6 +34,9 @@
 #include <linux/ioctl.h>
 #include <linux/types.h>
 
+/* HDCP switch */
+#include <linux/switch.h>
+
 struct hdcp_encrypt_control {
 	uint32_t in_key[DESHDCP_KEY_SIZE];
 	uint32_t *out_key;
@@ -322,6 +325,7 @@ struct hdcp {
 	int hdcp_up_event;
 	int hdcp_down_event;
 	bool hdcp_keys_loaded;
+	struct switch_dev secure;
 };
 
 extern struct hdcp hdcp;

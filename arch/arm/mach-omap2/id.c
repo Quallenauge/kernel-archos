@@ -28,11 +28,22 @@
 
 #include "control.h"
 
+#ifdef CONFIG_MACH_ARCHOS
+#include <asm/feature_list.h>
+#endif
+
 static struct omap_chip_id omap_chip;
 static unsigned int omap_revision;
 
 u32 omap3_features;
 u32 omap4_features;
+
+static char omap_revision_name[16];
+char * omap_rev_name(void)
+{
+	return omap_revision_name;
+}
+EXPORT_SYMBOL(omap_rev_name);
 
 unsigned int omap_rev(void)
 {
@@ -260,6 +271,23 @@ static void __init omap4_check_features(void)
 		}
 		break;
 	}
+#ifdef CONFIG_MACH_ARCHOS
+	{
+		struct feature_tag_turbo * turbo = NULL;
+
+		/*  tnt opp can only be reached with some appropriate external thermal
+		*  dissipator. Turbo feature flag signals that device package features
+		*  that mandatory heatsink.
+		*/
+		turbo = get_feature_tag(FTAG_TURBO, feature_tag_size(feature_tag_turbo));
+
+		if (!turbo || !(turbo->flag))
+			omap4_features &= ~(is_omap446x() ? OMAP4_HAS_MPU_1_5GHZ :
+					OMAP4_HAS_MPU_1_2GHZ);
+		else
+			pr_info("%s: turbo package (%02x).\n", __func__, turbo->flag);
+	}
+#endif
 }
 
 static void __init ti816x_check_features(void)
@@ -380,6 +408,7 @@ static void __init omap3_check_revision(void)
 
 static void __init omap4_check_revision(void)
 {
+	char cpu_name[32] = {0,};
 	u32 idcode;
 	u8 rev;
 	/*
@@ -409,6 +438,8 @@ static void __init omap4_check_revision(void)
 
 	switch (hawkeye) {
 	case 0xb852:
+		strcat(cpu_name, "OMAP4430");
+
 		switch (rev) {
 		case 0:
 			omap_revision = OMAP4430_REV_ES1_0;
@@ -421,6 +452,8 @@ static void __init omap4_check_revision(void)
 		}
 		break;
 	case 0xb95c:
+		strcat(cpu_name, "OMAP4430");
+
 		switch (rev) {
 		case 3:
 			omap_revision = OMAP4430_REV_ES2_1;
@@ -437,6 +470,8 @@ static void __init omap4_check_revision(void)
 		}
 		break;
 	case 0xb94e:
+		strcat(cpu_name, "OMAP4460");
+
 		switch (rev) {
 		case 0:
 			omap_revision = OMAP4460_REV_ES1_0;
@@ -450,6 +485,8 @@ static void __init omap4_check_revision(void)
 		}
 		break;
 	case 0xb975:
+		strcat(cpu_name, "OMAP4470");
+
 		switch (rev) {
 		case 0:
 		default:
@@ -463,6 +500,10 @@ static void __init omap4_check_revision(void)
 		omap_revision = OMAP4430_REV_ES2_3;
 		omap_chip.oc |= CHIP_IS_OMAP4430ES2_3;
 	}
+
+	snprintf(omap_revision_name, sizeof(omap_revision_name),
+			"%s ES%d.%d", cpu_name, (omap_rev() >> 12) & 0xf,
+			(omap_rev() >> 8) & 0xf);
 
 	pr_info("OMAP%04x ES%d.%d\n", omap_rev() >> 16,
 		((omap_rev() >> 12) & 0xf), ((omap_rev() >> 8) & 0xf));
@@ -561,6 +602,9 @@ static void __init omap3_cpuinfo(void)
 			strcpy(cpu_rev, "3.1.2");
 		}
 	}
+
+	snprintf(omap_revision_name, sizeof(omap_revision_name),
+			"ES%s", cpu_rev);
 
 	/* Print verbose information */
 	pr_info("%s ES%s (", cpu_name, cpu_rev);

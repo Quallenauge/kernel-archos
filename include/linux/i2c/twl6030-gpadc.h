@@ -148,5 +148,7 @@ struct twl6030_gpadc_user_parms {
 };
 
 int twl6030_gpadc_conversion(struct twl6030_gpadc_request *conv);
+void twl6030_gpadc_set_chan3_current(unsigned int val);
+void twl6030_gpadc_set_sampling_window(unsigned int val);
 
 #endif

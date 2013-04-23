@@ -240,6 +240,11 @@ config FB_MODE_HELPERS
 	  your driver does not take advantage of this feature, choosing Y will
 	  just increase the kernel size by about 5K.
 
+config SUPPORT_PANEL_EXTRA_MODE
+        bool "Enable extra video mode detection based on panel timings limits"
+        depends on FB_MODE_HELPERS
+        default y
+
 config FB_TILEBLITTING
        bool "Enable Tile Blitting Support"
        depends on FB

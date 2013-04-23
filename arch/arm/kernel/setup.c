@@ -50,6 +50,10 @@
 #include <asm/traps.h>
 #include <asm/unwind.h>
 
+#ifdef CONFIG_MACH_ARCHOS
+#include <mach/board-archos.h>
+#endif
+
 #if defined(CONFIG_DEPRECATED_PARAM_STRUCT)
 #include "compat.h"
 #endif
@@ -97,6 +101,16 @@ EXPORT_SYMBOL(system_serial_high);
 unsigned int elf_hwcap __read_mostly;
 EXPORT_SYMBOL(elf_hwcap);
 
+#ifdef CONFIG_MACH_ARCHOS
+struct hardware_component hardware_comp;
+EXPORT_SYMBOL(hardware_comp);
+
+unsigned char avboot_major_version;
+unsigned char avboot_minor_version;
+unsigned char avboot_extra_version;
+
+char * omap_rev_name(void);
+#endif
 
 #ifdef MULTI_CPU
 struct processor processor __read_mostly;
@@ -660,6 +674,18 @@ static int __init parse_tag_revision(const struct tag *tag)
 
 __tagtable(ATAG_REVISION, parse_tag_revision);
 
+#ifdef CONFIG_MACH_ARCHOS
+static int __init parse_tag_avboot_info(const struct tag *tag)
+{
+	avboot_major_version = tag->u.avboot_info.major;
+	avboot_minor_version = tag->u.avboot_info.minor;
+	avboot_extra_version = tag->u.avboot_info.extra;
+	return 0;
+}
+
+__tagtable(ATAG_AVBOOT_INFO, parse_tag_avboot_info);
+#endif
+
 static int __init parse_tag_cmdline(const struct tag *tag)
 {
 #if defined(CONFIG_CMDLINE_EXTEND)
@@ -1041,6 +1067,14 @@ static int c_show(struct seq_file *m, void *v)
 	seq_printf(m, "Revision\t: %04x\n", system_rev);
 	seq_printf(m, "Serial\t\t: %08x%08x\n",
 		   system_serial_high, system_serial_low);
+
+#ifdef CONFIG_MACH_ARCHOS
+	seq_printf(m, "OMAP revision\t: %s\n", omap_rev_name());
+	seq_printf(m, "Boot\t\t: %d.%02d.%06d\n",
+			avboot_major_version,
+			avboot_minor_version,
+			avboot_extra_version);
+#endif
 
 	return 0;
 }

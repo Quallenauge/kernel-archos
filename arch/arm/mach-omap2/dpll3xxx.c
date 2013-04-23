@@ -67,8 +67,8 @@ static int _omap3_wait_dpll_status(struct clk *clk, u8 state)
 	int ret = -EINVAL;
 	bool first_time = true;
 	u32 reg;
-	u32 orig_cm_div_m2_dpll_usb;
-	u32 orig_cm_clkdcoldo_dpll_usb;
+	u32 orig_cm_div_m2_dpll_usb = __raw_readl(OMAP4430_CM_DIV_M2_DPLL_USB);
+	u32 orig_cm_clkdcoldo_dpll_usb = __raw_readl(OMAP4430_CM_CLKDCOLDO_DPLL_USB);
 
 retry:
 	dd = clk->dpll_data;

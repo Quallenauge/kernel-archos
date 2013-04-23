@@ -106,17 +106,30 @@ void __init omap_ion_init(void)
 	int ret;
 	u32 nonsecure = omap4_ion_pdata.nonsecure_tiler2d_size;
 
-	system_512m = (omap_total_ram_size() == SZ_512M);
+	#ifdef CONFIG_ION_OMAP_DYNAMIC
+		system_512m = true;
+	#else
+		system_512m = (omap_total_ram_size() == SZ_512M);
+	#endif
 
 	/* carveout sizes */
 	omap4_smc_size = (SZ_1M * 3);
 
 	if (system_512m) {
-		omap4_ion_heap_secure_input_size = 0;
-		omap4_ion_heap_secure_output_wfdhdcp_size = 0;
-		omap4_ducati_heap_size = (SZ_1M * 83);
-		omap4_ion_heap_nonsec_tiler_mem_size = 0;
-		omap4_ion_heap_tiler_mem_size = 0;
+		#ifdef CONFIG_ION_OMAP_DYNAMIC
+			omap4_ion_heap_secure_input_size = 0;
+			omap4_ion_heap_secure_output_wfdhdcp_size = 0;
+			omap4_ducati_heap_size = (SZ_1M * 25);
+			omap4_ion_heap_nonsec_tiler_mem_size = SZ_512K;
+			omap4_ion_heap_tiler_mem_size = SZ_512K;
+
+		#else
+			omap4_ion_heap_secure_input_size = 0;
+			omap4_ion_heap_secure_output_wfdhdcp_size = 0;
+			omap4_ducati_heap_size = (SZ_1M * 83);
+			omap4_ion_heap_nonsec_tiler_mem_size = 0;
+			omap4_ion_heap_tiler_mem_size = 0;
+		#endif
 	} else {
 		omap4_ion_heap_secure_input_size = (SZ_1M * 90);
 		omap4_ion_heap_secure_output_wfdhdcp_size = (SZ_1M * 16);
@@ -135,8 +148,12 @@ void __init omap_ion_init(void)
 	omap4_ion_heap_secure_output_wfdhdcp_addr =
 				omap4_ion_heap_secure_input_addr -
 				omap4_ion_heap_secure_output_wfdhdcp_size;
+#if defined(CONFIG_ION_OMAP_DYNAMIC)
+	omap4_ducati_heap_addr = (0x80000000 + SZ_512M - omap4_ducati_heap_size);
+#else
 	omap4_ducati_heap_addr = omap4_ion_heap_secure_output_wfdhdcp_addr -
 				omap4_ducati_heap_size;
+#endif
 	omap4_ion_heap_tiler_mem_addr = omap4_ducati_heap_addr -
 				omap4_ion_heap_tiler_mem_size;
 	omap4_ion_heap_nonsec_tiler_mem_addr = omap4_ion_heap_tiler_mem_addr -

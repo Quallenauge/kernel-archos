@@ -46,6 +46,11 @@ struct usbhs_omap_board_data {
 	 * for low power mode entry
 	 */
 	struct clk			*transceiver_clk[OMAP3_HS_USB_PORTS];
+
+	void (* platform_bus_suspend)(void);
+	void (* platform_bus_resume)(void);
+	void (* platform_bus_enable)(void);
+	void (*	platform_bus_disable)(void);
 };
 
 struct ehci_hcd_omap_platform_data {
@@ -59,6 +64,11 @@ struct ehci_hcd_omap_platform_data {
 	 */
 	struct clk			*transceiver_clk[OMAP3_HS_USB_PORTS];
 	int				*usbhs_update_sar;
+
+	void (* platform_bus_suspend)(void);
+	void (* platform_bus_resume)(void);
+	void (* platform_bus_enable)(void);
+	void (*	platform_bus_disable)(void);
 };
 
 struct ohci_hcd_omap_platform_data {
@@ -116,6 +126,8 @@ extern int omap4430_phy_power(struct device *dev, int ID, int on);
 extern int omap4430_phy_set_clk(struct device *dev, int on);
 extern int omap4430_phy_init(struct device *dev);
 extern int omap4430_phy_exit(struct device *dev);
+extern int omap4_enable_charger_detect(void);
+extern int omap4_disable_charger_detect(void);
 extern int omap4_charger_detect(void);
 extern int omap4430_phy_suspend(struct device *dev, int suspend);
 extern int omap4430_usbhs_update_sar(void);

@@ -261,6 +261,7 @@ int omap_pm_set_min_bus_tput_helper(struct device *dev, u8 agent_id, long r)
 		.init_name = "omap_pm_set_min_bus_tput",
 	};
 	unsigned long target_level = 0;
+	u64 target_rate;
 
 	mutex_lock(&bus_tput_mutex);
 
@@ -276,18 +277,26 @@ int omap_pm_set_min_bus_tput_helper(struct device *dev, u8 agent_id, long r)
 	else
 		target_level = add_req_tput(dev, r);
 
-	/* Convert the throughput(in KiB/s) into Hz. */
-	target_level = (target_level * 1000) / 4;
+	if (target_level == (unsigned long)-1) {
+		pr_err("update target_level failed\n");
+		ret = -EINVAL;
+		goto unlock;
+	}
 
-	ret = omap_device_scale(&dummy_l3_dev, l3_dev, target_level);
+	/* Convert the throughput(in KiBytes/s) into Hz. */
+	/*
+	   128bit L3 bus width, 233MHz - opp119
+	   L3 clock 233MHz -> 233 * (128/8) = 3728000KiBytes/s
+	   L3 clock 400MHz -> 400 * (128/8) = 6400000KiBytes/s
+	*/
+	target_rate = ((u64)target_level) * 1000 >> 4;
+
+	//target_rate = 130000000; /* hack: more than the l3 speed of lower opp to force maximum l3 speed */
+
+	ret = omap_device_scale(&dummy_l3_dev, l3_dev, (unsigned long)target_rate);
 	if (ret)
-#ifdef CONFIG_OMAP4_DPLL_CASCADING
-		pr_debug("Failed: change interconnect bandwidth to %ld\n",
-		     target_level);
-#else
-		pr_err("Failed: change interconnect bandwidth to %ld\n",
-		     target_level);
-#endif
+		pr_err("Failed: change interconnect bandwidth to %llu\n",
+		     target_rate);
 unlock:
 	mutex_unlock(&bus_tput_mutex);
 	return ret;

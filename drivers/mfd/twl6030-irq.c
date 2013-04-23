@@ -205,11 +205,13 @@ static int twl6030_irq_thread(void *data)
 
 		sts.bytes[3] = 0; /* Only 24 bits are valid*/
 
+		//pr_err("%s: 0x%02x 0x%02x 0x%02x\n", __func__, sts.bytes[2], sts.bytes[1], sts.bytes[0]);
+
 		/*
 		 * Since VBUS status bit is not reliable for VBUS disconnect
 		 * use CHARGER VBUS detection status bit instead.
 		 */
-		if (sts.bytes[2] & 0x10)
+		if ((sts.bytes[2] & 0x10) || (sts.bytes[2] & 0x40))
 			sts.bytes[2] |= 0x08;
 
 		int_sts = le32_to_cpu(sts.int_sts);
@@ -371,6 +373,8 @@ int twl6030_mmc_card_detect_config(void)
 		return ret;
 	}
 	reg_val &= ~(MMC_PU | MMC_PD);
+	/* FIXME: on Archos A80S there is no external pull */
+	reg_val |= MMC_PU;
 	ret = twl_i2c_write_u8(TWL6030_MODULE_ID0, reg_val,
 						TWL6030_CFG_INPUT_PUPD3);
 	if (ret < 0) {

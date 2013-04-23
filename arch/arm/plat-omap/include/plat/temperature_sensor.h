@@ -63,4 +63,10 @@ void omap_temp_sensor_idle(int idle_state);
 static inline void omap_temp_sensor_idle(int idle_state) { }
 #endif
 
+#ifdef CONFIG_OMAP443X_DIE_TEMP_SENSOR
+void omap443x_temp_sensor_idle(int idle_state);
+#else
+static inline void omap443x_temp_sensor_idle(int idle_state) { }
+#endif
+
 #endif

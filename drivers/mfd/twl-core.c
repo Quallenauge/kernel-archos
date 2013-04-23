@@ -45,6 +45,16 @@
 #include <plat/cpu.h>
 #endif
 
+#ifdef CONFIG_MACH_ARCHOS
+#include <mach/board-archos.h>
+#endif
+
+#ifdef CONFIG_ARCHOS_UART3_ON_DPDM
+#define uart3_on_usb true
+#else
+#define uart3_on_usb false
+#endif
+
 /*
  * The TWL4030 "Triton 2" is one of a family of a multi-function "Power
  * Management and System Companion Device" chips originally designed for
@@ -361,6 +371,23 @@ static struct twl_mapping twl6030_map[] = {
 	{ SUB_CHIP_ID0, TWL6030_BASEADD_MEM },
 	{ SUB_CHIP_ID1, TWL6032_BASEADD_CHARGER },
 	{ SUB_CHIP_ID0, TWL6030_BASEADD_PM_SLAVE_RES },
+};
+
+static u8 start_condition;
+
+static ssize_t _show_start_condition(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%02x\n", start_condition);
+}
+static DEVICE_ATTR(start_condition, S_IWUSR | S_IRUGO, _show_start_condition, NULL);
+
+static struct attribute *sysfs_attrs[] = {
+	&dev_attr_start_condition.attr,
+	NULL
+};
+
+static struct attribute_group attr_group = {
+	.attrs = sysfs_attrs,
 };
 
 /*----------------------------------------------------------------------*/
@@ -684,6 +711,8 @@ add_children(struct twl4030_platform_data *pdata, unsigned long features,
 	u8 eepromrev = 0;
 	u8 twlrev = 0;
 
+	const char *usb_drv_name;
+
 	if (twl_has_gpio() && pdata->gpio) {
 		child = add_child(SUB_CHIP_ID1, "twl4030_gpio",
 				pdata->gpio, sizeof(*pdata->gpio),
@@ -832,7 +861,12 @@ add_children(struct twl4030_platform_data *pdata, unsigned long features,
 
 		pdata->usb->features = features;
 
-		child = add_child(0, "twl6030_usb",
+		if (pdata->usb && pdata->usb->name)
+			usb_drv_name = pdata->usb->name;
+		else
+			usb_drv_name = "twl6030_usb";
+		child = add_child(0, usb_drv_name,
+
 			pdata->usb, sizeof(*pdata->usb),
 			true,
 			/* irq1 = VBUS_PRES, irq0 = USB ID */
@@ -1308,6 +1342,9 @@ static int __devexit twl_remove(struct i2c_client *client)
 			i2c_unregister_device(twl->client);
 		twl_modules[i].client = NULL;
 	}
+
+	sysfs_remove_group(&client->dev.kobj, &attr_group);
+
 	inuse = false;
 	return 0;
 }
@@ -1393,6 +1430,17 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 			if (twlrev == 1)
 				errata |= TWL6032_ERRATA_DB00119490;
 		}
+	}
+
+	if (twl_class_is_6030()) {
+		int ret;
+		// dump current condition
+		twl_i2c_read_u8(TWL6030_MODULE_ID0, &start_condition, 0x1F);
+		dev_info(&client->dev, "start condition : %02x\n", start_condition);
+		ret = sysfs_create_group(&client->dev.kobj, &attr_group);
+
+		// reset start condition, avoid reporting wrong condition on reboot.
+		twl_i2c_write_u8(TWL6030_MODULE_ID0, 0, 0x1F);
 	}
 
 	/* load power event scripts */

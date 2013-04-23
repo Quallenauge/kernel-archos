@@ -37,6 +37,8 @@
 
 #include <plat/omap_hwmod.h>
 
+#include <mach/gpio.h>
+
 #include "control.h"
 #include "mux.h"
 
@@ -107,7 +109,7 @@ static int __init _omap_mux_init_gpio(struct omap_mux_partition *partition,
 	int found = 0;
 	struct list_head *muxmodes = &partition->muxmodes;
 
-	if (!gpio)
+	if (!gpio_is_valid(gpio))
 		return -EINVAL;
 
 	list_for_each_entry(e, muxmodes, node) {
@@ -140,7 +142,7 @@ static int __init _omap_mux_init_gpio(struct omap_mux_partition *partition,
 	return 0;
 }
 
-int __init omap_mux_init_gpio(int gpio, int val)
+int omap_mux_init_gpio(int gpio, int val)
 {
 	struct omap_mux_partition *partition;
 	int ret;
@@ -237,7 +239,7 @@ omap_mux_get_by_name(const char *muxname,
 	return -ENODEV;
 }
 
-int __init omap_mux_init_signal(const char *muxname, int val)
+int omap_mux_init_signal(const char *muxname, int val)
 {
 	struct omap_mux_partition *partition = NULL;
 	struct omap_mux *mux = NULL;
@@ -1013,6 +1015,24 @@ bool omap_mux_get_wakeupevent(struct omap_mux *m)
 
 	val = omap_mux_read(m->partition, m->reg_offset);
 	return val & OMAP_WAKEUP_EVENT;
+}
+
+/* Needed for dynamic muxing of arbitrary signal pins for off-idle */
+int omap_mux_get_signal(const char* signal, struct omap_mux *mux)
+{
+	struct omap_mux_partition *partition = NULL;
+	struct omap_mux *found_mux;
+	int mux_mode;
+
+	mux_mode = omap_mux_get_by_name(signal, &partition, 
+			&found_mux);
+	if (mux_mode < 0)
+		return mux_mode;
+	
+	mux->partition = found_mux->partition;
+	mux->reg_offset = found_mux->reg_offset;
+	
+	return mux_mode;
 }
 
 /* Has no locking, don't use on a pad that is remuxed (by hwmod or otherwise) */

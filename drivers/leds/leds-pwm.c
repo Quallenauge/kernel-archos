@@ -28,16 +28,19 @@ struct led_pwm_data {
 	struct pwm_device	*pwm;
 	unsigned int 		active_low;
 	unsigned int		period;
+	struct work_struct	work;
+	enum led_brightness	brightness;
 };
 
-static void led_pwm_set(struct led_classdev *led_cdev,
-	enum led_brightness brightness)
+static void led_set_cansleep(struct work_struct *work)
 {
-	struct led_pwm_data *led_dat =
-		container_of(led_cdev, struct led_pwm_data, cdev);
+	struct led_pwm_data *led_dat = 
+			container_of(work, struct led_pwm_data, work);
+
 	unsigned int max = led_dat->cdev.max_brightness;
 	unsigned int period =  led_dat->period;
-
+	enum led_brightness brightness = led_dat->brightness;
+	
 	if (brightness == 0) {
 		pwm_config(led_dat->pwm, 0, period);
 		pwm_disable(led_dat->pwm);
@@ -45,6 +48,16 @@ static void led_pwm_set(struct led_classdev *led_cdev,
 		pwm_config(led_dat->pwm, brightness * period / max, period);
 		pwm_enable(led_dat->pwm);
 	}
+}
+
+static void led_pwm_set(struct led_classdev *led_cdev,
+	enum led_brightness brightness)
+{
+	struct led_pwm_data *led_dat =
+		container_of(led_cdev, struct led_pwm_data, cdev);
+	
+	led_dat->brightness = brightness;
+	schedule_work(&led_dat->work);
 }
 
 static int led_pwm_probe(struct platform_device *pdev)
@@ -89,6 +102,8 @@ static int led_pwm_probe(struct platform_device *pdev)
 			pwm_free(led_dat->pwm);
 			goto err;
 		}
+		
+		INIT_WORK(&led_dat->work, led_set_cansleep);
 	}
 
 	platform_set_drvdata(pdev, leds_data);
@@ -120,7 +135,7 @@ static int __devexit led_pwm_remove(struct platform_device *pdev)
 		led_classdev_unregister(&leds_data[i].cdev);
 		pwm_free(leds_data[i].pwm);
 	}
-
+	flush_work(&leds_data->work);
 	kfree(leds_data);
 
 	return 0;

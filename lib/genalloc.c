@@ -88,16 +88,20 @@ phys_addr_t gen_pool_virt_to_phys(struct gen_pool *pool, unsigned long addr)
 	struct list_head *_chunk;
 	struct gen_pool_chunk *chunk;
 
+	phys_addr_t ret = -1;
+
 	read_lock(&pool->lock);
 	list_for_each(_chunk, &pool->chunks) {
 		chunk = list_entry(_chunk, struct gen_pool_chunk, next_chunk);
 
-		if (addr >= chunk->start_addr && addr < chunk->end_addr)
-			return chunk->phys_addr + addr - chunk->start_addr;
+		if (addr >= chunk->start_addr && addr < chunk->end_addr) {
+			ret = chunk->phys_addr + addr - chunk->start_addr;
+			break;
+		}
 	}
 	read_unlock(&pool->lock);
 
-	return -1;
+	return ret;
 }
 EXPORT_SYMBOL(gen_pool_virt_to_phys);
 

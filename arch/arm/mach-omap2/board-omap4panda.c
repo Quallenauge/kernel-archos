@@ -119,6 +119,9 @@ static void __init omap4_panda_init_early(void)
 {
 	omap2_init_common_infrastructure();
 	omap2_init_common_devices(NULL, NULL);
+#ifdef CONFIG_OMAP_32K_TIMER
+	omap2_gp_clockevent_set_gptimer(1);
+#endif
 }
 
 static const struct usbhs_omap_board_data usbhs_bdata __initconst = {
@@ -157,6 +160,8 @@ static void __init omap4_ehci_init(void)
 		pr_err("Unable to initialize EHCI power/reset\n");
 		return;
 	}
+
+	omap_mux_init_signal("fref_clk3_out.fref_clk3_out", OMAP_PIN_OUTPUT);
 
 	gpio_export(GPIO_HUB_POWER, 0);
 	gpio_export(GPIO_HUB_NRESET, 0);
@@ -493,7 +498,6 @@ static struct omap_i2c_bus_board_data __initdata panda_i2c_2_bus_pdata;
 static struct omap_i2c_bus_board_data __initdata panda_i2c_3_bus_pdata;
 static struct omap_i2c_bus_board_data __initdata panda_i2c_4_bus_pdata;
 
-
 static int __init omap4_panda_i2c_init(void)
 {
 	omap_i2c_hwspinlock_init(1, 0, &panda_i2c_1_bus_pdata);
@@ -516,11 +520,21 @@ static int __init omap4_panda_i2c_init(void)
 	omap_register_i2c_bus(3, 100, panda_i2c_eeprom,
 					ARRAY_SIZE(panda_i2c_eeprom));
 	omap_register_i2c_bus(4, 400, NULL, 0);
+
+	//gpio_request(6, "msecure");
 	return 0;
 }
 
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux board_mux[] __initdata = {
+	/* AUDIOPWRON */
+	OMAP4_MUX(HDQ_SIO, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
+	/* USB_HUB NRESET - GPIO 62 */
+	OMAP4_MUX(GPMC_WAIT1, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
+	/* USB HUB POWER - GPIO 1 */
+	OMAP4_MUX(KPD_COL2, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
+	/* USB FREF CLK */
+	OMAP4_MUX(FREF_CLK3_OUT, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	/* WLAN IRQ - GPIO 53 */
 	OMAP4_MUX(GPMC_NCS3, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
 	/* WLAN POWER ENABLE - GPIO 43 */
@@ -713,7 +727,7 @@ static struct omap_dss_device *omap4_panda_dss_devices[] = {
 static struct omap_dss_board_info omap4_panda_dss_data = {
 	.num_devices	= ARRAY_SIZE(omap4_panda_dss_devices),
 	.devices	= omap4_panda_dss_devices,
-	.default_device	= &omap4_panda_dvi_device,
+	.default_device	= &omap4_panda_hdmi_device,
 };
 
 /*

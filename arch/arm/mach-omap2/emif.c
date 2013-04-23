@@ -684,6 +684,7 @@ static void setup_registers(u32 emif_nr, struct emif_regs *regs, u32 volt_state)
 	mask_n_set(temp, OMAP44XX_REG_DDR_PHY_CTRL_1_SHDW_SHIFT,
 		   OMAP44XX_REG_DDR_PHY_CTRL_1_SHDW_MASK,
 		   regs->emif_ddr_phy_ctlr_1_final);
+
 	__raw_writel(temp, base + OMAP44XX_EMIF_DDR_PHY_CTRL_1_SHDW);
 
 	__raw_writel(regs->temp_alert_config,
@@ -1044,7 +1045,7 @@ static void emif_calculate_regs(const struct emif_device_details *devices,
 		   OMAP44XX_REG_CL_MASK, timings->RL);
 
 	regs->ref_ctrl = get_sdram_ref_ctrl(freq, addressing);
-	regs->ref_ctrl_derated = regs->ref_ctrl / 4;
+	regs->ref_ctrl_derated = get_sdram_ref_ctrl(freq/4, addressing);
 
 	regs->sdram_tim1 = get_sdram_tim_1_reg(timings, min_tck, addressing);
 
@@ -1463,6 +1464,11 @@ int omap_emif_setup_device_details(const struct emif_device_details
 	}
 
 	return 0;
+}
+
+const struct emif_device_details *omap_emif_get_device_details(u32 emif_nr)
+{
+	return emif_devices[emif_nr];
 }
 
 static void __init setup_lowpower_regs(u32 emif_nr,
