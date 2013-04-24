@@ -20,6 +20,14 @@
 #define OMAP4_DPLL_MPU_TRIMMED_VAL_2P4	(0x1 << 18)
 #define OMAP4_DPLL_MPU_TRIMMED_VAL_3P0	(0x3 << 18)
 #define OMAP4_DPLL_MPU_TRIMMED_MASK	(BIT(19) | BIT(18))
+/*
+ * Trim value has to be written to CONTROL_EFUSE_2 according to
+ * OMAP4430 errata i684 (version B)
+ * OMAP4430 units with ProdID[51:50]=11 are not affected
+ */
+#define OMAP4_LPDDR2_I684_FIX_VALUE	0x004E4000
+#define OMAP4_PROD_ID_I684_MASK		0x000C0000
+
 
 /*
  * Trim value has to be written to CONTROL_EFUSE_2 according to

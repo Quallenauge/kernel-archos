@@ -963,6 +963,9 @@ int omap4_prcm_freq_update(void)
 	/* Re-enable DDR self refresh */
 	omap_emif_frequency_post_notify();
 
+	/* Re-enable DDR self refresh */
+	omap_emif_frequency_post_notify();
+
 	/* Configures MEMIF domain back to HW_WKUP */
 	clkdm_allow_idle(l3_emif_clkdm);
 
