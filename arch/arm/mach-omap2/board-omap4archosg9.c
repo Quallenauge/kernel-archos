@@ -1147,7 +1147,7 @@ static struct omap_board_config_kernel board_config[] __initdata = {
 		{ ARCHOS_TAG_DISPLAY,	&display_config},
 
 // DISABLED FOR DEVELOPMENT
-//		{ ARCHOS_TAG_LEDS,		&leds_config},
+		{ ARCHOS_TAG_LEDS,		&leds_config},
 
 		//		{ ARCHOS_TAG_WIFI_BT,	&board_wifi_bt_config},
 		{ ARCHOS_TAG_MUSB,	&musb_config},
