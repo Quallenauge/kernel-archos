@@ -18,6 +18,7 @@
 #include <linux/device.h>
 #include <linux/notifier.h>
 #include <linux/regulator/consumer.h>
+#include <linux/time.h>
 
 struct regulator_dev;
 struct regulator_init_data;
@@ -110,6 +111,7 @@ struct regulator_ops {
 
 	/* Time taken to enable or set voltage on the regulator */
 	int (*enable_time) (struct regulator_dev *);
+	u32 (*min_disable_time) (struct regulator_dev *);
 	int (*set_voltage_time_sel) (struct regulator_dev *,
 				     unsigned int old_selector,
 				     unsigned int new_selector);
@@ -208,6 +210,7 @@ struct regulator_dev {
 	void *reg_data;		/* regulator_dev data */
 
 	struct dentry *debugfs;
+	struct timeval regulator_disable_timestamp;
 };
 
 struct regulator_dev *regulator_register(struct regulator_desc *regulator_desc,

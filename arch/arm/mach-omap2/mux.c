@@ -131,7 +131,9 @@ static int __init _omap_mux_init_gpio(struct omap_mux_partition *partition,
 	int found = 0;
 	struct list_head *muxmodes = &partition->muxmodes;
 
-	if (!gpio)
+	pr_info("%s: Setup partition: %s gpio (%d) with value %d\n", __func__, partition->name, gpio, val);
+
+	if (!gpio_is_valid(gpio))
 		return -EINVAL;
 
 	list_for_each_entry(e, muxmodes, node) {
@@ -167,7 +169,7 @@ static int __init _omap_mux_init_gpio(struct omap_mux_partition *partition,
 	return 0;
 }
 
-int __init omap_mux_init_gpio(int gpio, int val)
+int omap_mux_init_gpio(int gpio, int val)
 {
 	struct omap_mux_partition *partition;
 	int ret;
@@ -259,11 +261,12 @@ int __init omap_mux_get_by_name(const char *muxname,
 	}
 
 	pr_err("%s: Could not find signal %s\n", __func__, muxname);
+	dump_stack();
 
 	return -ENODEV;
 }
 
-int __init omap_mux_init_signal(const char *muxname, int val)
+int omap_mux_init_signal(const char *muxname, int val)
 {
 	struct omap_mux_partition *partition = NULL;
 	struct omap_mux *mux = NULL;
@@ -385,6 +388,24 @@ err1:
 	pr_err("%s: Could not allocate device mux entry\n", __func__);
 
 	return NULL;
+}
+
+/* Needed for dynamic muxing of arbitrary signal pins for off-idle */
+int omap_mux_get_signal(const char* signal, struct omap_mux *mux)
+{
+	struct omap_mux_partition *partition = NULL;
+	struct omap_mux *found_mux;
+	int mux_mode;
+
+	mux_mode = omap_mux_get_by_name(signal, &partition,
+			&found_mux);
+	if (mux_mode < 0)
+		return mux_mode;
+
+	mux->partition = found_mux->partition;
+	mux->reg_offset = found_mux->reg_offset;
+
+	return mux_mode;
 }
 
 /**

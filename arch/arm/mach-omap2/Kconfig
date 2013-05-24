@@ -415,6 +415,33 @@ config MACH_OMAP_5430ZEBU
 	bool "OMAP5 ZEBU"
 	depends on ARCH_OMAP5
 
+config MACH_ARCHOS
+	bool 
+	default n
+	select OMAP_PACKAGE_CBS
+	select OMAP_PACKAGE_CBL
+	select REGULATOR_FIXED_VOLTAGE
+	select OMAP_TPS6236X
+	select OMAP_REBOOT_REASON
+	select TWL6030_POWEROFF
+	select INPUT_TWL6030_PWRBUTTON
+	select TWL6030_GPADC
+	select KEYBOARD_GPIO
+
+config MACH_ARCHOS_A80S
+	bool "Archos A80S board"
+	default y
+	depends on ARCH_OMAP4
+	select OMAP_PACKAGE_CBL
+	select OMAP_PACKAGE_CBS
+	select REGULATOR_FIXED_VOLTAGE if REGULATOR
+	select MACH_ARCHOS
+
+config CMDLINE_DEFAULT
+        string "Kernel command line for Archos G9 NAND based devices"
+        depends on MACH_ARCHOS
+        default ""
+
 config OMAP3_EMU
 	bool "OMAP3 debugging peripherals"
 	depends on ARCH_OMAP3

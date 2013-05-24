@@ -1290,16 +1290,23 @@ static int _wait_target_ready(struct omap_hwmod *oh)
 	struct omap_hwmod_ocp_if *os;
 	int ret;
 
-	if (!oh)
+	if (!oh){
+		//TODO ARCHOS LOG
+		pr_warning("omap_hwmod: oh is invalid.\n");
 		return -EINVAL;
+	}
 
-	if (oh->_int_flags & _HWMOD_NO_MPU_PORT)
+	if (oh->_int_flags & _HWMOD_NO_MPU_PORT){
+		pr_warning("omap_hwmod: oh->_int_flags & _HWMOD_NO_MPU_PORT.\n");
 		return 0;
+	}
 
 	os = oh->slaves[oh->_mpu_port_index];
 
-	if (oh->flags & HWMOD_NO_IDLEST)
+	if (oh->flags & HWMOD_NO_IDLEST){
+		pr_warning("omap_hwmod: oh->_int_flags & HWMOD_NO_IDLEST.\n");
 		return 0;
+	}
 
 	/* XXX check module SIDLEMODE */
 
@@ -1310,8 +1317,12 @@ static int _wait_target_ready(struct omap_hwmod *oh)
 						 oh->prcm.omap2.idlest_reg_id,
 						 oh->prcm.omap2.idlest_idle_bit);
 	} else if (cpu_is_omap44xx() || cpu_is_omap54xx()) {
-		if (!oh->clkdm)
+		if (!oh->clkdm){
+			//TODO ARCHOS LOG
+			pr_warning("omap_hwmod: oh->clkdm is invalid.\n");
 			return -EINVAL;
+		}
+
 
 		ret = omap4_cminst_wait_module_ready(oh->clkdm->prcm_partition,
 						     oh->clkdm->cm_inst,
@@ -1685,7 +1696,7 @@ static int _enable(struct omap_hwmod *oh)
 	int r;
 	int hwsup = 0;
 
-	pr_debug("omap_hwmod: %s: enabling\n", oh->name);
+	pr_warning("omap_hwmod: %s: enabling\n", oh->name);
 
 	/*
 	 * hwmods with HWMOD_INIT_NO_IDLE flag set are left
@@ -1703,6 +1714,8 @@ static int _enable(struct omap_hwmod *oh)
 			omap_hwmod_mux(oh->mux, _HWMOD_STATE_ENABLED);
 
 		oh->_int_flags &= ~_HWMOD_SKIP_ENABLE;
+
+		WARN(1, "omap_hwmod: %s: is configured to _HWMOD_SKIP_ENABLE. Skipping init...\n", oh->name);
 		return 0;
 	}
 
@@ -1757,6 +1770,7 @@ static int _enable(struct omap_hwmod *oh)
 
 	r = _wait_target_ready(oh);
 	if (!r) {
+		pr_warning("omap_hwmod: _wait_target_ready: %d\n", r);
 		/*
 		 * Set the clockdomain to HW_AUTO only if the target is ready,
 		 * assuming that the previous state was HW_AUTO
@@ -1773,10 +1787,9 @@ static int _enable(struct omap_hwmod *oh)
 			_enable_sysc(oh);
 		}
 	} else {
+		pr_warning("omap_hwmod: _wait_target_ready: %d\n", r);
 		_omap4_disable_module(oh);
 		_disable_clocks(oh);
-		pr_debug("omap_hwmod: %s: _wait_target_ready: %d\n",
-			 oh->name, r);
 
 		if (oh->clkdm)
 			clkdm_hwmod_disable(oh->clkdm, oh);
@@ -1796,7 +1809,7 @@ static int _enable(struct omap_hwmod *oh)
 static int _idle(struct omap_hwmod *oh)
 {
 	int r, hwsup = 0;
-	pr_debug("omap_hwmod: %s: idling\n", oh->name);
+	printk("omap_hwmod: %s: idling\n", oh->name);
 
 	if (oh->_state != _HWMOD_STATE_ENABLED) {
 		WARN(1, "omap_hwmod: %s: idle state can only be entered from enabled state\n",
@@ -1901,14 +1914,18 @@ static int _shutdown(struct omap_hwmod *oh)
 	int ret, hwsup = 0;
 	u8 prev_state;
 
+	//TODO ARCHOS REMOVE LOG
+//	printk("Shutdown called!");
+//	dump_stack();
+
 	if (oh->_state != _HWMOD_STATE_IDLE &&
 	    oh->_state != _HWMOD_STATE_ENABLED) {
 		WARN(1, "omap_hwmod: %s: disabled state can only be entered from idle, or enabled state\n",
 			oh->name);
 		return -EINVAL;
 	}
-
-	pr_debug("omap_hwmod: %s: disabling\n", oh->name);
+	//TODO ARCHOS REMOVE LOG
+//	pr_debug("omap_hwmod: %s: disabling\n", oh->name);
 
 	if (oh->class->pre_shutdown) {
 		prev_state = oh->_state;
@@ -2021,6 +2038,8 @@ static int _setup(struct omap_hwmod *oh, void *data)
 		return 0;
 
 	r = _enable(oh);
+	//TODO ARCHOS REMOVE LOG
+//	printk("Result of _enable() was %d...", r);
 	if (r) {
 #ifndef CONFIG_MACH_OMAP_5430ZEBU
 		pr_warning("omap_hwmod: %s: cannot be enabled (%d)\n",
@@ -2029,8 +2048,11 @@ static int _setup(struct omap_hwmod *oh, void *data)
 		return 0;
 	}
 
-	if (!(oh->flags & HWMOD_INIT_NO_RESET))
+	if (!(oh->flags & HWMOD_INIT_NO_RESET)){
+		//TODO ARCHOS REMOVE LOG
+//		printk("Performing reset...");
 		_reset(oh);
+	}
 
 	postsetup_state = oh->_postsetup_state;
 	if (postsetup_state == _HWMOD_STATE_UNKNOWN)
@@ -2052,14 +2074,21 @@ static int _setup(struct omap_hwmod *oh, void *data)
 	if (oh->flags & HWMOD_ACCESS_DISABLED)
 		postsetup_state = _HWMOD_STATE_DISABLED;
 
-	if (postsetup_state == _HWMOD_STATE_IDLE)
+	if (postsetup_state == _HWMOD_STATE_IDLE){
+		//TODO ARCHOS REMOVE LOG
+//		printk("Idle called....");
 		_idle(oh);
-	else if (postsetup_state == _HWMOD_STATE_DISABLED)
+	}
+	else if (postsetup_state == _HWMOD_STATE_DISABLED){
+		//TODO ARCHOS REMOVE LOG
+//		printk("Shutdown called....");
 		_shutdown(oh);
+	}
 	else if (postsetup_state != _HWMOD_STATE_ENABLED)
 		WARN(1, "hwmod: %s: unknown postsetup state %d! defaulting to enabled\n",
 		     oh->name, postsetup_state);
-
+	//TODO ARCHOS REMOVE LOG
+//	printk("<<_setup()");
 	return 0;
 }
 
@@ -2485,8 +2514,12 @@ int omap_hwmod_enable(struct omap_hwmod *oh)
 
 	spin_lock_irqsave(&oh->_lock, flags);
 	r = _enable(oh);
+	//TODO ARCHOS REMOVE LOG
+//	printk("Call to spin_unlock_irqrestore...\n");
 	spin_unlock_irqrestore(&oh->_lock, flags);
-
+	//TODO ARCHOS REMOVE LOG
+//	printk("<< omap_hwmod_enable()\n");
+//	dump_stack();
 	return r;
 }
 

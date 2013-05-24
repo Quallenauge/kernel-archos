@@ -74,8 +74,24 @@ static int omap_tiler_alloc_carveout(struct ion_heap *heap,
 	struct omap_ion_heap *omap_heap = (struct omap_ion_heap *)heap;
 	int i;
 	int ret;
-	ion_phys_addr_t addr;
+#ifdef CONFIG_ION_OMAP_DYNAMIC
+	struct page *pg;
 
+	for (i = 0; i < info->n_phys_pages; i++) {
+		pg = alloc_page(GFP_KERNEL | GFP_DMA);
+		if (pg)
+		info->phys_addrs[i] = page_to_phys(pg);
+		else
+			goto err;
+#ifdef FLUSH_PAGE
+		dmac_flush_range((void *)page_address(pg),
+				(void *)page_address(pg) + PAGE_SIZE);
+		outer_flush_range(info->phys_addrs[i],
+				info->phys_addrs[i] + PAGE_SIZE);
+#endif
+	}
+#else
+	ion_phys_addr_t addr;
 	addr = gen_pool_alloc(omap_heap->pool, info->n_phys_pages * PAGE_SIZE);
 	if (addr) {
 		info->lump = true;
@@ -96,7 +112,7 @@ static int omap_tiler_alloc_carveout(struct ion_heap *heap,
 		info->phys_addrs[i] = addr;
 	}
 	return 0;
-
+#endif
 err:
 	for (i -= 1; i >= 0; i--)
 		gen_pool_free(omap_heap->pool, info->phys_addrs[i], PAGE_SIZE);
@@ -109,6 +125,17 @@ static void omap_tiler_free_carveout(struct ion_heap *heap,
 	struct omap_ion_heap *omap_heap = (struct omap_ion_heap *)heap;
 	int i;
 
+#ifdef CONFIG_ION_OMAP_DYNAMIC
+	struct page *pg;
+	for (i = 0; i < info->n_phys_pages; i++) {
+		if (info->phys_addrs[i] != ION_CARVEOUT_ALLOCATE_FAIL) {
+			pg = phys_to_page(info->phys_addrs[i]);
+			if (pg != NULL)
+			__free_page(pg);
+			info->phys_addrs[i] = ION_CARVEOUT_ALLOCATE_FAIL;
+		}
+	}
+#else
 	if (info->lump) {
 		gen_pool_free(omap_heap->pool,
 				info->phys_addrs[0],
@@ -118,6 +145,7 @@ static void omap_tiler_free_carveout(struct ion_heap *heap,
 
 	for (i = 0; i < info->n_phys_pages; i++)
 		gen_pool_free(omap_heap->pool, info->phys_addrs[i], PAGE_SIZE);
+#endif
 }
 
 int omap_tiler_alloc(struct ion_heap *heap,
@@ -400,6 +428,22 @@ static int omap_tiler_cache_operation(struct ion_buffer *buffer, size_t len,
 	return 0;
 }
 
+void *omap_tiler_heap_map_kernel(struct ion_heap *heap,
+		struct ion_buffer *buffer) {
+	ion_phys_addr_t addr;
+	size_t len;
+
+	omap_tiler_phys(heap, buffer, &addr, &len);
+	return __arm_ioremap(addr, len, MT_MEMORY_NONCACHED);
+}
+
+void omap_tiler_heap_unmap_kernel(struct ion_heap *heap,
+		struct ion_buffer *buffer) {
+	__arm_iounmap(buffer->vaddr);
+	buffer->vaddr = NULL;
+	return;
+}
+
 static int omap_tiler_heap_flush_user(struct ion_buffer *buffer, size_t len,
 			unsigned long vaddr)
 {
@@ -420,6 +464,27 @@ static struct ion_heap_ops omap_tiler_ops = {
 	.flush_user = omap_tiler_heap_flush_user,
 	.inval_user = omap_tiler_heap_inval_user,
 };
+
+static struct ion_heap_ops omap_carveout_tiler_ops = {
+	.allocate = omap_tiler_heap_allocate,
+	.free = omap_tiler_heap_free,
+	.phys = omap_tiler_phys,
+	.map_user = omap_tiler_heap_map_user,
+	.map_kernel = omap_tiler_heap_map_kernel,
+	.unmap_kernel = omap_tiler_heap_unmap_kernel,
+};
+
+struct ion_heap *omap_carveout_tiler_heap_create(struct ion_platform_heap *data) {
+	struct ion_heap *heap;
+
+	heap = ion_carveout_heap_create(data);
+	if (!heap)
+		return ERR_PTR(-ENOMEM);
+	heap->ops = &omap_carveout_tiler_ops;
+	heap->name = data->name;
+	heap->id = data->id;
+	return heap;
+}
 
 struct ion_heap *omap_tiler_heap_create(struct ion_platform_heap *data)
 {
@@ -444,6 +509,10 @@ struct ion_heap *omap_tiler_heap_create(struct ion_platform_heap *data)
 	heap->heap.name = data->name;
 	heap->heap.id = data->id;
 	return &heap->heap;
+}
+
+void omap_carveout_tiler_heap_destroy(struct ion_heap *heap) {
+	kfree(heap);
 }
 
 void omap_tiler_heap_destroy(struct ion_heap *heap)

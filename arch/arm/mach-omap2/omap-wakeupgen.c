@@ -546,14 +546,25 @@ void __init omap_wakeupgen_init_finish(void)
 		pm44xx_errata |= PM_OMAP4_ROM_CPU1_BACKUP_ERRATUM_xxx;
 
 	if (cpu_is_omap44xx() && (omap_type() == OMAP2_DEVICE_TYPE_GP)) {
-		sar_base = omap4_get_sar_ram_base();
+/*
+ *		omap_wakeupgen_init() called omap4_get_sar_ram_base() to obtain
+ *		the IO mapping for the SAR registers.  However, it returned a NULL
+ *		pointer since the SAR register mapping is setup by omap4_sar_ram_init()
+ *		which is not run until a later point in it.  omap4_sar_ram_init() can
+ *		not be run earlier.  Instead, let omap_wakeupgen_init() do its own
+ *		temporary IO mapping.
+ */
+//		sar_base = omap4_get_sar_ram_base();
 
+		sar_base = ioremap(OMAP44XX_SAR_RAM_BASE, SZ_16K);
+		
 		if (IS_PM44XX_ERRATUM(PM_OMAP4_ROM_CPU1_BACKUP_ERRATUM_xxx))
 			for (i = SAR_BACKUP_STATUS_OFFSET;
 			     i < WAKEUPGENENB_OFFSET_CPU0; i += 4)
 				sar_writel(0, i, 0);
 
 		sar_writel(GIC_ISR_NON_SECURE, SAR_ICDISR_CPU0_OFFSET, 0);
+
 		sar_writel(GIC_ISR_NON_SECURE, SAR_ICDISR_CPU1_OFFSET, 0);
 		for (i = 0; i < max_spi_reg; i++)
 			sar_writel(GIC_ISR_NON_SECURE, SAR_ICDISR_SPI_OFFSET,
@@ -562,6 +573,10 @@ void __init omap_wakeupgen_init_finish(void)
 		if (IS_PM44XX_ERRATUM(PM_OMAP4_ROM_CPU1_BACKUP_ERRATUM_xxx))
 			__raw_writel(SAR_BACKUP_STATUS_GIC_CPU0,
 				     sar_base + SAR_BACKUP_STATUS_OFFSET);
+		
+		// Patch END
+		iounmap(sar_base);
+		sar_base = NULL;
 
 	} else {
 		l3_main_3_oh = omap_hwmod_lookup("l3_main_3");

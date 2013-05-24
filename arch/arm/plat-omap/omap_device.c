@@ -813,7 +813,8 @@ int omap_device_runtime_resume(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 
 	omap_device_enable(pdev);
-
+	//TODO ARCHOS REMOVE LOG
+	//printk("<< omap_device_runtime_resume()\n");
 	return pm_generic_runtime_resume(dev);
 }
 #endif
@@ -936,6 +937,9 @@ int omap_device_enable(struct platform_device *pdev)
 	od->dev_wakeup_lat = 0;
 	od->_dev_wakeup_lat_limit = UINT_MAX;
 	od->_state = OMAP_DEVICE_STATE_ENABLED;
+
+	//TODO ARCHOS REMOVE LOG
+	//printk("<< omap_device_enable()\n");
 
 	return ret;
 }

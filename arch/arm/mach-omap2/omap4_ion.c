@@ -64,8 +64,15 @@ static struct platform_device omap4_ion_device = {
 	},
 };
 
+void __init omap4_ion_set_platform_data(struct ion_platform_data *ion_heap_data)
+{
+	printk("%s: %u\n", __FILE__, __LINE__);
+	if (ion_heap_data != NULL) omap4_ion_device.dev.platform_data = ion_heap_data;
+}
+
 void __init omap4_register_ion(void)
 {
+	printk("%s: %u\n", __FILE__, __LINE__);
 	platform_device_register(&omap4_ion_device);
 }
 

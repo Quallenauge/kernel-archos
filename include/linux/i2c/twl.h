@@ -162,6 +162,19 @@
 #define MMC_PU				(0x1 << 3)
 #define MMC_PD				(0x1 << 2)
 
+/* TWL6030 vibrator registers */
+#define TWL6030_VIBCTRL			0x9B
+#define TWL6030_VIBMODE			0x9C
+#define TWL6030_PWM1ON			0xBA
+#define	TWL6030_PWM1OFF			0xBB
+#define TWL6030_PWM2ON			0xBD
+#define TWL6030_PWM2OFF			0xBE
+
+/* TWL6030 control interface  registers */
+#define TWL6030_TOGGLE1			0x90
+#define TWL6030_TOGGLE2			0x91
+#define TWL6030_TOGGLE3			0x92
+
 #define TWL_SIL_TYPE(rev)		((rev) & 0x00FFFFFF)
 #define TWL_SIL_REV(rev)		((rev) >> 24)
 #define TWL_SIL_5030			0x09002F
@@ -660,6 +673,13 @@ struct twl4030_bci_platform_data {
 	unsigned int max_bat_voltagemV;
 	unsigned int low_bat_voltagemV;
 
+#ifdef CONFIG_MACH_ARCHOS
+    unsigned int bootup_limit_currentmA;
+	bool usb_is_dc;
+	bool use_separate_charger;
+	unsigned int use_eeprom_config;
+#endif
+	
 	unsigned int sense_resistor_mohm;
 
 	/* twl6032 */
@@ -722,6 +742,7 @@ enum twl4030_usb_mode {
 };
 
 struct twl4030_usb_data {
+	const char *name;
 	enum twl4030_usb_mode	usb_mode;
 	unsigned long		features;
 	u32			errata;
@@ -734,6 +755,7 @@ struct twl4030_usb_data {
 	int		(*phy_set_clock)(struct device *dev, int on);
 	/* suspend/resume of phy */
 	int		(*phy_suspend)(struct device *dev, int suspend);
+	void *platform;
 };
 
 struct twl4030_ins {

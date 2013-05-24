@@ -1210,6 +1210,8 @@ static struct regulator *_regulator_get(struct device *dev, const char *id,
 	if (dev)
 		devname = dev_name(dev);
 
+	printk("Get regulator for <%s>, regulator id <%s>\n", devname, id);
+
 	mutex_lock(&regulator_list_mutex);
 
 	rdev = regulator_dev_lookup(dev, id);
@@ -1771,7 +1773,7 @@ EXPORT_SYMBOL_GPL(regulator_is_enabled);
 int regulator_count_voltages(struct regulator *regulator)
 {
 	struct regulator_dev	*rdev = regulator->rdev;
-
+	printk("regulator_count_voltages: Regulator: %s\n", regulator->supply_name);
 	return rdev->desc->n_voltages ? : -EINVAL;
 }
 EXPORT_SYMBOL_GPL(regulator_count_voltages);

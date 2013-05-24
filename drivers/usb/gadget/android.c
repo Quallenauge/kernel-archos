@@ -174,13 +174,18 @@ static void android_work(struct work_struct *data)
 	char **uevent_envp = NULL;
 	unsigned long flags;
 
+
+	printk("%s:%s:%d: >>Lock_IRQSAVE\n"__FILE__,__FUNCTION__,__LINE__);
 	spin_lock_irqsave(&cdev->lock, flags);
+	printk("%s:%s:%d: <<Lock_IRQSAVE\n"__FILE__,__FUNCTION__,__LINE__);
 	if (cdev->config)
 		uevent_envp = configured;
 	else if (dev->connected != dev->sw_connected)
 		uevent_envp = dev->connected ? connected : disconnected;
 	dev->sw_connected = dev->connected;
+	printk("%s:%s:%d: >>Lock_IRQRESTORE\n"__FILE__,__FUNCTION__,__LINE__);
 	spin_unlock_irqrestore(&cdev->lock, flags);
+	printk("%s:%s:%d: <<Lock_IRQRESTORE\n"__FILE__,__FUNCTION__,__LINE__);
 
 	if (uevent_envp) {
 		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, uevent_envp);
@@ -1527,6 +1532,7 @@ static int __init init(void)
 {
 	struct android_dev *dev;
 	int err;
+	printk("%s:%s:%d\n"__FILE__,__FUNCTION__,__LINE__);
 
 	android_class = class_create(THIS_MODULE, "android_usb");
 	if (IS_ERR(android_class))

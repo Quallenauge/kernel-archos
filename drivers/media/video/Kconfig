@@ -883,6 +883,10 @@ source "drivers/media/video/davinci/Kconfig"
 
 source "drivers/media/video/omap/Kconfig"
 
+source "drivers/media/video/omapdce/Kconfig"
+
+source "drivers/media/video/omapimt/Kconfig"
+
 source "drivers/media/video/blackfin/Kconfig"
 
 config VIDEO_SH_VOU

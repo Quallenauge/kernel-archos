@@ -317,6 +317,7 @@ void machine_power_off(void)
 
 void machine_restart(char *cmd)
 {
+	dump_stack();
 	machine_shutdown();
 
 	/* Flush the console to make sure all the relevant messages make it

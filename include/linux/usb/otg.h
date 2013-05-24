@@ -67,6 +67,12 @@ struct usb_otg {
 	struct usb_bus		*host;
 	struct usb_gadget	*gadget;
 
+	int	(*enable_irq)(struct usb_otg *otg);
+
+	/* for enabling and disabling the transciever clocks*/
+	int	(*set_clk)(struct usb_otg *otg,
+					int on);
+	
 	/* bind/unbind the host controller */
 	int	(*set_host)(struct usb_otg *otg, struct usb_bus *host);
 
@@ -82,7 +88,6 @@ struct usb_otg {
 
 	/* start or continue HNP role switch */
 	int	(*start_hnp)(struct usb_otg *otg);
-
 };
 
 /*
@@ -93,7 +98,7 @@ struct usb_otg {
  */
 struct usb_phy {
 	struct device		*dev;
-	const char		*label;
+	const char			*label;
 	unsigned int		 flags;
 
 	enum usb_phy_type	type;
@@ -128,6 +133,17 @@ struct usb_phy {
 	/* for non-OTG B devices: set transceiver into suspend mode */
 	int	(*set_suspend)(struct usb_phy *x,
 				int suspend);
+
+
+	// Archos specific
+	int	(*enable_irq)(struct usb_otg *otg);
+
+	/* for enabling and disabling the transciever clocks*/
+	int	(*set_clk)(struct usb_otg *otg,
+					int on);
+
+	/* welwarsky@archos: get the cin_limit */
+	unsigned int (*get_usb_max_power)(struct usb_otg *otg);
 
 };
 
@@ -278,6 +294,33 @@ otg_start_srp(struct usb_otg *otg)
 		return otg->start_srp(otg);
 
 	return -ENOTSUPP;
+}
+
+static inline int
+otg_set_clk(struct usb_otg *otg, int on)
+{
+	if (otg->set_clk != NULL)
+		return otg->set_clk(otg, on);
+	else
+		return 0;
+}
+
+static inline int
+otg_set_irq(struct usb_otg *otg)
+{
+	if (otg->enable_irq != NULL)
+		return otg->enable_irq(otg);
+	else
+		return 0;
+}
+
+static inline unsigned int
+otg_get_usb_max_power(struct usb_otg *otg)
+{
+	if (otg->phy->get_usb_max_power != NULL)
+		return otg->phy->get_usb_max_power(otg);
+	else
+		return 0;
 }
 
 /* notifiers */

@@ -22,6 +22,12 @@
 #include "pm.h"
 #include "twl-common.h"
 
+#include <asm/mach-types.h>
+
+#ifdef CONFIG_MACH_ARCHOS
+#include <mach/board-archos.h>
+#endif
+
 /* PMIC SmartReflex registers */
 
 /* TWL4030 */
@@ -472,9 +478,54 @@ static __initdata struct omap_pmic_map omap_twl_map[] = {
 	{ .name = NULL, .pmic_data = NULL},
 };
 
+static __initdata struct omap_pmic_map archos_twl_map[] = {
+		{
+			.name = "mpu_iva",
+			.cpu = PMIC_CPU_OMAP3,
+			.pmic_data = &twl4030_vdd1_pmic,
+			.special_action = twl_set_sr,
+		},
+		{
+			.name = "core",
+			.cpu = PMIC_CPU_OMAP4430,
+			.pmic_data = &twl6030_vcore3_pmic,
+		},
+		{
+			.name = "core",
+			.cpu = PMIC_CPU_OMAP4460,
+			.pmic_data = &twl6030_vcore1_pmic,
+			.special_action = twl603x_set_offset,
+		},
+		{
+			.name = "core",
+			.cpu = PMIC_CPU_OMAP4470,
+			.pmic_data = &twl6032_smps2_pmic,
+		},
+		{
+			.name = "iva",
+			.cpu = PMIC_CPU_OMAP4430 | PMIC_CPU_OMAP4460,
+			.pmic_data = &twl6030_vcore2_pmic,
+		},
+		{
+			.name = "iva",
+			.cpu = PMIC_CPU_OMAP4470,
+			.pmic_data = &twl6032_smps5_pmic,
+		},
+	/* Terminator */
+	{ .name = NULL, .pmic_data = NULL},
+};
+
 int __init omap_twl_init(void)
 {
-	return omap_pmic_register_data(omap_twl_map);
+	struct omap_pmic_map *map = NULL;
+	
+	/* special Archos hardware, tps62361 also for OMAP4430 */
+	if (machine_has_tps62361())
+		map = archos_twl_map;
+	else
+		map = omap_twl_map;
+	
+	return omap_pmic_register_data(map);
 }
 
 /**

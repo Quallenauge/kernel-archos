@@ -147,6 +147,13 @@ void ion_free(struct ion_client *client, struct ion_handle *handle);
 int ion_phys(struct ion_client *client, struct ion_handle *handle,
 	     ion_phys_addr_t *addr, size_t *len);
 
+/*
+ * Archos fundtion used by omapdce.
+ */
+int ion_handle_phys(struct ion_handle *handle,
+            ion_phys_addr_t *addr, size_t *len);
+
+
 /**
  * ion_map_kernel - create mapping for the given handle
  * @client:	the client
@@ -364,5 +371,7 @@ struct ion_cached_user_buf_data {
 					struct ion_cached_user_buf_data)
 #define ION_IOC_INVAL_CACHED	_IOWR(ION_IOC_MAGIC, 8, \
 					struct ion_cached_user_buf_data)
+
+
 
 #endif /* _LINUX_ION_H */

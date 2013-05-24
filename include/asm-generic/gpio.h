@@ -199,6 +199,7 @@ extern void gpio_unexport(unsigned gpio);
 
 static inline bool gpio_is_valid(int number)
 {
+	printk("gpio_is_valid(number)\n");
 	/* only non-negative numbers are valid */
 	return number >= 0;
 }

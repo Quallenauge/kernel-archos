@@ -1171,3 +1171,9 @@ pov2			MACH_POV2		POV2			3889
 ipod_touch_2g		MACH_IPOD_TOUCH_2G	IPOD_TOUCH_2G		3890
 da850_pqab		MACH_DA850_PQAB		DA850_PQAB		3891
 omap5_panda		MACH_OMAP5_PANDA	OMAP5_PANDA		4070
+
+archos_a80s             MACH_ARCHOS_A80S        ARCHOS_A80S             5032
+archos_a80h             MACH_ARCHOS_A80H        ARCHOS_A80H             5033
+archos_a101s            MACH_ARCHOS_A101S       ARCHOS_A101S            5034
+archos_a101h            MACH_ARCHOS_A101H       ARCHOS_A101H            5035
+
