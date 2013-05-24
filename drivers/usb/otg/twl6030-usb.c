@@ -522,7 +522,7 @@ static struct platform_driver twl6030_usb_driver = {
 	.probe		= twl6030_usb_probe,
 	.remove		= __exit_p(twl6030_usb_remove),
 	.driver		= {
-		.name	= "twl6030_usb",
+		.name	= "archos_twl6030_usb_xceiv",
 		.owner	= THIS_MODULE,
 	},
 };

@@ -902,6 +902,8 @@ u32 mmc_vddrange_to_ocrmask(int vdd_min, int vdd_max)
 	while (vdd_max >= vdd_min)
 		mask |= 1 << vdd_max--;
 
+	printk("mmc_vddrange_to_ocrmask: Min: %d, Max: %d -> Mask: %d\n", vdd_min, vdd_max, mask);
+
 	return mask;
 }
 EXPORT_SYMBOL(mmc_vddrange_to_ocrmask);
@@ -924,6 +926,7 @@ int mmc_regulator_get_ocrmask(struct regulator *supply)
 	int			i;
 
 	count = regulator_count_voltages(supply);
+	printk("mmc_regulator_get_ocrmask: Count <%d>\n", count);
 	if (count < 0)
 		return count;
 
@@ -932,13 +935,16 @@ int mmc_regulator_get_ocrmask(struct regulator *supply)
 		int		vdd_mV;
 
 		vdd_uV = regulator_list_voltage(supply, i);
+		printk("mmc_regulator_get_ocrmask: vdd_uV <%d>\n", vdd_uV);
 		if (vdd_uV <= 0)
 			continue;
 
 		vdd_mV = vdd_uV / 1000;
+		printk("mmc_regulator_get_ocrmask: vdd_mV <%d>\n", vdd_mV);
 		result |= mmc_vddrange_to_ocrmask(vdd_mV, vdd_mV);
 	}
 
+	printk("mmc_regulator_get_ocrmask: result <%x>\n", result);
 	return result;
 }
 EXPORT_SYMBOL(mmc_regulator_get_ocrmask);
@@ -2103,7 +2109,7 @@ void mmc_rescan(struct work_struct *work)
 		wake_lock_timeout(&host->detect_wake_lock, HZ / 2);
 	else
 		wake_unlock(&host->detect_wake_lock);
-	if (host->caps & MMC_CAP_NEEDS_POLL) {
+	if (host->caps & MMC_CAP_NEEDS_POLL && (!host->ops->get_cd || host->ops->get_cd(host)) && host->bus_dead) {
 		wake_lock(&host->detect_wake_lock);
 		mmc_schedule_delayed_work(&host->detect, HZ);
 	}
@@ -2111,6 +2117,7 @@ void mmc_rescan(struct work_struct *work)
 
 void mmc_start_host(struct mmc_host *host)
 {
+	host->bus_dead = 1;
 	mmc_power_off(host);
 	mmc_detect_change(host, 0);
 }

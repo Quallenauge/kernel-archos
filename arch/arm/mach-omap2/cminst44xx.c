@@ -276,13 +276,17 @@ int omap4_cminst_wait_module_ready(u8 part, u16 inst, s16 cdoffs,
 				   u16 clkctrl_offs)
 {
 	int i = 0;
+	pr_warning("omap4_cminst_wait_module_ready()\n");
 
-	if (!clkctrl_offs)
+	if (!clkctrl_offs){
+		pr_warning("omap4_cminst_wait_module_ready(): clkctrl_offs==0\n");
 		return 0;
+	}
 
 	omap_test_timeout(_is_module_ready(part, inst, cdoffs, clkctrl_offs),
 			  MAX_MODULE_READY_TIME, i);
 
+	pr_warning("omap4_cminst_wait_module_ready(): After omap_test_timeout: Result %d\n", i);
 	return (i < MAX_MODULE_READY_TIME) ? 0 : -EBUSY;
 }
 

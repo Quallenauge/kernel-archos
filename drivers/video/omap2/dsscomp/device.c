@@ -731,15 +731,12 @@ static int dsscomp_probe(struct platform_device *pdev)
 	cdev->pdev = &pdev->dev;
 	platform_set_drvdata(pdev, cdev);
 
-	pr_info("dsscomp: initializing.\n");
-
 	fill_cache(cdev);
 	fill_platform_info(cdev);
 
 	/* initialize queues */
 	dsscomp_queue_init(cdev);
 	dsscomp_gralloc_init(cdev);
-
 	return 0;
 }
 

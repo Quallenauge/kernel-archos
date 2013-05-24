@@ -122,7 +122,7 @@ serial_omap_get_divisor(struct uart_port *port, unsigned int baud)
 {
 	unsigned int divisor;
 
-	if (baud > OMAP_MODE13X_SPEED && baud != 3000000)
+	if (baud > OMAP_MODE13X_SPEED && baud != 3000000 && baud != 1000000)
 		divisor = 13;
 	else
 		divisor = 16;
@@ -908,7 +908,7 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	serial_out(up, UART_EFR, up->efr);
 	serial_out(up, UART_LCR, cval);
 
-	if (baud > 230400 && baud != 3000000)
+	if (baud > 230400 && baud != 3000000 && baud != 1000000)
 		up->mdr1 = UART_OMAP_MDR1_13X_MODE;
 	else
 		up->mdr1 = UART_OMAP_MDR1_16X_MODE;
@@ -921,6 +921,7 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	/* Hardware Flow Control Configuration */
 
 	if (termios->c_cflag & CRTSCTS) {
+		printk("Enable hardware flow control...");
 		efr |= (UART_EFR_CTS | UART_EFR_RTS);
 		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
 
@@ -936,6 +937,14 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
 		serial_out(up, UART_MCR, up->mcr | UART_MCR_RTS);
 		serial_out(up, UART_LCR, cval);
+	} else {
+			printk("Disable hardware flow control...");
+			/* Disable AUTORTS and AUTOCTS */
+			up->efr &= ~(UART_EFR_CTS | UART_EFR_RTS);
+
+			serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
+			serial_out(up, UART_EFR, up->efr);
+			serial_out(up, UART_LCR, cval);
 	}
 
 	serial_omap_set_mctrl(&up->port, up->port.mctrl);
@@ -1513,6 +1522,8 @@ static int __devinit serial_omap_probe(struct platform_device *pdev)
 	struct omap_uart_port_info *omap_up_info = pdev->dev.platform_data;
 	int ret = -ENOSPC;
 
+	//TODO ARCHOS REMOVE LOG
+	//printk(">>Probing serial port");
 	if (pdev->dev.of_node) {
 		omap_up_info = of_get_uart_port_info(&pdev->dev);
 		/* Assign platform_data as what dt found */
@@ -1572,6 +1583,8 @@ static int __devinit serial_omap_probe(struct platform_device *pdev)
 	}
 
 	sprintf(up->name, "OMAP UART%d", up->port.line);
+	//TODO ARCHOS REMOVE LOG
+	//printk("Lets go with: %s\n", up->name);
 	up->port.mapbase = mem->start;
 	up->port.membase = devm_ioremap(&pdev->dev, mem->start,
 						resource_size(mem));
@@ -1593,7 +1606,12 @@ static int __devinit serial_omap_probe(struct platform_device *pdev)
 	}
 	up->uart_dma.uart_base = mem->start;
 
+	//TODO ARCHOS REMOVE LOG
+	//printk("Using clock speed: %d\n", up->port.uartclk);
+
 	if (omap_up_info->dma_enabled) {
+//TODO ARCHOS REMOVE LOG
+//		printk("DMA is enabled...");
 		up->uart_dma.uart_dma_tx = dma_tx->start;
 		up->uart_dma.uart_dma_rx = dma_rx->start;
 		up->use_dma = 1;
@@ -1621,34 +1639,61 @@ static int __devinit serial_omap_probe(struct platform_device *pdev)
 
 	pm_runtime_irq_safe(&pdev->dev);
 
+	//TODO ARCHOS REMOVE LOG
+	//printk("Call serial_omap_port_enable()...");
 	serial_omap_port_enable(up);
+	//TODO ARCHOS REMOVE LOG
+	//printk("Call omap_serial_fill_features_erratas()...");
 	omap_serial_fill_features_erratas(up);
 
 	ui[up->port.line] = up;
+	////TODO ARCHOS REMOVE LOG
+	//printk("Add console...");
 	serial_omap_add_console_port(up);
 
+	//TODO ARCHOS REMOVE LOG
+	//printk("Request IRWQ...");
 	ret = request_irq(up->port.irq, serial_omap_irq, up->port.irqflags,
 				up->name, up);
 	if (ret)
 		goto err_add_port;
 
+	//TODO ARCHOS REMOVE LOG
+	//printk("Add one port...");
 	ret = uart_add_one_port(&serial_omap_reg, &up->port);
 	if (ret != 0)
 		goto err_add_port;
 
-	if (omap_up_info->enable_wakeup)
+	//TODO ARCHOS REMOVE LOG
+	//printk("Check for wakeup...");
+	if (omap_up_info->enable_wakeup){
+		//TODO ARCHOS REMOVE LOG
+		//printk("call to enable_wakeup()...");
 		omap_up_info->enable_wakeup(pdev, false);
+	}
 
+	//TODO ARCHOS REMOVE LOG
+	//printk("serial_omap_port_disable ...");
 	serial_omap_port_disable(up);
+	//TODO ARCHOS REMOVE LOG
+	//printk("<< Successful finished!");
 	return 0;
 
 err_add_port:
+//TODO ARCHOS REMOVE LOG
+//printk("<< err_add_port.\n");
 	pm_runtime_put(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 err_ioremap:
+//TODO ARCHOS REMOVE LOG
+//printk("<< err_ioremap.\n");
 err_port_line:
+//TODO ARCHOS REMOVE LOG
+//printk("<< err_port_line.\n");
 	dev_err(&pdev->dev, "[UART%d]: failure [%s]: %d\n",
 				pdev->id, __func__, ret);
+	//TODO ARCHOS REMOVE LOG
+	//printk("<<Probing serial port");
 	return ret;
 }
 

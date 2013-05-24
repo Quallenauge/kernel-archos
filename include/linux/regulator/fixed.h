@@ -43,9 +43,13 @@ struct fixed_voltage_config {
 	int microvolts;
 	int gpio;
 	unsigned startup_delay;
+	//ARCHOS
+	unsigned min_disable_time;
 	unsigned enable_high:1;
 	unsigned enabled_at_boot:1;
 	struct regulator_init_data *init_data;
+	//ARCHOS
+	void (*remux)(int gpio);
 };
 
 struct regulator_consumer_supply;

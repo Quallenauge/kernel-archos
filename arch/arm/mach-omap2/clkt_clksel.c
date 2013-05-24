@@ -44,6 +44,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/bug.h>
+#include <linux/string.h>
 
 #include <plat/clock.h>
 
@@ -551,6 +552,13 @@ int omap2_clksel_set_rate(struct clk *clk, unsigned long rate)
 	if (field_val == ~0)
 		return -EINVAL;
 
+#ifdef CONFIG_MACH_ARCHOS
+	/* Fix dpll_per_m3x2_ck to 192MHz */
+	if ((!strcmp(clk->name, "dpll_per_m3x2_ck") &&
+		rate != 192000000))
+		return 0;
+#endif
+	
 	_write_clksel_reg(clk, field_val);
 
 	clk->rate = _calculate_rate(clk->parent->rate, new_div, new_mul);

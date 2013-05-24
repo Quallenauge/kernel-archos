@@ -2221,6 +2221,18 @@ static struct clk ocp2scp_usb_phy_phy_48m = {
 	.recalc		= &followparent_recalc,
 };
 
+#ifdef CONFIG_MACH_ARCHOS
+static struct clk ocp2scp_usb_phy_ick = {
+	.name		= "ocp2scp_usb_phy_ick",
+	.ops		= &clkops_omap2_dflt,
+	.enable_reg	= OMAP4430_CM_L3INIT_USBPHYOCP2SCP_CLKCTRL,
+	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
+	.clkdm_name	= "l3_init_clkdm",
+	.parent		= &l4_div_ck,
+	.recalc		= &followparent_recalc,
+};
+#endif
+
 static struct clk ocp_wp_noc_ick = {
 	.name		= "ocp_wp_noc_ick",
 	.ops		= &clkops_omap2_dflt,
@@ -3360,6 +3372,9 @@ static struct clk_lookup omap44xx_clks[] = {
 	CLKDEV_INIT(NULL,	"mmc4_fck",			&mmc4_fck),
 	CLKDEV_INIT(NULL,	"mmc5_fck",			&mmc5_fck),
 	CLKDEV_INIT(NULL,	"ocp2scp_usb_phy_phy_48m",	&ocp2scp_usb_phy_phy_48m),
+#ifdef CONFIG_MACH_ARCHOS
+	CLKDEV_INIT(NULL,	"ocp2scp_usb_phy_ick",	&ocp2scp_usb_phy_ick),
+#endif
 	CLKDEV_INIT(NULL,	"ocp_wp_noc_ick",		&ocp_wp_noc_ick),
 	CLKDEV_INIT("omap_rng",	"ick",				&rng_ick),
 	CLKDEV_INIT(NULL,	"sha2md5_fck",			&sha2md5_fck),
@@ -3391,7 +3406,8 @@ static struct clk_lookup omap44xx_clks[] = {
 	CLKDEV_INIT(NULL,	"uart2_fck",			&uart2_fck),
 	CLKDEV_INIT(NULL,	"uart3_fck",			&uart3_fck),
 	CLKDEV_INIT(NULL,	"uart4_fck",			&uart4_fck),
-	CLKDEV_INIT("usbhs_omap",	"fs_fck",		&usb_host_fs_fck),
+//	CLKDEV_INIT("usbhs_omap",	"fs_fck",		&usb_host_fs_fck),
+	CLKDEV_INIT("usbhs_omap",	"usb_host_fs_fck",		&usb_host_fs_fck),
 	CLKDEV_INIT(NULL,	"utmi_p1_gfclk",		&utmi_p1_gfclk),
 	CLKDEV_INIT(NULL,	"usb_host_hs_utmi_p1_clk",	&usb_host_hs_utmi_p1_clk),
 	CLKDEV_INIT(NULL,	"utmi_p2_gfclk",		&utmi_p2_gfclk),
@@ -3402,7 +3418,8 @@ static struct clk_lookup omap44xx_clks[] = {
 	CLKDEV_INIT(NULL,	"usb_host_hs_hsic60m_p2_clk",	&usb_host_hs_hsic60m_p2_clk),
 	CLKDEV_INIT(NULL,	"usb_host_hs_hsic480m_p2_clk",	&usb_host_hs_hsic480m_p2_clk),
 	CLKDEV_INIT(NULL,	"usb_host_hs_func48mclk",	&usb_host_hs_func48mclk),
-	CLKDEV_INIT("usbhs_omap",	"hs_fck",		&usb_host_hs_fck),
+//	CLKDEV_INIT("usbhs_omap",	"hs_fck",		&usb_host_hs_fck),
+	CLKDEV_INIT("usbhs_omap",	"usb_host_hs_fck",		&usb_host_hs_fck),
 	CLKDEV_INIT(NULL,	"otg_60m_gfclk",		&otg_60m_gfclk),
 	CLKDEV_INIT(NULL,	"usb_otg_hs_xclk",		&usb_otg_hs_xclk),
 	CLKDEV_INIT("musb-omap2430",	"ick",			&usb_otg_hs_ick),

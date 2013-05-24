@@ -523,6 +523,7 @@ void __init ti81xx_init_early(void)
 #ifdef CONFIG_ARCH_OMAP4
 void __init omap4430_init_early(void)
 {
+	printk("%s: %u\n", __FILE__, __LINE__);
 	omap2_set_globals_443x();
 	omap4xxx_check_revision();
 	omap4xxx_check_features();

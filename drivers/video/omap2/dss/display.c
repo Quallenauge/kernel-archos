@@ -367,17 +367,21 @@ int omapdss_default_get_recommended_bpp(struct omap_dss_device *dssdev)
 {
 	switch (dssdev->type) {
 	case OMAP_DISPLAY_TYPE_DPI:
-		if (dssdev->phy.dpi.data_lines == 24)
+		if (dssdev->phy.dpi.data_lines >= 18)
 			return 24;
 		else
 			return 16;
 
 	case OMAP_DISPLAY_TYPE_DBI:
+		//TODO Archos debug
+		printk("OMAP_DISPLAY_TYPE_DBI");
 		if (dssdev->ctrl.pixel_size == 24)
 			return 24;
 		else
 			return 16;
 	case OMAP_DISPLAY_TYPE_DSI:
+		//TODO Archos debug
+		printk("OMAP_DISPLAY_TYPE_DSI");
 		if (dsi_get_pixel_size(dssdev->panel.dsi_pix_fmt) > 16)
 			return 24;
 		else

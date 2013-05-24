@@ -523,6 +523,9 @@ static int __init_memblock __memblock_remove(struct memblock_type *type,
 	int start_rgn, end_rgn;
 	int i, ret;
 
+	printk("Memblock remove called with base: 0x%x and size: %d!\n", base, size);
+	dump_stack();
+
 	ret = memblock_isolate_range(type, base, size, &start_rgn, &end_rgn);
 	if (ret)
 		return ret;

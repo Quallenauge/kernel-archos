@@ -443,6 +443,9 @@ static int omap_hsmmc_reg_get(struct omap_hsmmc_host *host)
 	} else {
 		host->vcc = reg;
 		ocr_value = mmc_regulator_get_ocrmask(reg);
+
+		dev_err(host->dev, "mmc_slot provided ocrmask: %x\n", mmc_slot(host).ocr_mask);
+
 		if (!mmc_slot(host).ocr_mask) {
 			mmc_slot(host).ocr_mask = ocr_value;
 		} else {

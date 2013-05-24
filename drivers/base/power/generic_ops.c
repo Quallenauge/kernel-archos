@@ -65,9 +65,10 @@ int pm_generic_runtime_resume(struct device *dev)
 {
 	const struct dev_pm_ops *pm = dev->driver ? dev->driver->pm : NULL;
 	int ret;
-
+	//TODO ARCHOS log
+//	printk(">> pm_generic_runtime_resume()\n");
 	ret = pm && pm->runtime_resume ? pm->runtime_resume(dev) : 0;
-
+//	printk("<< pm_generic_runtime_resume() with ret=%d\n", ret);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(pm_generic_runtime_resume);

@@ -650,6 +650,13 @@ static int usbhs_wakeup_handler(struct omap_hwmod_mux_info *unused)
 	if (queued) {
 		clkdm_wakeup(l3init_clkdm);
 		pm_runtime_get(&pdev_usbhs->dev);
+		
+		//TODO Archos change review needed
+		printk("usbhs_wakeup_handler: Archos wake definition.");
+		if (pm_runtime_suspended(&pdev_usbhs->dev)) {
+			pm_runtime_get_sync(&pdev_usbhs->dev);
+			pm_runtime_put_sync(&pdev_usbhs->dev);
+		}
 	}
 
 	return 0;
@@ -658,6 +665,14 @@ static int usbhs_wakeup_handler(struct omap_hwmod_mux_info *unused)
 static void usbhs_wakeup_work(struct work_struct *unused)
 {
 	pm_runtime_put_sync(&pdev_usbhs->dev);
+	
+	//TODO Archos change review needed
+		printk("usbhs_wakeup_handler: Archos wake definition.");
+		if (pm_runtime_suspended(&pdev_usbhs->dev)) {
+			pm_runtime_get_sync(&pdev_usbhs->dev);
+			pm_runtime_put_sync(&pdev_usbhs->dev);
+		}				
+	
 	clkdm_allow_idle(l3init_clkdm);
 }
 
@@ -967,6 +982,13 @@ void __init usbhs_init(const struct usbhs_omap_board_data *pdata)
 		ehci_data.reset_gpio_port[i] = pdata->reset_gpio_port[i];
 		ehci_data.regulator[i] = pdata->regulator[i];
 	}
+	
+	//TODO Archos change review needed
+	ehci_data.platform_bus_suspend = pdata->platform_bus_suspend;
+	ehci_data.platform_bus_resume = pdata->platform_bus_resume;
+	ehci_data.platform_bus_enable = pdata->platform_bus_enable;
+	ehci_data.platform_bus_disable = pdata->platform_bus_disable;
+	
 	ehci_data.phy_reset = pdata->phy_reset;
 	ohci_data.es2_compatibility = pdata->es2_compatibility;
 	ehci_data.usbhs_update_sar = &usbhs_update_sar;

@@ -530,6 +530,19 @@ OMAP3_HAS_FEATURE(io_chain_ctrl, IO_CHAIN_CTRL)
 /*
  * Runtime detection of OMAP4 features
  */
+extern u32 omap4_features;
+
+#define OMAP4_HAS_MPU_1GHZ              BIT(0)
+#define OMAP4_HAS_MPU_1_2GHZ            BIT(1)
+#define OMAP4_HAS_MPU_1_3GHZ            BIT(2)
+#define OMAP4_HAS_MPU_1_5GHZ            BIT(3)
+#define OMAP4_HAS_IVA_430MHZ            BIT(4)
+#define OMAP4_HAS_IVA_500MHZ            BIT(5)
+
+
+/*
+ * Runtime detection of OMAP4 features
+ */
 #define OMAP4_HAS_FEATURE(feat, flag)			\
 static inline unsigned int omap4_has_ ##feat(void)	\
 {							\

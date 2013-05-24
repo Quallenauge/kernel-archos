@@ -65,8 +65,10 @@ struct regulator *dss_get_vdds_dsi(void)
 {
 	struct regulator *reg;
 
-	if (core.vdds_dsi_reg != NULL)
+	if (core.vdds_dsi_reg != NULL){
+		printk("core.vdds_dsi_reg is already initialized!");
 		return core.vdds_dsi_reg;
+	}
 
 	reg = regulator_get(&core.pdev->dev, "vdds_dsi");
 	if (!IS_ERR(reg))

@@ -137,6 +137,13 @@ static inline void __arch_decomp_setup(unsigned long arch_id)
 		DEBUG_LL_OMAP1(1, omap_osk);
 		DEBUG_LL_OMAP1(1, omap_palmte);
 		DEBUG_LL_OMAP1(1, omap_palmz71);
+		
+		/* omap4 based boards using UART1 */
+		DEBUG_LL_OMAP4(1, archos_a80s);
+		DEBUG_LL_OMAP4(1, archos_a80h);
+		DEBUG_LL_OMAP4(1, archos_a101s);
+		DEBUG_LL_OMAP4(1, archos_a101h);
+
 
 		/* omap15xx/16xx based boards using UART2 */
 		DEBUG_LL_OMAP1(2, omap_palmtt);

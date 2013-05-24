@@ -130,6 +130,7 @@ void __init omap_create_board_props(void)
 
 	mach_panic_string = omap_mach_print;
 
+
 	return;
 
 err_sysfs_create:

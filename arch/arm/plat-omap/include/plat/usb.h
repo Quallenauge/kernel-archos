@@ -44,6 +44,12 @@ struct usbhs_omap_board_data {
 	 * Each PHY can have a separate regulator.
 	 */
 	struct regulator		*regulator[OMAP3_HS_USB_PORTS];
+
+	//TODO Archos change review needed
+	void (* platform_bus_suspend)(void);
+	void (* platform_bus_resume)(void);
+	void (* platform_bus_enable)(void);
+	void (*	platform_bus_disable)(void);
 };
 
 struct ehci_hcd_omap_platform_data {
@@ -53,6 +59,12 @@ struct ehci_hcd_omap_platform_data {
 	unsigned			phy_reset:1;
 	struct pm_qos_request		pm_qos_request;
 	int				*usbhs_update_sar;
+	
+	//TODO Archos change review needed
+	void (* platform_bus_suspend)(void);
+	void (* platform_bus_resume)(void);
+	void (* platform_bus_enable)(void);
+	void (*	platform_bus_disable)(void);
 };
 
 struct ohci_hcd_omap_platform_data {
@@ -117,6 +129,11 @@ extern int omap4430_phy_set_clk(struct device *dev, int on);
 extern int omap4430_phy_init(struct device *dev);
 extern int omap4430_phy_exit(struct device *dev);
 extern int omap4430_phy_suspend(struct device *dev, int suspend);
+
+//TODO Archos change review needede
+extern int omap4_enable_charger_detect(void);
+extern int omap4_disable_charger_detect(void);
+extern int omap4_charger_detect(void);
 
 extern int omap_tll_enable(void);
 extern int omap_tll_disable(void);

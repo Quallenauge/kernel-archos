@@ -63,6 +63,12 @@
 #define USB2PHY_CHG_DET_STATUS_SHIFT	21
 #define USB2PHY_CHG_DET_STATUS_MASK	0x7
 
+#ifdef CONFIG_MACH_ARCHOS
+#define OMAP4_USBPHY_PD_MASK		(1 << 0)
+#define OMAP4_CORE_DEV_CONF_CONTROL	0x0300
+#define OMAP4_USBOTGHS_CONTROL		0x33c
+#endif
+
 /*
  * As per TRM, The hardware charger detection mechanism
  * should end up within the 500-ms time-out

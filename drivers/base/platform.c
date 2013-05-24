@@ -436,10 +436,14 @@ EXPORT_SYMBOL_GPL(platform_device_register_full);
 
 static int platform_drv_probe(struct device *_dev)
 {
+	int ret;
 	struct platform_driver *drv = to_platform_driver(_dev->driver);
 	struct platform_device *dev = to_platform_device(_dev);
 
-	return drv->probe(dev);
+	printk("Probing driver: %s\n", _dev->driver->name);
+	ret = drv->probe(dev);
+	printk("Probing driver: %s Result: %d\n",_dev->driver->name, ret);
+	return ret;
 }
 
 static int platform_drv_probe_fail(struct device *_dev)

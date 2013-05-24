@@ -27,9 +27,11 @@
 #ifdef CONFIG_ION_OMAP
 void omap4_ion_init(void);
 void omap4_register_ion(void);
+void omap4_ion_set_platform_data(struct ion_platform_data *ion_heap_data);
 #else
 static inline void omap4_ion_init(void) { return; }
 static inline void omap4_register_ion(void) { return; }
+static inline void omap4_ion_set_platform_data(struct ion_platform_data *ion_heap_data) { return; }
 #endif
 
 #endif

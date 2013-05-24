@@ -31,6 +31,7 @@
 #include "omap_rpmsg_resmgr.h"
 
 #define GPTIMERS_MAX	11
+#define MHZ             1000000
 
 struct rprm_gpt_depot {
 	struct rprm_gpt args;
@@ -272,14 +273,14 @@ static int rprm_auxclk_request(void **handle, void *args, size_t len)
 		goto error_aux_parent;
 	}
 
-	ret = clk_set_rate(parent, auxck->pclk_rate);
+	ret = clk_set_rate(parent, auxck->pclk_rate * MHZ);
 	if (ret) {
 		pr_err("rate %u not supported by %s\n",
 						auxck->pclk_rate, pname);
 		goto error_set_parent;
 	}
 
-	ret = clk_set_rate(acd->clk, auxck->clk_rate);
+	ret = clk_set_rate(acd->clk, auxck->clk_rate  * MHZ);
 	if (ret) {
 		pr_err("rate %u not supported by %s\n", auxck->clk_rate, name);
 		goto error_set_parent;

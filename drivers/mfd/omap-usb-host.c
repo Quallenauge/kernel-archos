@@ -100,8 +100,11 @@ struct usbhs_hcd_omap {
 	struct clk			*usbhost_p1_fck;
 	struct clk			*utmi_p2_fck;
 	struct clk			*usbhost_p2_fck;
+	struct clk			*usbtll_p2_fck;	
 	struct clk			*usbhost_p3_fck;
 	struct clk			*init_60m_fclk;
+	struct clk			*usbhost_hs_fck;
+	struct clk			*usbhost_ick;	
 	struct clk			*ehci_logic_fck;
 	struct clk			*usb_host_hs_hsic60m_p1_clk;
 	struct clk			*usb_host_hs_hsic480m_p1_clk;
@@ -689,6 +692,21 @@ static int __devinit usbhs_omap_probe(struct platform_device *pdev)
 			goto err_usb_host_hs_hsic60m_p3_clk;
 		}
 	}
+	
+	omap->usbhost_hs_fck = clk_get(dev, "usb_host_hs_fck");
+	printk("Lookup usb_host_hs_fck for dev %s\n", dev_name(dev));
+	if (IS_ERR(omap->usbhost_hs_fck)) {
+		ret = PTR_ERR(omap->usbhost_hs_fck);
+		dev_err(dev, "usbhost_hs_fck failed error:%d\n", ret);
+		goto err_usbhost_hs_fck;
+	}
+
+	omap->usbhost_ick = clk_get(dev, "usbhost_ick");
+	if (IS_ERR(omap->usbhost_ick)) {
+		ret = PTR_ERR(omap->usbhost_ick);
+		dev_err(dev, "usbhost_ick failed error:%d\n", ret);
+		goto err_usbhost_ick;
+	}
 
 	if (is_ehci_phy_mode(pdata->port_mode[0])) {
 		/* for OMAP3 , the clk set paretn fails */
@@ -766,6 +784,13 @@ err_usb_host_hs_hsic480m_p1_clk:
 err_usb_host_hs_hsic60m_p1_clk:
 	clk_put(omap->usb_host_hs_hsic60m_p1_clk);
 
+err_usbhost_ick:
+	clk_put(omap->usbhost_ick);
+
+err_usbhost_hs_fck:
+	clk_put(omap->usbhost_hs_fck);
+	
+	
 err_init_60m_fclk:
 	clk_put(omap->init_60m_fclk);
 

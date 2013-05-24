@@ -907,6 +907,9 @@ static void omapfb_calc_addr(const struct omapfb_info *ofbi,
 	u32 data_start_p;
 	int offset;
 
+	printk(KERN_DEBUG"%s:%i\n", __func__, __LINE__);
+//	dump_stack();
+	
 	if (ofbi->rotation_type == OMAP_DSS_ROT_VRFB)
 		data_start_p = omapfb_get_region_rot_paddr(ofbi, rotation);
 	else
@@ -1034,10 +1037,10 @@ int omapfb_apply_changes(struct fb_info *fbi, int init)
 	int i;
 	struct omap_dss_device *display = fb2display(fbi);
 
-#ifdef DEBUG
-	if (omapfb_test_pattern)
+//#ifdef DEBUG
+//	if (omapfb_test_pattern)
 		fill_fb(fbi);
-#endif
+//#endif
 
 	WARN_ON(!atomic_read(&ofbi->region->lock_count));
 
@@ -2653,12 +2656,28 @@ static int omapfb_probe(struct platform_device *pdev)
 	DBG("mgr->apply'ed\n");
 
 	if (def_display) {
+		DBG("Added Archos specific display init (1)");
+		// Added Archos specific display init
+		struct fb_info *fbi = fbdev->fbs[0];
+
 		r = omapfb_init_display(fbdev, def_display);
 		if (r) {
 			dev_err(fbdev->dev,
 					"failed to initialize default "
 					"display\n");
 			goto cleanup;
+		}
+		// Added Archos specific display init
+		if (fbi) {
+			DBG("Added Archos specific display init (2)");
+			struct omapfb_info *ofbi = FB2OFB(fbi);
+			omapfb_get_mem_region(ofbi->region);
+			r = omapfb_apply_changes(fbi, 0);
+			omapfb_put_mem_region(ofbi->region);
+			if (r) {
+				dev_err(fbdev->dev, "failed to change mode\n");
+				return r;
+			}
 		}
 	}
 
