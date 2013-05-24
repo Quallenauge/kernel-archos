@@ -21,15 +21,15 @@
  */
 
 static struct omap_device_pad uart1_pads[] __initdata = {
-	{
-		.name	= "uart1_tx.uart1_tx",
-		.enable	= OMAP_PIN_OUTPUT | OMAP_MUX_MODE0,
+	{	/* UART1 TX on uart3_cts_rctx */
+		.name	= "uart3_cts_rctx.uart3_cts_rctx",
+		.enable	= OMAP_PIN_OUTPUT | OMAP_MUX_MODE1,
 	},
-	{
-		.name	= "uart1_rx.uart1_rx",
+	{ 	/* UART1 RX on mcspi1_cs1 */
+		.name	= "mcspi1_cs1.mcspi1_cs1",
 		.flags	= OMAP_DEVICE_PAD_REMUX | OMAP_DEVICE_PAD_WAKEUP,
-		.enable	= OMAP_PIN_INPUT | OMAP_MUX_MODE0,
-		.idle	= OMAP_PIN_INPUT | OMAP_MUX_MODE0,
+		.enable	= OMAP_PIN_INPUT | OMAP_MUX_MODE1,
+		.idle	= OMAP_PIN_INPUT | OMAP_MUX_MODE1,
 	},
 };
 
@@ -120,7 +120,7 @@ static struct omap_uart_port_info uart1_info __initdata = {
 	.dma_rx_buf_size = 4096,
 	.dma_rx_poll_rate = 1,
 	.dma_rx_timeout = 3 * HZ,
-	.autosuspend_timeout = 10000,
+	.autosuspend_timeout = DEFAULT_UART_AUTOSUSPEND_DELAY,
 };
 
 static struct omap_uart_port_info uart2_info __initdata = {
@@ -153,7 +153,7 @@ static struct omap_uart_port_info uart4_info __initdata = {
 
 void __init omap4_board_serial_init(void)
 {
-//	omap_serial_init_port(&uart1_board_data, &uart1_info);
+	omap_serial_init_port(&uart1_board_data, &uart1_info);
 	omap_serial_init_port(&uart2_board_data, &uart2_info);
 //	omap_serial_init_port(&uart3_board_data, &uart3_info);
 	omap_serial_init_port(&uart4_board_data, &uart4_info);
