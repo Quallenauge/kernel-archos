@@ -280,9 +280,18 @@ obj-$(CONFIG_MACH_OMAP4_PANDA)		+= board-omap4panda.o
 # Inspired from the A80S
 obj-$(CONFIG_MACH_ARCHOS_A80S)	+= board-omap4archosg9.o \
 					   archos-lcd-cpt-xga8.o \
+					   archos-audio-twl6040.o \
+					   archos-accel-mma8453q.o \
+					   archos-compass.o \
+					   archos-nl5550.o \
+					   archos-touchscreen-tma340.o \
+					   archos-touchscreen-tr16c0-8.o \
+					   archos-camera-mt9m114.o \
 					   archos-usb-musb.o \
 					   archos-usb-ehci.o \
+					   archos-usb-3g-rfkill.o \
 					   board-44xx-serial.o
+
 #					   hsmmc.o \
 #					   omap_phy_internal.o \
 #					   archos-lcd-cpt-xga8.o \
@@ -294,6 +303,8 @@ obj-$(CONFIG_MACH_ARCHOS_A80S)	+= board-omap4archosg9.o \
 #					   archos-touchscreen-tr16c0-8.o \
 #					   archos-camera-mt9m114.o \
 #					   omap4_apps_brd_id.o \
+#					   archos-usb-musb.o \
+#					   archos-usb-ehci.o \
 #					   archos-usb-3g-rfkill.o
 					   
 obj-$(CONFIG_MACH_ARCHOS)		+= archos-fixup.o \

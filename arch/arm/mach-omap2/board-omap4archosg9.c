@@ -44,6 +44,8 @@
 #include <plat/remoteproc.h>
 #include <plat/omap_apps_brd_id.h>
 
+#include <plat/archos-audio-twl6040.h>
+
 #include "hsmmc.h"
 #include "control.h"
 #include "mux.h"
@@ -54,6 +56,9 @@
 #include "omap_ram_console.h"
 
 static struct gpio_vbus_mach_info archos_vbus_info;
+
+static struct mma8453q_pdata board_mma8453q_pdata;
+static struct akm8975_platform_data board_akm8975_pdata;
 
 #define TPS62361_GPIO   7
 
@@ -79,6 +84,109 @@ static struct platform_device wl1271_device = {
 static struct platform_device btwilink_device = {
 	.name	= "btwilink",
 	.id	= -1,
+};
+
+// camera
+static struct i2c_board_info __initdata board_i2c_2_boardinfo[] = {
+// FIXME
+
+};
+
+// accel compas
+static struct i2c_board_info __initdata board_i2c_3_boardinfo[] = {
+	{
+		I2C_BOARD_INFO("mma8453q", 0x1c),
+		.flags = I2C_CLIENT_WAKE,
+		.platform_data = &board_mma8453q_pdata,
+	},
+	{
+		I2C_BOARD_INFO("akm8975", 0x0C),
+		.flags = I2C_CLIENT_WAKE,
+		.platform_data = &board_akm8975_pdata,
+	},
+// FIXME
+
+};
+
+static struct cypress_tma340_platform_data board_tma340_pdata = {
+	.flags = CYPRESS_TMA340_FLAGS_INV_Y,
+};
+
+// tsp
+static struct i2c_board_info __initdata cypress_tsp_i2c_boardinfo[] = {
+	{
+		I2C_BOARD_INFO(CYPRESS_TMA340_NAME, CYPRESS_TMA340_ADDR),
+		.flags = I2C_CLIENT_WAKE,
+		.platform_data = &board_tma340_pdata,
+	},
+};
+
+static struct tr16c0_platform_data board_tr16c0_pdata = {
+	.x_max = 800,
+	.y_max = 600,
+};
+
+static struct archos_gps_config gps_config __initdata = {
+	.nrev = 6,
+	.rev[0 ... 5] = {
+		.gps_enable = 41,
+		.gps_int    = UNUSED_GPIO,
+		.gps_reset  = UNUSED_GPIO,
+	},
+};
+
+static struct archos_camera_config camera_config __initdata = {
+	.nrev = 6,
+	.rev[0 ... 5] = {
+		.pwr_down = UNUSED_GPIO,
+		.reset = 62,
+	},
+};
+
+static struct archos_i2c_tsp_config i2c_tsp_config __initdata = {
+	.nrev = 6,
+	.rev[0 ... 5] = {
+		.irq_gpio = 112,
+		.irq_signal = "abe_mcbsp2_dx.gpio_112",
+		.pwr_gpio = 110,
+		.shtdwn_gpio = 0,
+		.shtdwn_signal = "kpd_col1.gpio_0",
+	},
+};
+
+
+static struct i2c_board_info __initdata tr16c0_tsp_i2c_boardinfo[] = {
+	{
+		I2C_BOARD_INFO(TR16C0_NAME, TR16C0_ADDR),
+		.flags = I2C_CLIENT_WAKE,
+		.platform_data = &board_tr16c0_pdata,
+	},
+};
+
+static struct archos_accel_config accel_config __initdata = {
+	.nrev = 6,
+	.rev[0] = {
+		.accel_int1 = 45,
+		.accel_int2 = UNUSED_GPIO,
+	},
+	.rev[1 ... 5] = {
+		.accel_int1 = 45,
+		.accel_int2 = 174,
+	},
+};
+
+static struct archos_compass_config compass_config __initdata = {
+	.nrev = 6,
+	.rev[0 ... 5] = {
+		.data_ready = 51,
+	},
+};
+
+static struct archos_audio_twl6040_config audio_config __initdata = {
+	.nrev = 6,
+	.rev[0 ... 5] = {
+		.power_on = 127,
+	},
 };
 
 static void remux_regulator_gpio(int gpio)
@@ -438,6 +546,34 @@ static struct platform_device archos_pwm_leds = {
 	},
 };
 
+static struct omap_abe_twl6040_data archos_abe_audio_data = {
+	/* Audio out */
+	.has_hs		= ABE_TWL6040_LEFT | ABE_TWL6040_RIGHT,
+	/* HandsFree through expasion connector */
+	.has_hf		= ABE_TWL6040_LEFT | ABE_TWL6040_RIGHT,
+	/* PandaBoard: FM TX, PandaBoardES: can be connected to audio out */
+	.has_aux	= ABE_TWL6040_LEFT | ABE_TWL6040_RIGHT,
+	/* PandaBoard: FM RX, PandaBoardES: audio in */
+	.has_afm	= ABE_TWL6040_LEFT | ABE_TWL6040_RIGHT,
+	.has_abe	= 1,
+	/* No jack detection. */
+	.jack_detection	= 0,
+	/* MCLK input is 19.2MHz */
+	.mclk_freq	= 19200000,
+
+	// Fix to a board
+	.card_name = "ArchosBoard",
+
+};
+
+static struct platform_device archos_abe_audio = {
+	.name		= "omap-abe-twl6040",
+	.id		= -1,
+	.dev = {
+		.platform_data = &archos_abe_audio_data,
+	},
+};
+
 static struct twl4030_usb_data board_twl6030_usb_data = {
 	.platform = &archos_vbus_info,
 //	.phy_init	= omap4430_phy_init,
@@ -674,6 +810,7 @@ static struct platform_device *a80s_devices[] __initdata = {
 	&fixed_supply_vmmc2,
 	&fixed_supply_vmmc2_aux,
 	&archos_pwm_leds,
+	&archos_abe_audio,
 };
 
 static struct archos_leds_config leds_config __initdata = {
@@ -1030,13 +1167,6 @@ static struct regulator_init_data board_clk32kg = {
        },
 };
 
-static struct regulator_init_data clk32kaudio = {
-	.constraints = {
-		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
-		.always_on		= true,
-	},
-};
-
 static struct regulator_consumer_supply board_vusb_supply[] = {
 		REGULATOR_SUPPLY("vusb", "archos_twl6030_usb_xceiv"),
 };
@@ -1227,23 +1357,23 @@ static int __init omap4_twl6030_hsmmc_init(struct omap2_hsmmc_info *controllers)
 }
 
 static struct omap_board_config_kernel board_config[] __initdata = {
-//		{ ARCHOS_TAG_AUDIO_TWL6040,	&audio_config},
-//		{ ARCHOS_TAG_ACCEL,	&accel_config},
-//		{ ARCHOS_TAG_COMPASS,	&compass_config},
-//		{ ARCHOS_TAG_CHARGE,	&charge_config},
-		{ ARCHOS_TAG_DISPLAY,	&display_config},
+		{ ARCHOS_TAG_AUDIO_TWL6040,	&audio_config},
+		{ ARCHOS_TAG_ACCEL,			&accel_config},
+		{ ARCHOS_TAG_COMPASS,		&compass_config},
+//		{ ARCHOS_TAG_CHARGE,		&charge_config},
+		{ ARCHOS_TAG_DISPLAY,		&display_config},
 
 // DISABLED FOR DEVELOPMENT
-//		{ ARCHOS_TAG_LEDS,		&leds_config},
+		{ ARCHOS_TAG_LEDS,			&leds_config},
 
-		//		{ ARCHOS_TAG_WIFI_BT,	&board_wifi_bt_config},
-		{ ARCHOS_TAG_MUSB,	&musb_config},
-//		{ ARCHOS_TAG_GPS,	&gps_config},
-//		{ ARCHOS_TAG_CAMERA,	&camera_config},
+//		{ ARCHOS_TAG_WIFI_BT,		&board_wifi_bt_config},
+		{ ARCHOS_TAG_MUSB,			&musb_config},
+		{ ARCHOS_TAG_GPS,			&gps_config},
+		{ ARCHOS_TAG_CAMERA,		&camera_config},
 		{ ARCHOS_TAG_USB_GADGET,	&gadget_config},
 		{ ARCHOS_TAG_USB,			&usb_config},
-//		{ ARCHOS_TAG_3G,	&usb_3g_config},
-//		{ ARCHOS_TAG_I2C_TSP,	&i2c_tsp_config},
+//		{ ARCHOS_TAG_3G,			&usb_3g_config},
+		{ ARCHOS_TAG_I2C_TSP,		&i2c_tsp_config},
 //		{ OMAP_TAG_DIE_GOVERNOR,	&omap_die_governor_config},
 };
 
@@ -1259,6 +1389,33 @@ static int __init omap4_leds_init(void)
 			}
 		}
 	}
+	return 0;
+}
+
+static int twl6040_init(void)
+{
+	u8 rev = 0;
+	int ret;
+
+	ret = twl_i2c_read_u8(TWL_MODULE_AUDIO_VOICE,
+				&rev, TWL6040_REG_ASICREV);
+	if (ret)
+		return ret;
+
+	/*
+	 * ERRATA: Reset value of PDM_UL buffer logic is 1 (VDDVIO)
+	 * when AUDPWRON = 0, which causes current drain on this pin's
+	 * pull-down on OMAP side. The workaround consists of disabling
+	 * pull-down resistor of ABE_PDM_UL_DATA pin
+	 * Impacted revisions: ES1.1 and ES1.2 (both share same ASICREV value)
+	 */
+	if (rev == TWL6040_REV_1_1)
+		omap_mux_init_signal("abe_pdm_ul_data.abe_pdm_ul_data",
+			OMAP_PIN_INPUT);
+
+	/* ASoC audio configuration */
+	archos_abe_audio_data.card_name = "tablet";
+
 	return 0;
 }
 
@@ -1313,12 +1470,18 @@ static void __init board_init(void)
 	omap4_leds_init();
 	platform_add_devices(a80s_devices, ARRAY_SIZE(a80s_devices));
 
+	archos_audio_twl6040_init(&twl6040_data);
+	archos_accel_mma8453q_init(&board_mma8453q_pdata);
+	archos_compass_init(&board_akm8975_pdata);
+
 	omap_sdrc_init(NULL, NULL);
 	omap4_twl6030_hsmmc_init(mmc);
 
 	archos_usb_musb_init(&archos_vbus_info);
 	usb_musb_init(&musb_board_data);
 	archos_omap4_ehci_init();
+
+	twl6040_init();
 
 	init_duty_governor();
 

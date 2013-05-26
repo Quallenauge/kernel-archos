@@ -71,7 +71,7 @@ struct audio_twl6040_device_config *archos_audio_twl6040_get_io(void) {
 		return &audio_twl6040_device_io;
 }
 
-int __init archos_audio_twl6040_init(struct twl4030_codec_data * codec_data)
+int __init archos_audio_twl6040_init(struct twl6040_platform_data *twl6040_data)
 {
 	const struct archos_audio_twl6040_config *audio_cfg;
 	int ret;
@@ -94,7 +94,7 @@ int __init archos_audio_twl6040_init(struct twl4030_codec_data * codec_data)
 
 	/* Power ON GPIO mux */
 	omap_mux_init_gpio(audio_gpio.power_on, PIN_OUTPUT);
-	codec_data->audpwron_gpio = audio_gpio.power_on;
+	twl6040_data->audpwron_gpio = audio_gpio.power_on;
 
 	/* Master clock mux */
 	omap_mux_init_signal("fref_clk0_out.fref_clk0_out", OMAP_PIN_OUTPUT);
@@ -108,6 +108,8 @@ int __init archos_audio_twl6040_init(struct twl4030_codec_data * codec_data)
 	omap_mux_init_signal("abe_pdm_dl_data.abe_pdm_dl_data", OMAP_PIN_OUTPUT);
 	omap_mux_init_signal("abe_pdm_frame.abe_pdm_frame", OMAP_PIN_INPUT);
 	omap_mux_init_signal("abe_pdm_lb_clk.abe_pdm_lb_clk", OMAP_PIN_INPUT);
+
+	audio_soc_device.dev.platform_data=twl6040_data;
 
 	ret = platform_device_register(&audio_soc_device);
 	if (ret) {

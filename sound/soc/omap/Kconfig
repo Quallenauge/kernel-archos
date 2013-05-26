@@ -136,6 +136,21 @@ config SND_OMAP_SOC_OMAP_ABE_TWL6040
 	  - PandaBoard (4430)
 	  - PandaBoardES (4460)
 
+config SND_OMAP_SOC_ARCHOS_TWL6040
+	tristate "SoC Audio support for Archos TWL6040 based devices"
+	depends on TWL4030_CORE && MACH_ARCHOS && ARCH_OMAP4
+	select SND_OMAP_SOC
+	select SND_OMAP_SOC_MCPDM
+	select SND_SOC_TWL6040
+	select SND_OMAP_SOC_ABE
+	select SND_OMAP_SOC_MCBSP
+	select SND_SOC_DMIC
+	select SND_OMAP_SOC_DMIC
+	select SND_OMAP_SOC_ABE_DSP
+	help
+	  Say Y if you want to add support for SoC audio on the Archos Gen9 board
+	  based on the TWL6040 codec.
+
 config SND_OMAP_SOC_OMAP_HDMI
 	tristate "SoC Audio support for Texas Instruments OMAP4/5 HDMI"
 	depends on SND_OMAP_SOC && (OMAP4_DSS_HDMI || OMAP5_DSS_HDMI) && OMAP2_DSS

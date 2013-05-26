@@ -2,6 +2,7 @@
 #include <linux/rfkill.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/machine.h>
+#include <linux/module.h>
 
 #include <plat/archos-gpio.h>
 

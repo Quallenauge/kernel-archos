@@ -11,6 +11,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/delay.h>
 #include <linux/err.h>
+#include <linux/module.h>
 
 #include <asm/gpio.h>
 
