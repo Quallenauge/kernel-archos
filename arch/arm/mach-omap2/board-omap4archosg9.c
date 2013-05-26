@@ -32,6 +32,10 @@
 #include <mach/board-archos.h>
 #include <linux/usb/gpio_vbus.h>
 
+// Fuel Gauge
+#include <linux/power/ti-fg.h>
+
+
 #include <plat/drm.h>
 #include <plat/board.h>
 #include "common.h"
@@ -926,6 +930,88 @@ static int board_batt_table[] = {
 	677, 667, 658,  /* 60 - 62 */
 };
 
+/* Fuel Gauge EDV Configuration - taken from TWL_COMMON */
+static struct edv_config edv_cfg = {
+	.averaging = true,
+	.seq_edv = 5,
+	.filter_light = 155,
+	.filter_heavy = 199,
+	.overload_current = 1000,
+	.edv = {
+		{3150, 0},
+		{3450, 4},
+		{3600, 10},
+	},
+};
+
+/* Fuel Gauge OCV Configuration  - taken from TWL_COMMON*/
+static struct ocv_config ocv_cfg = {
+	.voltage_diff = 75,
+	.current_diff = 30,
+
+	.sleep_enter_current = 60,
+	.sleep_enter_samples = 3,
+
+	.sleep_exit_current = 100,
+	.sleep_exit_samples = 3,
+
+	.long_sleep_current = 500,
+	.ocv_period = 300,
+	.relax_period = 600,
+
+	.flat_zone_low = 35,
+	.flat_zone_high = 65,
+
+	.max_ocv_discharge = 1300,
+
+	.table = {
+		3300, 3603, 3650, 3662, 3700,
+		3723, 3734, 3746, 3756, 3769,
+		3786, 3807, 3850, 3884, 3916,
+		3949, 3990, 4033, 4077, 4129,
+		4193
+	},
+};
+
+/* General OMAP4 Battery Cell Configuration  - taken from TWL_COMMON */
+static struct cell_config cell_cfg =  {
+	.cc_voltage = 4175,
+	.cc_current = 250,
+	.cc_capacity = 15,
+	.seq_cc = 5,
+
+	.cc_polarity = true,
+	.cc_out = true,
+	.ocv_below_edv1 = false,
+
+	.design_capacity = 4000,
+	.design_qmax = 4100,
+	.r_sense = 10,
+
+	.qmax_adjust = 1,
+	.fcc_adjust = 2,
+
+	.max_overcharge = 100,
+	.electronics_load = 200, /* *10 uAh */
+
+	.max_increment = 150,
+	.max_decrement = 150,
+	.low_temp = 119,
+	.deep_dsg_voltage = 30,
+	.max_dsg_estimate = 300,
+	.light_load = 100,
+	.near_full = 500,
+	.cycle_threshold = 3500,
+	.recharge = 300,
+
+	.mode_switch_capacity = 5,
+
+	.call_period = 2,
+
+	.ocv = &ocv_cfg,
+	.edv = &edv_cfg,
+};
+
 static struct twl4030_bci_platform_data board_bci_data = {
 	.monitoring_interval		= 10,
 	.max_charger_currentmA		= 1500,
@@ -934,6 +1020,7 @@ static struct twl4030_bci_platform_data board_bci_data = {
 	.low_bat_voltagemV		= 3300,
 	.battery_tmp_tbl		= board_batt_table,
 	.tblsize			= ARRAY_SIZE(board_batt_table),
+	.cell_cfg			= &cell_cfg,
 };
 
 static struct regulator_init_data board_clk32kg = {
@@ -1147,7 +1234,7 @@ static struct omap_board_config_kernel board_config[] __initdata = {
 		{ ARCHOS_TAG_DISPLAY,	&display_config},
 
 // DISABLED FOR DEVELOPMENT
-		{ ARCHOS_TAG_LEDS,		&leds_config},
+//		{ ARCHOS_TAG_LEDS,		&leds_config},
 
 		//		{ ARCHOS_TAG_WIFI_BT,	&board_wifi_bt_config},
 		{ ARCHOS_TAG_MUSB,	&musb_config},
