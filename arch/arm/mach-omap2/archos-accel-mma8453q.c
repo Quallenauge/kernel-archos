@@ -9,7 +9,6 @@
 #include <linux/err.h>
 #include <linux/mma8453q.h>
 
-#include <mach/gpio.h>
 #include <asm/mach-types.h>
 #include <plat/board.h>
 #include <mach/board-archos.h>

@@ -13,7 +13,7 @@
 #include <linux/err.h>
 #include <linux/usb/otg.h>
 
-#include <asm/gpio.h>
+#include <linux/gpio.h>
 
 #include "mux.h"
 

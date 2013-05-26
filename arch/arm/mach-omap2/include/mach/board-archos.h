@@ -35,6 +35,8 @@
 
 #include <asm/system_info.h>
 #include <plat/archos-gpio.h>
+#include <linux/gpio.h>
+
 #include <plat/board.h>
 #include <linux/err.h>
 //#include <linux/mma7660fc.h>
