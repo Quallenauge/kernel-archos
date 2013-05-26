@@ -261,8 +261,12 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 
 	vbus_state = twl6030_readb(twl, TWL_MODULE_MAIN_CHARGE,
 						CONTROLLER_STAT1);
+	printk("%s:%s:%d: Get vbus_state %d\n",__FILE__,__FUNCTION__,__LINE__, vbus_state);
+
 	if (!(hw_state & STS_USB_ID)) {
+		printk("%s:%s:%d: hw_state & STS_USB_ID == true\n",__FILE__,__FUNCTION__,__LINE__);
 		if (vbus_state & VBUS_DET) {
+			printk("%s:%s:%d: vbus_state & VBUS_DET == true\n",__FILE__,__FUNCTION__,__LINE__);
 			if (twl->prev_status == OMAP_MUSB_VBUS_VALID)
 				return IRQ_HANDLED;
 			wake_lock(&twl->charger_det_lock);
@@ -270,10 +274,14 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 			regulator_enable(twl->usb3v3);
 			charger_type = omap_usb2_charger_detect(
 					&twl->comparator);
-			if (charger_type == POWER_SUPPLY_TYPE_USB_DCP)
+			if (charger_type == POWER_SUPPLY_TYPE_USB_DCP){
+				printk("%s:%s:%d: USB_EVENT_CHARGER\n",__FILE__,__FUNCTION__,__LINE__);
 				event = USB_EVENT_CHARGER;
-			else
+			}
+			else{
+				printk("%s:%s:%d: USB_EVENT_VBUS\n",__FILE__,__FUNCTION__,__LINE__);
 				event = USB_EVENT_VBUS;
+			}
 			twl->asleep = 1;
 			status = OMAP_MUSB_VBUS_VALID;
 			omap_musb_mailbox(status);
@@ -281,7 +289,9 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 						     event, &charger_type);
 			wake_unlock(&twl->charger_det_lock);
 		} else {
+			printk("%s:%s:%d: vbus_state & VBUS_DET == FALSE (!)\n",__FILE__,__FUNCTION__,__LINE__);
 			if (twl->prev_status != OMAP_MUSB_UNKNOWN) {
+				printk("%s:%s:%d: prev_status != OMAP_MUSB_UNKNOWN\n",__FILE__,__FUNCTION__,__LINE__);
 				if (twl->prev_status == OMAP_MUSB_VBUS_OFF)
 					return IRQ_HANDLED;
 				status = OMAP_MUSB_VBUS_OFF;
