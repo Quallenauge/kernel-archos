@@ -111,6 +111,73 @@ config TOUCHSCREEN_AUO_PIXCIR
 	  To compile this driver as a module, choose M here: the
 	  module will be called auo-pixcir-ts.
 
+config TOUCHSCREEN_CYPRESS_TMA340
+	tristate "Cypress TMA340 TrueTouch touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have the Cypress TMA340 TrueTouch i2c
+	  touchscreen (cy8ctma340).
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cypress-tma340.
+
+config TOUCHSCREEN_CYPRESS_TMA340_AUTOLOAD_FIRMWARE
+	bool "enable firmware upgrade load request at device startup"
+	depends on TOUCHSCREEN_CYPRESS_TMA340
+	default y
+	help
+	  enable firmware upgrade load request at device startup.
+	  
+config TOUCHSCREEN_PIXCIR_I2C_TS
+	tristate "Pixcir i2c touchscreen (Archos version)"
+	depends on I2C
+	help
+	  Say Y here if you have a pixcir i2c touchscreen controller.
+
+	  If unsure, say N,
+
+config TOUCHSCREEN_TR16C0
+	tristate "TR16C0"
+	help
+	  Say Y here to enable support for I2C connected TR16C0
+	  touch panel.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called tr16c0-i2c.
+
+config TOUCHSCREEN_CPT_I2C_TSP
+	tristate "CPT i2c touchscreen"
+	help
+	  Say Y here to enable support for I2C connected CPT
+	  touch panel.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cpt_i2c_tsp.
+
+config TOUCHSCREEN_BYD_I2C_TSP
+	tristate "BYD i2c touchscreen"
+	help
+	  Say Y here to enable support for I2C connected BYD
+	  touch panel.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called byd_i2c_tsp.
+
+config TOUCHSCREEN_ARCHOS_TS_MONOTOUCH_COMPAT
+	bool "enable monotouch compat mode all archos tsps"
+	default n
+	help
+	  HACK enable monotouch compat mode for all archos tsps
+	  If unsure, say N,	  
+
 config TOUCHSCREEN_BITSY
 	tristate "Compaq iPAQ H3600 (Bitsy) touchscreen"
 	depends on SA1100_BITSY
