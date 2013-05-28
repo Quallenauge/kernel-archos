@@ -126,7 +126,8 @@ static struct omap_rproc_pdata omap4_rproc_data[] = {
 #ifdef CONFIG_OMAP_REMOTEPROC_IPU
 	{
 		.name		= "ipu_c0",
-		.firmware	= "ducati-m3-core0.xem3",
+//		.firmware	= "ducati-m3-core0.xem3",
+		.firmware	= "ducati-m3.bin",
 		.mbox_name	= "mailbox-1",
 		.oh_name	= "ipu_c0",
 		.oh_name_opt	= "ipu_c1",

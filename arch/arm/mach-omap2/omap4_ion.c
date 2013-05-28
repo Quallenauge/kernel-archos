@@ -66,8 +66,13 @@ static struct platform_device omap4_ion_device = {
 
 void __init omap4_ion_set_platform_data(struct ion_platform_data *ion_heap_data)
 {
-	printk("%s: %u\n", __FILE__, __LINE__);
-	if (ion_heap_data != NULL) omap4_ion_device.dev.platform_data = ion_heap_data;
+	printk("%s:%s: %u\n", __FILE__, __FUNCTION__, __LINE__);
+	if (ion_heap_data != NULL){
+		omap4_ion_data = *ion_heap_data;
+		omap4_ion_device.dev.platform_data = ion_heap_data;
+	}else{
+		pr_err("No ion_heap_data provided!\n");
+	}
 }
 
 void __init omap4_register_ion(void)
@@ -81,14 +86,16 @@ void __init omap4_ion_init(void)
 	int i;
 	int ret;
 
-	for (i = 0; i < omap4_ion_data.nr; i++)
+	struct ion_platform_data *ion_data = omap4_ion_device.dev.platform_data;
+
+	for (i = 0; i < ion_data->nr; i++)
 		if (omap4_ion_data.heaps[i].type == ION_HEAP_TYPE_CARVEOUT ||
 		    omap4_ion_data.heaps[i].type == OMAP_ION_HEAP_TYPE_TILER) {
-			ret = memblock_remove(omap4_ion_data.heaps[i].base,
-					      omap4_ion_data.heaps[i].size);
+			ret = memblock_remove(ion_data->heaps[i].base,
+					ion_data->heaps[i].size);
 			if (ret)
 				pr_err("memblock remove of %x@%lx failed\n",
-				       omap4_ion_data.heaps[i].size,
-				       omap4_ion_data.heaps[i].base);
+						ion_data->heaps[i].size,
+						ion_data->heaps[i].base);
 		}
 }
