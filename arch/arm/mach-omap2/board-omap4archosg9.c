@@ -25,6 +25,8 @@
 #include <asm/mach/map.h>
 #include <asm/feature_list.h>
 
+#include <linux/gpio_keys.h>
+
 #include <linux/leds.h>
 #include <linux/leds_pwm.h>
 #include <linux/delay.h>
@@ -70,6 +72,8 @@ static struct akm8975_platform_data board_akm8975_pdata;
 #define HDMI_GPIO_CT_CP_HPD 60 /* HPD mode enable/disable */
 #define HDMI_GPIO_LS_OE 41 /* Level shifter for HDMI, default 41 - which is reserved by archos for gps */
 #define HDMI_GPIO_HPD  63 /* Hotplug detect */
+
+#define GPIO_KEY_AWAKE_ONLY	0x02
 
 /* wl127x BT, FM, GPS connectivity chip */
 static int wl1271_gpios[] = {46, -1, -1};
@@ -132,6 +136,34 @@ static struct archos_gps_config gps_config __initdata = {
 		.gps_enable = 41,
 		.gps_int    = UNUSED_GPIO,
 		.gps_reset  = UNUSED_GPIO,
+	},
+};
+
+static struct gpio_keys_button gpio_volume_buttons[] = {
+	{
+		.code			= KEY_VOLUMEUP,
+		.desc			= "volume up",
+		.wakeup			= GPIO_KEY_AWAKE_ONLY,
+		.active_low		= 1,
+	},
+	{
+		.code			= KEY_VOLUMEDOWN,
+		.desc			= "volume down",
+		.wakeup			= GPIO_KEY_AWAKE_ONLY,
+		.active_low		= 1,
+	},
+};
+
+static struct gpio_keys_platform_data gpio_volume_keys_info = {
+	.buttons	= gpio_volume_buttons,
+	.nbuttons	= ARRAY_SIZE(gpio_volume_buttons),
+};
+
+static struct platform_device volume_keys_gpio = {
+	.name	= "gpio-keys",
+	.id	= -1,
+	.dev	= {
+		.platform_data	= &gpio_volume_keys_info,
 	},
 };
 
@@ -1392,6 +1424,39 @@ static int __init omap4_leds_init(void)
 	return 0;
 }
 
+static void __init board_touch_init(void)
+{
+	struct feature_tag_touchscreen * tsp;
+
+	/* check which touch screen we have */
+	tsp = get_feature_tag(FTAG_HAS_TOUCHSCREEN,
+			feature_tag_size(feature_tag_touchscreen));
+	if (!tsp || (tsp->vendor == 0)) {
+		i2c_register_board_info(4, cypress_tsp_i2c_boardinfo, 1);
+		archos_touchscreen_tm340_init(&board_tma340_pdata);
+	} else {
+		i2c_register_board_info(4, tr16c0_tsp_i2c_boardinfo, 1);
+		archos_touchscreen_tr16c0_init(&board_tr16c0_pdata);
+	}
+}
+
+static void __init board_buttons_init(void)
+{
+	struct feature_tag_gpio_volume_keys * volume_keys;
+
+	if ((volume_keys = get_feature_tag(FTAG_HAS_GPIO_VOLUME_KEYS,
+					feature_tag_size(feature_tag_gpio_volume_keys)))) {
+
+		gpio_volume_buttons[0].gpio = volume_keys->gpio_vol_up;
+		gpio_volume_buttons[1].gpio = volume_keys->gpio_vol_down;
+
+		omap_mux_init_gpio(gpio_volume_buttons[0].gpio, OMAP_PIN_INPUT);
+		omap_mux_init_gpio(gpio_volume_buttons[1].gpio, OMAP_PIN_INPUT);
+
+		platform_device_register(&volume_keys_gpio);
+	}
+}
+
 static int twl6040_init(void)
 {
 	u8 rev = 0;
@@ -1481,6 +1546,9 @@ static void __init board_init(void)
 	usb_musb_init(&musb_board_data);
 	archos_omap4_ehci_init();
 
+	board_touch_init();
+	board_buttons_init();
+
 	twl6040_init();
 
 	init_duty_governor();
@@ -1530,7 +1598,7 @@ static void __init omap_tablet_reserve(void)
 	tablet_android_display_setup(NULL);
 #endif
 
-	omap_rproc_reserve_cma(RPROC_CMA_OMAP4);
+//	omap_rproc_reserve_cma(RPROC_CMA_OMAP4);
 
 	printk(KERN_ERR "Archos Console values OMAP_RAM_CONSOLE_START_DEFAULT: 0x%x OMAP_RAM_CONSOLE_SIZE_DEFAULT: 0x%x!\n", OMAP_RAM_CONSOLE_START_DEFAULT, OMAP_RAM_CONSOLE_SIZE_DEFAULT);
 	printk(KERN_ERR "Archos Console values ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE: 0x%x ARCHOS_OMAP_RAM_CONSOLE_SIZE: 0x%x!\n", ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE, ARCHOS_OMAP_RAM_CONSOLE_SIZE);
