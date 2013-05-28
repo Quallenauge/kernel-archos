@@ -72,3 +72,9 @@ obj-$(CONFIG_TOUCHSCREEN_W90X900)	+= w90p910_ts.o
 obj-$(CONFIG_TOUCHSCREEN_TPS6507X)	+= tps6507x-ts.o
 obj-$(CONFIG_TOUCHSCREEN_SYNTM12XX)	+= syntm12xx.o
 obj-$(CONFIG_TOUCHSCREEN_QUANTUM_OBP)	+= qtouch_obp_ts.o
+
+# Touchscreens used by Archos G9 devices 
+obj-$(CONFIG_TOUCHSCREEN_TR16C0)	+= tr16c0-i2c.o
+obj-$(CONFIG_TOUCHSCREEN_PIXCIR_I2C_TS)	+= pixcir_i2c_tsp.o
+obj-$(CONFIG_TOUCHSCREEN_CPT_I2C_TSP)	+= cpt_i2c_tsp.o
+obj-$(CONFIG_TOUCHSCREEN_BYD_I2C_TSP)	+= byd_i2c_tsp.o
