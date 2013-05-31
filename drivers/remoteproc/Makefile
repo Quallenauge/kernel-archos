@@ -3,8 +3,5 @@
 #
 
 obj-$(CONFIG_REMOTEPROC)		+= remoteproc.o
-remoteproc-y				:= remoteproc_core.o
-remoteproc-y				+= remoteproc_debugfs.o
-remoteproc-y				+= remoteproc_virtio.o
-remoteproc-y				+= remoteproc_secure.o
 obj-$(CONFIG_OMAP_REMOTEPROC)		+= omap_remoteproc.o
+obj-$(CONFIG_OMAP_RPRES)		+= rpres.o rpres_dev.o

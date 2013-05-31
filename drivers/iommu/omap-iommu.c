@@ -947,7 +947,7 @@ static int device_match_by_alias(struct device *dev, void *data)
 	struct omap_iommu *obj = to_iommu(dev);
 	const char *name = data;
 
-	pr_debug("%s: %s %s\n", __func__, obj->name, name);
+	printk("%s: %s %s\n", __func__, obj->name, name);
 
 	return strcmp(obj->name, name) == 0;
 }
@@ -966,6 +966,8 @@ static struct omap_iommu *omap_iommu_attach(const char *name,
 	struct omap_iommu_domain *omap_domain = domain->priv;
 	int *data = domain->iommu_data;
 	int pm_constraint = 0;
+
+	printk("omap_iommu_driver is 0x%p\n", &omap_iommu_driver);
 
 	dev = driver_find_device(&omap_iommu_driver.driver, NULL,
 				(void *)name,
@@ -1228,6 +1230,8 @@ omap_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 	struct omap_iommu *oiommu;
 	struct omap_iommu_arch_data *arch_data = dev->archdata.iommu;
 	int ret = 0;
+
+	printk("%s:%s:%d: Domain ptr: 0x%p archdate=0x%p, dev->name=%s\n",__FILE__,__FUNCTION__,__LINE__, domain, arch_data, dev_name(dev));
 
 	spin_lock(&omap_domain->lock);
 

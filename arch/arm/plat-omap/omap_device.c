@@ -729,6 +729,7 @@ struct platform_device __init *omap_device_build_ss(const char *pdev_name, int p
 	if (!pdata && pdata_len > 0)
 		return ERR_PTR(-EINVAL);
 
+	printk("Call platform_device_alloc with %s\n", pdev_name);
 	pdev = platform_device_alloc(pdev_name, pdev_id);
 	if (!pdev) {
 		ret = -ENOMEM;
@@ -741,6 +742,7 @@ struct platform_device __init *omap_device_build_ss(const char *pdev_name, int p
 	else
 		dev_set_name(&pdev->dev, "%s", pdev->name);
 
+	printk("Platform_device name set to: %s\n", dev_name(&pdev->dev));
 	od = omap_device_alloc(pdev, ohs, oh_cnt, pm_lats, pm_lats_cnt);
 	if (!od)
 		goto odbs_exit1;

@@ -125,7 +125,7 @@
  * XXX error return values should be checked to ensure that they are
  * appropriate
  */
-#undef DEBUG
+#define DEBUG
 
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -1297,14 +1297,14 @@ static int _wait_target_ready(struct omap_hwmod *oh)
 	}
 
 	if (oh->_int_flags & _HWMOD_NO_MPU_PORT){
-		pr_warning("omap_hwmod: oh->_int_flags & _HWMOD_NO_MPU_PORT.\n");
+		pr_warning("omap_hwmod %s: oh->_int_flags & _HWMOD_NO_MPU_PORT.\n", oh->name);
 		return 0;
 	}
 
 	os = oh->slaves[oh->_mpu_port_index];
 
 	if (oh->flags & HWMOD_NO_IDLEST){
-		pr_warning("omap_hwmod: oh->_int_flags & HWMOD_NO_IDLEST.\n");
+		pr_warning("omap_hwmod %s: oh->_int_flags & HWMOD_NO_IDLEST.\n", oh->name);
 		return 0;
 	}
 
@@ -1696,7 +1696,8 @@ static int _enable(struct omap_hwmod *oh)
 	int r;
 	int hwsup = 0;
 
-	pr_warning("omap_hwmod: %s: enabling\n", oh->name);
+//TODO Archos log
+//	pr_warning("omap_hwmod: %s: enabling\n", oh->name);
 
 	/*
 	 * hwmods with HWMOD_INIT_NO_IDLE flag set are left
@@ -1770,7 +1771,8 @@ static int _enable(struct omap_hwmod *oh)
 
 	r = _wait_target_ready(oh);
 	if (!r) {
-		pr_warning("omap_hwmod: _wait_target_ready: %d\n", r);
+//TODO Archos log
+//		pr_warning("omap_hwmod: _wait_target_ready: %d\n", r);
 		/*
 		 * Set the clockdomain to HW_AUTO only if the target is ready,
 		 * assuming that the previous state was HW_AUTO
@@ -1787,14 +1789,13 @@ static int _enable(struct omap_hwmod *oh)
 			_enable_sysc(oh);
 		}
 	} else {
-		pr_warning("omap_hwmod: _wait_target_ready: %d\n", r);
+//TODO Archos log
+		//pr_warning("omap_hwmod: _wait_target_ready: %d\n", r);
 		_omap4_disable_module(oh);
 		_disable_clocks(oh);
-
 		if (oh->clkdm)
 			clkdm_hwmod_disable(oh->clkdm, oh);
 	}
-
 	return r;
 }
 
@@ -1809,7 +1810,8 @@ static int _enable(struct omap_hwmod *oh)
 static int _idle(struct omap_hwmod *oh)
 {
 	int r, hwsup = 0;
-	printk("omap_hwmod: %s: idling\n", oh->name);
+//TODO: Archos log
+//	printk("omap_hwmod: %s: idling\n", oh->name);
 
 	if (oh->_state != _HWMOD_STATE_ENABLED) {
 		WARN(1, "omap_hwmod: %s: idle state can only be entered from enabled state\n",
