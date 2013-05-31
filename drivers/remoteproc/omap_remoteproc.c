@@ -373,7 +373,6 @@ err:
 	return ret;
 }
 
-//#ifdef 0
 static int omap_rproc_iommu_init(struct rproc *rproc,
 		 int (*callback)(struct rproc *rproc, u64 fa, u32 flags))
 {
@@ -466,8 +465,8 @@ err_mmu:
 //	return ret;
 //	return 0;
 }
-//#endif
 
+#ifdef HALLO
 static int omap_rproc_iommu_init(struct rproc *rproc,
 		 int (*callback)(struct rproc *rproc, u64 fa, u32 flags))
 {
