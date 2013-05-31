@@ -148,7 +148,8 @@ static int rprm_rproc_request(void **handle, void *data, size_t len)
 	if (!rprocd)
 		return -ENOMEM;
 
-	rprocd->rp = rproc_get_by_name(rproc_data->name);
+	//rprocd->rp = rproc_get_by_name(rproc_data->name);
+	rprocd->rp = rproc_get(rproc_data->name);
 	if (!rprocd->rp) {
 		ret = -ENODEV;
 		goto error;
@@ -167,7 +168,8 @@ static int rprm_rproc_release(void *handle)
 {
 	struct rprm_rproc_depot *rprocd = handle;
 
-	rproc_shutdown(rprocd->rp);
+	//rproc_shutdown(rprocd->rp);
+	omap_rproc_stop(rprocd->rp);
 	kfree(rprocd);
 
 	return 0;
@@ -184,7 +186,10 @@ static int _rproc_latency(struct device *rdev, void *handle, unsigned long val)
 {
 	struct rprm_rproc_depot *rprocd = handle;
 
-	return rproc_set_constraints(rdev, rprocd->rp,
+//	return rproc_set_constraints(rdev, rprocd->rp,
+//				     RPROC_CONSTRAINT_LATENCY, val);
+
+	return rproc_set_constraints(rprocd->rp,
 				     RPROC_CONSTRAINT_LATENCY, val);
 }
 
@@ -193,7 +198,7 @@ static int _rproc_bandwidth(struct device *rdev, void *handle,
 {
 	struct rprm_rproc_depot *rprocd = handle;
 
-	return rproc_set_constraints(rdev, rprocd->rp,
+	return rproc_set_constraints(rprocd->rp,
 				     RPROC_CONSTRAINT_BANDWIDTH, val);
 }
 
@@ -201,7 +206,7 @@ static int _rproc_scale(struct device *rdev, void *handle, unsigned long val)
 {
 	struct rprm_rproc_depot *rprocd = handle;
 
-	return rproc_set_constraints(rdev, rprocd->rp,
+	return rproc_set_constraints(rprocd->rp,
 				     RPROC_CONSTRAINT_FREQUENCY, val);
 }
 

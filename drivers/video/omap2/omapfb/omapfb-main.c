@@ -37,6 +37,8 @@
 
 #include "omapfb.h"
 
+#include <linux/remoteproc.h>
+
 #define MODULE_NAME     "omapfb"
 
 #define OMAPFB_PLANE_XRES_MIN		8
@@ -2543,6 +2545,8 @@ static int omapfb_probe(struct platform_device *pdev)
 
 	DBG("omapfb_probe\n");
 
+	rproc_get("ipu");
+
 	if (pdev->num_resources != 0) {
 		dev_err(&pdev->dev, "probed for an unknown device\n");
 		r = -ENODEV;
@@ -2564,6 +2568,8 @@ static int omapfb_probe(struct platform_device *pdev)
 				"ignoring the module parameter vrfb=y\n");
 	}
 
+
+	rproc_get("ipu");
 
 	mutex_init(&fbdev->mtx);
 

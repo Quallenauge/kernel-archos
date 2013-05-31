@@ -177,6 +177,11 @@ void __init board_memory_prepare(void)
 //	}
 //	setup_archos_ion_data(MAP_POOL);
 	omap4_ion_set_platform_data(&archos_ion_heap);
+
+	/* do the static reservations first */
+	memblock_remove(ARCHOS_PHYS_ADDR_DUCATI_MEM, ARCHOS_PHYS_ADDR_DUCATI_SIZE);
+	/* ipu needs to recognize secure input buffer area as well */
+	omap_ipu_set_static_mempool(ARCHOS_PHYS_ADDR_DUCATI_MEM, ARCHOS_PHYS_ADDR_DUCATI_SIZE);
 }
 
 //int __init archos_memory_init(void)
