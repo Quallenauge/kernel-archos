@@ -13,6 +13,7 @@
 #include <linux/regulator/fixed.h>
 #include <linux/platform_data/omap-abe-twl6040.h>
 #include <linux/omap4_duty_cycle_governor.h>
+#include <linux/omap_die_governor.h>
 
 #include <plat/android-display.h>
 #include <video/omapdss.h>
@@ -955,6 +956,18 @@ static void init_duty_governor(void)
 static void init_duty_governor(void){}
 #endif /*CONFIG_OMAP4_DUTY_CYCLE*/
 
+/* Initial set of thresholds for different thermal zones */
+static struct omap_thermal_zone thermal_zones[] = {
+	OMAP_THERMAL_ZONE("safe", 0, 25000, 65000, 250, 1000, 400),
+	OMAP_THERMAL_ZONE("monitor", 0, 60000, 80000, 250, 250,	250),
+	OMAP_THERMAL_ZONE("alert", 0, 75000, 90000, 250, 250, 150),
+	OMAP_THERMAL_ZONE("critical", 1, 85000,	115000,	250, 250, 50),
+};
+
+static struct omap_die_governor_pdata omap_gov_pdata = {
+	.zones = thermal_zones,
+	.zones_num = ARRAY_SIZE(thermal_zones),
+};
 
 static void omap_board_display_init(void)
 {
@@ -1552,6 +1565,7 @@ static void __init board_init(void)
 	twl6040_init();
 
 	init_duty_governor();
+	omap_die_governor_register_pdata(&omap_gov_pdata);
 
 	omap_init_dmm_tiler();
 
