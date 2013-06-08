@@ -1,7 +1,7 @@
 /*
  * Secure Mode Input interface to remoteproc driver
  *
- * Copyright (C) 2011-2012 Texas Instruments. All rights reserved.
+ * Copyright (C) 2011 Texas Instruments. All rights reserved.
  *
  * Authors: Suman Anna <s-anna@ti.com>
  *
@@ -30,6 +30,7 @@
 #include <linux/poll.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+
 #include <linux/remoteproc.h>
 
 
@@ -44,7 +45,7 @@ struct rproc_user_device {
 
 static struct rproc_user_device *ipu_device;
 static char *rproc_user_name = RPROC_USER_NAME;
-static unsigned secure_cnt; /* cnt of secure service users */
+static unsigned secure_cnt;
 
 static int rproc_user_open(struct inode *inode, struct file *filp)
 {
@@ -59,7 +60,7 @@ static int rproc_user_release(struct inode *inode, struct file *filp)
 	if (filp->private_data) {
 		mutex_lock(&rproc_user_mutex);
 		if (!--secure_cnt)
-			ret = rproc_set_secure("ipu_c0", false);
+			ret = rproc_set_secure("ipu", false);
 		mutex_unlock(&rproc_user_mutex);
 		if (ret)
 			pr_err("rproc normal start failed 0x%x, urghh!!", ret);
@@ -68,7 +69,7 @@ static int rproc_user_release(struct inode *inode, struct file *filp)
 }
 
 static ssize_t rproc_user_read(struct file *filp, char __user *ubuf,
-						size_t len, loff_t *offp)
+                                                size_t len, loff_t *offp)
 {
 	u8 enable;
 	int ret = 1;
@@ -87,7 +88,7 @@ static ssize_t rproc_user_read(struct file *filp, char __user *ubuf,
 }
 
 static ssize_t rproc_user_write(struct file *filp, const char __user *ubuf,
-						size_t len, loff_t *offp)
+                                                size_t len, loff_t *offp)
 {
 	int ret = 0;
 	u8 enable;
@@ -109,8 +110,8 @@ static ssize_t rproc_user_write(struct file *filp, const char __user *ubuf,
 
 	switch (enable) {
 	case 1:
-		if (!secure_cnt++) /* +1 secure service user */
-			ret = rproc_set_secure("ipu_c0", true);
+		if (!secure_cnt++)
+			ret = rproc_set_secure("ipu", true);
 		if (!ret) {
 			filp->private_data = (void *)1;
 			goto out;
@@ -119,10 +120,11 @@ static ssize_t rproc_user_write(struct file *filp, const char __user *ubuf,
 		pr_err("rproc secure start failed, 0x%x\n", ret);
 	case 0:
 		if (!--secure_cnt)
-			ret = rproc_set_secure("ipu_c0", false);
+			ret = rproc_set_secure("ipu", false);
 		if (ret)
 			pr_err("rproc normal start failed 0x%x, urghh!!", ret);
-		filp->private_data = (void *)0;
+		else
+			filp->private_data = (void *)0;
 	}
 	if (enable != (int)filp->private_data)
 		ret = -EACCES;
@@ -158,7 +160,8 @@ static int __init rproc_user_init(void)
 	ipu_device->mdev.parent = NULL;
 	ret = misc_register(&ipu_device->mdev);
 	if (ret) {
-		pr_err("rproc_user_init: failed to register rproc_user misc device\n");
+		pr_err("rproc_user_init: failed to register rproc_user misc "
+			"device\n");
 		goto misc_fail;
 	}
 	return ret;

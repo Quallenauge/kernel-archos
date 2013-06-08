@@ -177,6 +177,8 @@ void vring_del_virtqueue(struct virtqueue *vq);
 /* Filter out transport-specific feature bits. */
 void vring_transport_features(struct virtio_device *vdev);
 
+bool virtqueue_more_used(struct virtqueue *_vq);
+
 irqreturn_t vring_interrupt(int irq, void *_vq);
 #endif /* __KERNEL__ */
 #endif /* _LINUX_VIRTIO_RING_H */

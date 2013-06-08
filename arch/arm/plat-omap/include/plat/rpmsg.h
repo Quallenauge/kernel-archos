@@ -30,112 +30,45 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _LINUX_RPMSG_RESMGR_H
-#define _LINUX_RPMSG_RESMGR_H
+#ifndef _PLAT_RPMSG_H
+#define _PLAT_RPMSG_H
 
-#define MAX_NUM_SDMA_CHANNELS	16
-
-enum {
-	RPRM_GPTIMER	= 0,
-	RPRM_IVAHD	= 1,
-	RPRM_IVASEQ0	= 2,
-	RPRM_IVASEQ1	= 3,
-	RPRM_L3BUS	= 4,
-	RPRM_ISS	= 5,
-	RPRM_FDIF	= 6,
-	RPRM_SL2IF	= 7,
-	RPRM_AUXCLK	= 8,
-	RPRM_REGULATOR	= 9,
-	RPRM_GPIO	= 10,
-	RPRM_SDMA	= 11,
-	RPRM_IPU	= 12,
-	RPRM_DSP	= 13,
-	RPRM_I2C	= 14,
-	RPRM_MAX
-};
-
-enum {
-	RPRM_CONNECT		= 0,
-	RPRM_REQ_ALLOC		= 1,
-	RPRM_REQ_FREE		= 2,
-	RPRM_DISCONNECT		= 3,
-	RPRM_REQ_CONSTRAINTS	= 4,
-	RPRM_REL_CONSTRAINTS	= 5,
-	RPRM_REQ_DATA		= 6,
-};
-
-enum {
-	RPRM_SCALE		= 0x1,
-	RPRM_LATENCY		= 0x2,
-	RPRM_BANDWIDTH		= 0x4,
-};
-
-enum {
-	RPRM_MAX_FREQ		= 0,
-};
-
-struct rprm_request {
-	u32 res_type;
-	u32 acquire;
-	u32 res_id;
-	char data[];
-} __packed;
-
-struct rprm_ack {
-	u32 ret;
-	u32 res_type;
-	u32 res_id;
-	u32 base;
-	char data[];
-} __packed;
-
-struct rprm_gpt {
-	u32 id;
-	u32 src_clk;
-};
-
-struct rprm_auxclk {
-	u32 id;
-	u32 clk_rate;
-	u32 parent_src_clk;
-	u32 parent_src_clk_rate;
-};
-
-struct rprm_regulator {
-	u32 id;
-	u32 min_uv;
-	u32 max_uv;
-};
-
-struct rprm_gpio {
-	u32 id;
-};
-
-/**
- * struct rprm_i2c - resource i2c
- * @id:	i2c id
+/*
+ * enum - Predefined Mailbox Messages
  *
- * meant to store the i2c related information
+ * @RP_MBOX_READY: informs the M3's that we're up and running. will be
+ * followed by another mailbox message that carries the A9's virtual address
+ * of the shared buffer. This would allow the A9's drivers to send virtual
+ * addresses of the buffers.
+ *
+ * @RP_MBOX_PENDING_MSG: informs the receiver that there is an inbound
+ * message waiting in its own receive-side vring. please note that currently
+ * this message is optional: alternatively, one can explicitly send the index
+ * of the triggered virtqueue itself. the preferred approach will be decided
+ * as we progress and experiment with those design ideas.
+ *
+ * @RP_MBOX_CRASH: this message is sent upon a BIOS exception
+ *
+ * @RP_MBOX_ECHO_REQUEST: a mailbox-level "ping" message.
+ *
+ * @RP_MBOX_ECHO_REPLY: a mailbox-level reply to a "ping"
+ *
+ * @RP_MBOX_ABORT_REQUEST: a "please crash" request, used for testing the
+ * recovery mechanism (to some extent). will trigger a @RP_MBOX_CRASH reply.
+ *
+ * @RP_MSG_BOOTINIT_DONE: this message is sent by remote processor once it has
+ * completed some essential initialization during its boot. This notification
+ * is used to relax any constraints put in to speed up the remote processor
+ * boot.
  */
-struct rprm_i2c {
-	u32 id;
+enum {
+	RP_MBOX_READY		= 0xFFFFFF00,
+	RP_MBOX_PENDING_MSG	= 0xFFFFFF01,
+	RP_MBOX_CRASH		= 0xFFFFFF02,
+	RP_MBOX_ECHO_REQUEST	= 0xFFFFFF03,
+	RP_MBOX_ECHO_REPLY	= 0xFFFFFF04,
+	RP_MBOX_ABORT_REQUEST	= 0xFFFFFF05,
+	RP_MSG_BOOTINIT_DONE	= 0xFFFFFF08,
 };
 
-struct rprm_sdma {
-	u32 num_chs;
-	s32 channels[MAX_NUM_SDMA_CHANNELS];
-};
-
-struct rprm_constraints_data {
-	u32 mask;
-	long frequency;
-	long bandwidth;
-	long latency;
-};
-
-struct rprm_request_data {
-	u32 type;
-	char data[];
-} __packed;
-
-#endif /* _LINUX_RPMSG_RESMGR_H */
+#endif /* _PLAT_RPMSG_H */

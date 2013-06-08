@@ -155,7 +155,7 @@ static inline u32 tiler1d_slot_size(struct dsscomp_dev *cdev)
 {
 	struct dsscomp_platform_data *pdata;
 	pdata = (struct dsscomp_platform_data *)cdev->pdev->platform_data;
-	pr_err("tiler1d_slot_size: Returning pdata->tiler1d_slotsz: %d", pdata->tiler1d_slotsz);
+//	pr_err("tiler1d_slot_size: Returning pdata->tiler1d_slotsz: %d", pdata->tiler1d_slotsz);
 	return pdata->tiler1d_slotsz;
 }
 

@@ -14,6 +14,9 @@
 #include <linux/platform_data/omap-abe-twl6040.h>
 #include <linux/omap4_duty_cycle_governor.h>
 #include <linux/omap_die_governor.h>
+#include <linux/skbuff.h>
+#include <linux/ti_wilink_st.h>
+#include <linux/wl12xx.h>
 
 #include <plat/android-display.h>
 #include <video/omapdss.h>
@@ -27,6 +30,7 @@
 #include <asm/feature_list.h>
 
 #include <linux/gpio_keys.h>
+#include <plat/gpio.h>
 
 #include <linux/leds.h>
 #include <linux/leds_pwm.h>
@@ -76,19 +80,155 @@ static struct akm8975_platform_data board_akm8975_pdata;
 
 #define GPIO_KEY_AWAKE_ONLY	0x02
 
-/* wl127x BT, FM, GPS connectivity chip */
-static int wl1271_gpios[] = {46, -1, -1};
-static struct platform_device wl1271_device = {
-	.name	= "kim",
-	.id	= -1,
-	.dev	= {
-		.platform_data	= &wl1271_gpios,
+#define WILINK_UART_DEV_NAME "/dev/ttyO1"
+
+static void remux_regulator_gpio(int gpio)
+{
+	switch (gpio) {
+	default:
+		omap_mux_init_gpio(gpio, OMAP_PIN_INPUT|OMAP_PIN_OUTPUT);
+		break;
+
+	case 104:
+		omap_mux_init_signal("gpmc_ncs7.gpio_104",
+				OMAP_PIN_INPUT|OMAP_PIN_OUTPUT);
+		break;
+
+	case GPIO_VCC_PWRON:
+	case GPIO_1V8_PWRON:
+		/* These signals control voltages that are needed after warm reset,
+		   make sure, they are pulled high */
+		omap_mux_init_gpio(gpio, OMAP_PIN_INPUT_PULLUP|OMAP_PIN_OUTPUT);
+		break;
+	}
+}
+
+
+static struct archos_wifi_bt_config board_wifi_bt_config __initdata = {
+	.nrev = 6,
+	.rev[0 ... 5] = {
+		.wifi_power = 103,
+		.wifi_power_signal = "gpmc_ncs6.gpio_103",
+		.wifi_irq   = 102,
+		.wifi_irq_signal = "gpmc_ncs5.gpio_102",
+		.bt_power   = 104,
+		.fm_power   = UNUSED_GPIO,
+		.gps_power  = UNUSED_GPIO,
 	},
 };
 
+/* wl127x BT, FM, GPS connectivity chip */
+static int platform_kim_suspend(struct platform_device *pdev, pm_message_t state);
+static int platform_kim_resume(struct platform_device *pdev);
+static int plat_kim_chip_enable(struct kim_data_s *);
+static int plat_kim_chip_disable(struct kim_data_s *);
+static int plat_kim_chip_awake(struct kim_data_s *);
+static int plat_kim_chip_asleep(struct kim_data_s *);
+
+static struct ti_st_plat_data wilink_pdata = {
+	.nshutdown_gpio = -1,
+	.dev_name = WILINK_UART_DEV_NAME,
+	.flow_cntrl = 1,
+	.baud_rate = 3000000,
+	.suspend = platform_kim_suspend,
+	.resume = platform_kim_resume,
+	.chip_enable = plat_kim_chip_enable,
+	.chip_disable = plat_kim_chip_disable,
+	.chip_awake = plat_kim_chip_awake,
+	.chip_asleep = plat_kim_chip_asleep,
+};
+
+static bool uart_req;
+static struct wake_lock st_wk_lock;
+static int platform_kim_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	return 0;
+}
+static int platform_kim_resume(struct platform_device *pdev)
+{
+	return 0;
+}
+
+static int plat_kim_chip_awake(struct kim_data_s *kim_data)
+{
+	wake_lock(&st_wk_lock);
+	return 0;
+}
+
+static int plat_kim_chip_asleep(struct kim_data_s *kim_data)
+{
+	wake_unlock(&st_wk_lock);
+	return 0;
+}
+
+extern int omap_serial_ext_uart_enable(u8 port_id);
+extern int omap_serial_ext_uart_disable(u8 port_id);
+
+static int plat_kim_chip_disable(struct kim_data_s *kim_data)
+{
+	int port_id = 0;
+	int err = 0;
+
+	printk(KERN_INFO"%s\n", __func__);
+
+	if (uart_req) {
+		sscanf(WILINK_UART_DEV_NAME, "/dev/ttyO%d", &port_id);
+		err = omap_serial_ext_uart_disable(port_id);
+		if (!err)
+			uart_req = false;
+	}
+	wake_unlock(&st_wk_lock);
+	return err;
+}
+
+static int plat_kim_chip_enable(struct kim_data_s *kim_data)
+{
+	int port_id = 0;
+	int err = 0;
+
+	printk(KERN_INFO"%s\n", __func__);
+	if (!uart_req) {
+		sscanf(WILINK_UART_DEV_NAME, "/dev/ttyO%d", &port_id);
+		err = omap_serial_ext_uart_enable(port_id);
+		if (!err)
+			uart_req = true;
+	}
+	wake_lock(&st_wk_lock);
+	if (err)
+		return err;
+
+	return 0;
+}
+
+static void board_wifi_mux_init(void)
+{
+	omap_mux_init_signal("mcspi4_simo.sdmmc4_cmd",
+				OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_signal("mcspi4_clk.sdmmc4_clk",
+				OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_signal("mcspi4_somi.sdmmc4_dat0",
+				OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_signal("uart4_tx.sdmmc4_dat1",
+				OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_signal("uart4_rx.sdmmc4_dat2",
+				OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_signal("mcspi4_cs0.sdmmc4_dat3",
+				OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP);
+}
+
+static struct wl12xx_platform_data board_wlan_data __initdata = {
+	.irq = -1, /* init later */
+	.board_ref_clock = WL12XX_REFCLOCK_38_XTAL,
+};
+
+static struct platform_device wifi_device = {
+	.name		= "kim",
+	.id		= -1,
+	.dev.platform_data = &wilink_pdata,
+};
 static struct platform_device btwilink_device = {
-	.name	= "btwilink",
-	.id	= -1,
+	.name = "btwilink",
+	.id = -1,
 };
 
 // camera
@@ -221,28 +361,6 @@ static struct archos_audio_twl6040_config audio_config __initdata = {
 		.power_on = 127,
 	},
 };
-
-static void remux_regulator_gpio(int gpio)
-{
-	switch (gpio) {
-	default:
-		omap_mux_init_gpio(gpio, OMAP_PIN_INPUT|OMAP_PIN_OUTPUT);
-		break;
-
-	case 104:
-		omap_mux_init_signal("gpmc_ncs7.gpio_104",
-				OMAP_PIN_INPUT|OMAP_PIN_OUTPUT);
-		break;
-
-	case GPIO_VCC_PWRON:
-	case GPIO_1V8_PWRON:
-		/* These signals control voltages that are needed after warm reset,
-		   make sure, they are pulled high */
-		omap_mux_init_gpio(gpio, OMAP_PIN_INPUT_PULLUP|OMAP_PIN_OUTPUT);
-		break;
-	}
-}
-
 
 static struct regulator_consumer_supply fixed_reg_5v_consumer[] = {
 	REGULATOR_SUPPLY("hsusb_vbus0", "uhhtll-omap"),
@@ -455,6 +573,42 @@ static struct platform_device board_vwlan_device = {
 		.platform_data = &board_vwlan,
                }
 };
+
+static int __init board_wifi_init(void)
+{
+	const struct archos_wifi_bt_dev_conf *conf_ptr;
+
+	conf_ptr = hwrev_ptr(&board_wifi_bt_config, system_rev);
+	if (IS_ERR(conf_ptr))
+		return -EINVAL;
+
+	/* bt */
+	wilink_pdata.nshutdown_gpio = conf_ptr->bt_power;
+	remux_regulator_gpio(conf_ptr->bt_power);
+
+	/* wifi */
+	if (conf_ptr->wifi_irq_signal)
+		omap_mux_init_signal(conf_ptr->wifi_irq_signal, OMAP_PIN_INPUT);
+	else
+		omap_mux_init_gpio(conf_ptr->wifi_irq, OMAP_PIN_INPUT);
+
+//	board_wlan_data.irq = OMAP_GPIO_IRQ(conf_ptr->wifi_irq);
+	board_wlan_data.irq = conf_ptr->wifi_irq;
+
+	if (conf_ptr->wifi_power_signal)
+		omap_mux_init_signal(conf_ptr->wifi_power_signal, OMAP_PIN_OUTPUT);
+	else
+		omap_mux_init_gpio(conf_ptr->wifi_power, OMAP_PIN_OUTPUT);
+
+	board_vwlan.gpio = conf_ptr->wifi_power;
+
+	board_wifi_mux_init();
+	if (wl12xx_set_platform_data(&board_wlan_data))
+		pr_err("Error setting wl12xx data\n");
+	platform_device_register(&board_vwlan_device);
+
+	return 0;
+}
 
 static struct regulator_consumer_supply fixed_reg_hdmi_5v_consumer[] = {
 	REGULATOR_SUPPLY("hdmi_5v", "omapdss_hdmi"),
@@ -743,14 +897,22 @@ static struct dsscomp_platform_data dsscomp_config_hdmi_display = {
 
 /* HACK: use 2 devices, as expected by DDK */
 static struct sgx_omaplfb_config omaplfb_plat_data_cpt_xga8_wuxga[] = {
+//	{
+//		.tiler2d_buffers = 2,
+//		.swap_chain_length = 2,
+//	},
+//	{
+//		.vram_buffers = 2,
+//		.swap_chain_length = 2,
+//	},
 	{
-		.tiler2d_buffers = 2,
+		.vram_buffers = 2,
 		.swap_chain_length = 2,
 	},
 	{
 		.vram_buffers = 2,
 		.swap_chain_length = 2,
-	},
+	}
 };
 
 static struct sgx_omaplfb_config omaplfb_config_hdmi_default_display[] = {
@@ -834,7 +996,7 @@ static struct omap_dss_board_info board_dss_data = {
 };
 
 static struct platform_device *a80s_devices[] __initdata = {
-	&wl1271_device,
+	&wifi_device,
 	&btwilink_device,
 	&fixed_supply_5v,
 	&fixed_supply_1v8,
@@ -1239,6 +1401,30 @@ static struct regulator_init_data board_vusb = {
 	.consumer_supplies	= board_vusb_supply,
 };
 
+static struct regulator_consumer_supply board_vaux2_supply[] = {
+	REGULATOR_SUPPLY("cam_vdd", "archos_camera_glue"),
+};
+
+static struct regulator_init_data board_vaux2 = {
+	.constraints = {
+		.min_uV			= 2800000,
+		.max_uV			= 2800000,
+		.apply_uV		= true,
+		.valid_modes_mask	= REGULATOR_MODE_NORMAL
+					| REGULATOR_MODE_STANDBY,
+		.valid_ops_mask	 = REGULATOR_CHANGE_VOLTAGE
+					| REGULATOR_CHANGE_MODE
+					| REGULATOR_CHANGE_STATUS,
+		.state_mem = {
+			.enabled	= false,
+			.disabled	= true,
+		},
+		.initial_state		= PM_SUSPEND_MEM,
+	},
+	.num_consumer_supplies	= ARRAY_SIZE(board_vaux2_supply),
+	.consumer_supplies = board_vaux2_supply,
+};
+
 static struct twl4030_platform_data tablet_twldata;
 
 static struct omap_i2c_bus_board_data __initdata omap4_i2c_1_bus_pdata;
@@ -1265,13 +1451,13 @@ static int __init omap4_i2c_init(void)
 			TWL_COMMON_PDATA_THERMAL,
 			TWL_COMMON_REGULATOR_VDAC |
 //			TWL_COMMON_REGULATOR_VAUX1 |
-			TWL_COMMON_REGULATOR_VAUX2 |
+//			TWL_COMMON_REGULATOR_VAUX2 | // Camera
 			TWL_COMMON_REGULATOR_VAUX3 |
-//			TWL_COMMON_REGULATOR_VMMC |
+			TWL_COMMON_REGULATOR_VMMC |  // Memory Card
 			TWL_COMMON_REGULATOR_VPP |
 			TWL_COMMON_REGULATOR_VUSIM |
 			TWL_COMMON_REGULATOR_VANA |
-//			TWL_COMMON_REGULATOR_VCXIO |
+//			TWL_COMMON_REGULATOR_VCXIO | // Display Config
 //			TWL_COMMON_REGULATOR_VUSB |
 			TWL_COMMON_REGULATOR_CLK32KG |
 			TWL_COMMON_REGULATOR_V1V8 |
@@ -1286,6 +1472,7 @@ static int __init omap4_i2c_init(void)
 	tablet_twldata.bci      = &board_bci_data;
 	tablet_twldata.vcxio	= &board_vcxio;
 	tablet_twldata.vusb		= &board_vusb;
+	tablet_twldata.vaux2	= &board_vaux2;
 
 	/* Add one-time registers configuration */
 	if (cpu_is_omap443x())
@@ -1293,11 +1480,10 @@ static int __init omap4_i2c_init(void)
 	else if (cpu_is_omap446x())
 		tablet_twldata.reg_setup_script = omap4460_twl6030_setup;
 
-	omap4_pmic_init("twl6030", &tablet_twldata,
-			&twl6040_data, OMAP44XX_IRQ_SYS_2N);
+	omap4_pmic_init("twl6030", &tablet_twldata, &twl6040_data, OMAP44XX_IRQ_SYS_2N);
 	// i2c_register_board_info(1, tablet_i2c_boardinfo, ARRAY_SIZE(tablet_i2c_boardinfo));
-	omap_register_i2c_bus(2, 400, NULL, 0);
-	omap_register_i2c_bus(3, 400, NULL, 0);
+	omap_register_i2c_bus(2, 100, board_i2c_2_boardinfo, ARRAY_SIZE(board_i2c_2_boardinfo)); // FIXME speed
+	omap_register_i2c_bus(3, 100, board_i2c_3_boardinfo, ARRAY_SIZE(board_i2c_3_boardinfo)); // FIXME speed
 	omap_register_i2c_bus(4, 400, NULL, 0);
 
 	/*
@@ -1306,6 +1492,7 @@ static int __init omap4_i2c_init(void)
 	 */
 	regulator_has_full_constraints();
 
+	//TODO: Archos: Check why GPIO_MSECURE is set to 30 on stock rom kernel
 	/*
 	 * Drive MSECURE high for TWL6030/6032 write access.
 	 */
@@ -1411,7 +1598,7 @@ static struct omap_board_config_kernel board_config[] __initdata = {
 // DISABLED FOR DEVELOPMENT
 		{ ARCHOS_TAG_LEDS,			&leds_config},
 
-//		{ ARCHOS_TAG_WIFI_BT,		&board_wifi_bt_config},
+		{ ARCHOS_TAG_WIFI_BT,		&board_wifi_bt_config},
 		{ ARCHOS_TAG_MUSB,			&musb_config},
 		{ ARCHOS_TAG_GPS,			&gps_config},
 		{ ARCHOS_TAG_CAMERA,		&camera_config},
@@ -1537,6 +1724,8 @@ static void __init board_init(void)
 
 //	add_preferred_console("ttyO", 0, "115200");
 	omap4_board_serial_init();
+	wake_lock_init(&st_wk_lock, WAKE_LOCK_SUSPEND, "st_wake_lock");
+	board_wifi_init();
 
 //	Is this needed?
 //	archos_create_board_props();

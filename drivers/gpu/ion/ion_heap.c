@@ -25,6 +25,9 @@
 struct ion_heap *ion_heap_create(struct ion_platform_heap *heap_data)
 {
 	struct ion_heap *heap = NULL;
+	printk("%s:%s:%d: Creating heap %s type %d base %lu size %u\n",
+			       __FILE__,__FUNCTION__,__LINE__, heap_data->name, heap_data->type,
+			       heap_data->base, heap_data->size);
 
 	switch (heap_data->type) {
 	case ION_HEAP_TYPE_SYSTEM_CONTIG:
@@ -38,6 +41,12 @@ struct ion_heap *ion_heap_create(struct ion_platform_heap *heap_data)
 		heap = omap_carveout_tiler_heap_create(heap_data);
 #else
 		heap = ion_carveout_heap_create(heap_data);
+#endif
+	case ION_HEAP_TYPE_CUSTOM:
+#ifdef CONFIG_ION_OMAP_DYNAMIC
+		heap = omap_carveout_tiler_heap_create(heap_data);
+#else
+		pr_err("%s: ION_HEAP_TYPE_CUSTOM not supported in case CONFIG_ION_OMAP_DYNAMIC isn't specified!\n", __func__);
 #endif
 		break;
 	default:
@@ -62,6 +71,8 @@ void ion_heap_destroy(struct ion_heap *heap)
 {
 	if (!heap)
 		return;
+
+	printk("%s:%s:%d: Destroy heap %s with id: %d\n", __FILE__,__FUNCTION__,__LINE__, heap->name, heap->id);
 
 	switch (heap->type) {
 	case ION_HEAP_TYPE_SYSTEM_CONTIG:

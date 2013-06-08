@@ -16,6 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  */
 
+#define DEBUG
 #define pr_fmt(fmt)    "%s: " fmt, __func__
 
 #include <linux/device.h>
@@ -31,7 +32,7 @@ static ssize_t show_iommu_group(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	unsigned int groupid;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (iommu_device_group(dev, &groupid))
 		return 0;
 
@@ -42,7 +43,7 @@ static DEVICE_ATTR(iommu_group, S_IRUGO, show_iommu_group, NULL);
 static int add_iommu_group(struct device *dev, void *data)
 {
 	unsigned int groupid;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (iommu_device_group(dev, &groupid) == 0)
 		return device_create_file(dev, &dev_attr_iommu_group);
 
@@ -52,7 +53,7 @@ static int add_iommu_group(struct device *dev, void *data)
 static int remove_iommu_group(struct device *dev)
 {
 	unsigned int groupid;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (iommu_device_group(dev, &groupid) == 0)
 		device_remove_file(dev, &dev_attr_iommu_group);
 
@@ -63,7 +64,7 @@ static int iommu_device_notifier(struct notifier_block *nb,
 				 unsigned long action, void *data)
 {
 	struct device *dev = data;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (action == BUS_NOTIFY_ADD_DEVICE)
 		return add_iommu_group(dev, NULL);
 	else if (action == BUS_NOTIFY_DEL_DEVICE)
@@ -78,6 +79,7 @@ static struct notifier_block iommu_device_nb = {
 
 static void iommu_bus_init(struct bus_type *bus, struct iommu_ops *ops)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	bus_register_notifier(bus, &iommu_device_nb);
 	bus_for_each_dev(bus, NULL, NULL, add_iommu_group);
 }
@@ -99,7 +101,7 @@ int bus_set_iommu(struct bus_type *bus, struct iommu_ops *ops)
 {
 	if (bus->iommu_ops != NULL)
 		return -EBUSY;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	bus->iommu_ops = ops;
 
 	/* Do IOMMU specific setup for this bus-type */
@@ -111,6 +113,7 @@ EXPORT_SYMBOL_GPL(bus_set_iommu);
 
 bool iommu_present(struct bus_type *bus)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return bus->iommu_ops != NULL;
 }
 EXPORT_SYMBOL_GPL(iommu_present);
@@ -131,6 +134,7 @@ void iommu_set_fault_handler(struct iommu_domain *domain,
 					iommu_fault_handler_t handler,
 					void *token)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	BUG_ON(!domain);
 
 	domain->handler = handler;
@@ -142,6 +146,7 @@ struct iommu_domain *iommu_domain_alloc(struct bus_type *bus)
 {
 	struct iommu_domain *domain;
 	int ret;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (bus == NULL || bus->iommu_ops == NULL)
 		return NULL;
@@ -167,6 +172,7 @@ EXPORT_SYMBOL_GPL(iommu_domain_alloc);
 
 void iommu_domain_free(struct iommu_domain *domain)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (likely(domain->ops->domain_destroy != NULL))
 		domain->ops->domain_destroy(domain);
 
@@ -179,7 +185,7 @@ int iommu_domain_add_iommudata(struct iommu_domain *domain, void *iommu_data,
 				size_t data_size)
 {
 	void *d = NULL;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (iommu_data && data_size) {
 		d = kmemdup(iommu_data, data_size, GFP_KERNEL);
 		if (!d)
@@ -194,6 +200,7 @@ EXPORT_SYMBOL_GPL(iommu_domain_add_iommudata);
 
 int iommu_attach_device(struct iommu_domain *domain, struct device *dev)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (unlikely(domain->ops->attach_dev == NULL))
 		return -ENODEV;
 
@@ -203,6 +210,7 @@ EXPORT_SYMBOL_GPL(iommu_attach_device);
 
 void iommu_detach_device(struct iommu_domain *domain, struct device *dev)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (unlikely(domain->ops->detach_dev == NULL))
 		return;
 
@@ -212,6 +220,7 @@ EXPORT_SYMBOL_GPL(iommu_detach_device);
 
 void iommu_domain_activate(struct iommu_domain *domain)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (likely(domain->ops->domain_activate != NULL))
 		domain->ops->domain_activate(domain);
 }
@@ -219,6 +228,7 @@ EXPORT_SYMBOL_GPL(iommu_domain_activate);
 
 void iommu_domain_idle(struct iommu_domain *domain)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (likely(domain->ops->domain_idle != NULL))
 		domain->ops->domain_idle(domain);
 }
@@ -227,6 +237,7 @@ EXPORT_SYMBOL_GPL(iommu_domain_idle);
 phys_addr_t iommu_iova_to_phys(struct iommu_domain *domain,
 			       unsigned long iova)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (unlikely(domain->ops->iova_to_phys == NULL))
 		return 0;
 
@@ -237,6 +248,7 @@ EXPORT_SYMBOL_GPL(iommu_iova_to_phys);
 int iommu_domain_has_cap(struct iommu_domain *domain,
 			 unsigned long cap)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (unlikely(domain->ops->domain_has_cap == NULL))
 		return 0;
 
@@ -247,6 +259,7 @@ EXPORT_SYMBOL_GPL(iommu_domain_has_cap);
 int iommu_map(struct iommu_domain *domain, unsigned long iova,
 	      phys_addr_t paddr, size_t size, int prot)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	unsigned long orig_iova = iova;
 	unsigned int min_pagesz;
 	size_t orig_size = size;
@@ -325,6 +338,7 @@ size_t iommu_unmap(struct iommu_domain *domain, unsigned long iova, size_t size)
 {
 	size_t unmapped_page, unmapped = 0;
 	unsigned int min_pagesz;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (unlikely(domain->ops->unmap == NULL))
 		return -ENODEV;
@@ -370,6 +384,7 @@ EXPORT_SYMBOL_GPL(iommu_unmap);
 
 int iommu_device_group(struct device *dev, unsigned int *groupid)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (iommu_present(dev->bus) && dev->bus->iommu_ops->device_group)
 		return dev->bus->iommu_ops->device_group(dev, groupid);
 
