@@ -16,6 +16,8 @@ obj-$(CONFIG_ARCH_OMAP16XX) += ocpi.o
 obj-$(CONFIG_ARCH_OMAP2PLUS) += omap_device.o
 obj-$(CONFIG_REMOTEPROC) += rproc_user.o
 
+obj-$(CONFIG_OMAP_RPMSG) += omap_rpmsg.o
+
 obj-$(CONFIG_OMAP_DM_TIMER) += dmtimer.o
 obj-$(CONFIG_OMAP_DEBUG_DEVICES) += debug-devices.o
 obj-$(CONFIG_OMAP_DEBUG_LEDS) += debug-leds.o

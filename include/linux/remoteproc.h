@@ -288,7 +288,7 @@ struct rproc {
 	struct work_struct error_work;
 	struct blocking_notifier_head nbh;
 	struct completion error_comp;
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 	unsigned sus_timeout;
 	bool force_suspend;
 	bool need_resume;
@@ -318,7 +318,7 @@ int rproc_unregister(const char *);
 void rproc_last_busy(struct rproc *);
 int rproc_da_to_pa(struct rproc *, u64, phys_addr_t *);
 int rproc_pa_to_da(struct rproc *, phys_addr_t, u64 *);
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 extern const struct dev_pm_ops rproc_gen_pm_ops;
 #define GENERIC_RPROC_PM_OPS	(&rproc_gen_pm_ops)
 #else

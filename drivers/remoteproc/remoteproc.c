@@ -20,7 +20,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
+#define DEBUG
 #define pr_fmt(fmt)    "%s: " fmt, __func__
 
 #include <linux/kernel.h>
@@ -58,6 +58,7 @@ static ssize_t rproc_format_trace_buf(struct rproc *rproc, char __user *userbuf,
 	loff_t pos = *ppos;
 	int *w_idx;
 	int i, w_pos, ret = 0;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (mutex_lock_interruptible(&rproc->tlock))
 		return -EINTR;
@@ -120,7 +121,7 @@ static ssize_t rproc_name_read(struct file *filp, char __user *userbuf,
 	/* need room for the name, a newline and a terminating null */
 	char buf[RPROC_MAX_NAME + 2];
 	int i;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	i = snprintf(buf, RPROC_MAX_NAME + 2, "%s\n", rproc->name);
 
 	return simple_read_from_buffer(userbuf, count, ppos, buf, i);
@@ -133,6 +134,7 @@ static ssize_t rproc_version_read(struct file *filp, char __user *userbuf,
 	struct rproc *rproc = filp->private_data;
 	char *pch;
 	int len;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	pch = strstr(rproc->header, "version:");
 	if (!pch)
 		return 0;
@@ -143,6 +145,7 @@ static ssize_t rproc_version_read(struct file *filp, char __user *userbuf,
 
 static int rproc_open_generic(struct inode *inode, struct file *file)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	file->private_data = inode->i_private;
 	return 0;
 }
@@ -192,6 +195,7 @@ static int rproc_core_map_count(const struct rproc *rproc)
 {
 	int i = 0;
 	int count = 0;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	for (;; i++) {
 		if (!rproc->memory_maps[i].size)
 			break;
@@ -210,6 +214,7 @@ static int rproc_core_map_count(const struct rproc *rproc)
 /* Copied from fs/binfmt_elf.c */
 static void fill_elf_header(struct elfhdr *elf, int segs)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	memset(elf, 0, sizeof(*elf));
 
 	memcpy(elf->e_ident, ELFMAG, SELFMAG);
@@ -235,6 +240,8 @@ static void fill_elf_segment_headers(struct core_rproc *d)
 	int i = 0;
 	int hi = 0;
 	loff_t offset = d->offset;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+
 	for (;; i++) {
 		u32 size;
 
@@ -274,6 +281,7 @@ static int setup_rproc_elf_core_dump(struct core_rproc *d)
 	struct elf_phdr *nphdr;
 	struct exc_regs *xregs;
 	struct pt_regs *regs;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	memset(&d->core.elf, 0, sizeof(d->core.elf));
 
@@ -326,6 +334,7 @@ static int core_rproc_open(struct inode *inode, struct file *filp)
 {
 	int i;
 	struct core_rproc *d;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	d = kzalloc(sizeof(*d), GFP_KERNEL);
 	if (!d)
@@ -354,7 +363,7 @@ static int core_rproc_open(struct inode *inode, struct file *filp)
 
 static int core_rproc_release(struct inode *inode, struct file *filp)
 {
-	pr_info("%s\n", __func__);
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	kfree(filp->private_data);
 	return 0;
 }
@@ -365,6 +374,7 @@ static int core_rproc_release(struct inode *inode, struct file *filp)
 static int rproc_memory_map_index(const struct rproc *rproc, loff_t *off)
 {
 	int i = 0;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	for (;; i++) {
 		int size = rproc->memory_maps[i].size;
 
@@ -388,6 +398,7 @@ ssize_t core_rproc_write(struct file *filp,
 	int cmdlen;
 	struct core_rproc *d = filp->private_data;
 	struct rproc *rproc = d->rproc;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	cmdlen = min(sizeof(cmd) - 1, count);
 	if (copy_from_user(cmd, buffer, cmdlen))
@@ -433,7 +444,7 @@ static ssize_t core_rproc_read(struct file *filp,
 	loff_t pos;
 	size_t remaining = count;
 	ssize_t copied = 0;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	pr_debug("%s count %d off %lld\n", __func__, count, *ppos);
 
 	/* copy the ELF and segment header first */
@@ -543,7 +554,7 @@ static struct rproc *__find_rproc_by_name(const char *name)
 {
 	struct rproc *rproc;
 	struct list_head *tmp;
-
+	printk(">>%s:%s:%d: Name: %s\n",__FILE__,__FUNCTION__,__LINE__, name);
 	spin_lock(&rprocs_lock);
 
 	list_for_each(tmp, &rprocs) {
@@ -554,7 +565,7 @@ static struct rproc *__find_rproc_by_name(const char *name)
 	}
 
 	spin_unlock(&rprocs_lock);
-
+	printk("<<%s:%s:%d: Found Rproc with at address: %p\n",__FILE__,__FUNCTION__,__LINE__, rproc);
 	return rproc;
 }
 
@@ -575,7 +586,7 @@ int rproc_da_to_pa(struct rproc *rproc, u64 da, phys_addr_t *pa)
 {
 	int i, ret = -EINVAL;
 	struct rproc_mem_entry *maps = NULL;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!rproc || !pa)
 		return -EINVAL;
 
@@ -600,22 +611,23 @@ EXPORT_SYMBOL(rproc_da_to_pa);
 
 static int rproc_mmu_fault_isr(struct rproc *rproc, u64 da, u32 flags)
 {
-	dev_err(rproc->dev, "%s\n", __func__);
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	schedule_work(&rproc->error_work);
 	return -EIO;
 }
 
 static int rproc_watchdog_isr(struct rproc *rproc)
 {
-	dev_err(rproc->dev, "%s\n", __func__);
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	schedule_work(&rproc->error_work);
 	return 0;
 }
 
 static int rproc_crash(struct rproc *rproc)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	init_completion(&rproc->error_comp);
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 	pm_runtime_dont_use_autosuspend(rproc->dev);
 #endif
 	if (rproc->ops->dump_registers)
@@ -634,6 +646,7 @@ static int rproc_crash(struct rproc *rproc)
 
 static int _event_notify(struct rproc *rproc, int type, void *data)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (type == RPROC_ERROR) {
 		mutex_lock(&rproc->lock);
 		/* only notify first crash */
@@ -667,7 +680,7 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 {
 	struct device *dev = rproc->dev;
 	int err;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	err = mutex_lock_interruptible(&rproc->lock);
 	if (err) {
 		dev_err(dev, "can't lock remote processor %d\n", err);
@@ -702,7 +715,7 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 		goto start_error;
 	}
 
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 	pm_runtime_use_autosuspend(dev);
 	pm_runtime_set_autosuspend_delay(dev, rproc->sus_timeout);
 	pm_runtime_get_noresume(rproc->dev);
@@ -742,6 +755,7 @@ unlock_mutex:
 static void rproc_reset_poolmem(struct rproc *rproc)
 {
 	struct rproc_mem_pool *pool = rproc->memory_pool;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (!pool || !pool->mem_base || !pool->mem_size) {
 		pr_warn("invalid pool\n");
@@ -757,7 +771,7 @@ static int rproc_add_mem_entry(struct rproc *rproc, struct fw_resource *rsc)
 	struct rproc_mem_entry *me = rproc->memory_maps;
 	int i = 0;
 	int ret = 0;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	while (me->da || me->pa || me->size) {
 		me += 1;
 		i++;
@@ -790,7 +804,7 @@ static int rproc_add_mem_entry(struct rproc *rproc, struct fw_resource *rsc)
 static int rproc_alloc_poolmem(struct rproc *rproc, u32 size, phys_addr_t *pa)
 {
 	struct rproc_mem_pool *pool = rproc->memory_pool;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	*pa = 0;
 	if (!pool || !pool->mem_base || !pool->mem_size) {
 		pr_warn("invalid pool\n");
@@ -810,7 +824,7 @@ static int rproc_alloc_poolmem(struct rproc *rproc, u32 size, phys_addr_t *pa)
 static int rproc_check_poolmem(struct rproc *rproc, u32 size, phys_addr_t pa)
 {
 	struct rproc_mem_pool *pool = rproc->memory_pool;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	printk("%s:%s:%d: rproc->name=%s pool=0x%p\n",__FILE__,__FUNCTION__,__LINE__, rproc->name, pool);
 
 	if (pool){
@@ -843,7 +857,7 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 	u64 cdump_da1 = 0;
 	u64 susp_addr = 0;
 	int ret = 0;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	while (len >= sizeof(*rsc) && !ret) {
 		da = rsc->da;
 		pa = rsc->pa;
@@ -1070,7 +1084,7 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 	int ret = 0;
 	void *ptr;
 	bool copy;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	/* first section should be FW_RESOURCE section */
 	if (section->type != FW_RESOURCE) {
 		dev_err(dev, "first section is not FW_RESOURCE: type %u found",
@@ -1151,7 +1165,7 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 	struct fw_header *image;
 	struct fw_section *section;
 	int left, ret = -EINVAL;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!fw) {
 		dev_err(dev, "%s: failed to load %s\n", __func__, fwfile);
 		goto complete_fw;
@@ -1223,7 +1237,7 @@ static int rproc_loader(struct rproc *rproc)
 	const char *fwfile = rproc->firmware;
 	struct device *dev = rproc->dev;
 	int ret;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!fwfile) {
 		dev_err(dev, "%s: no firmware to load\n", __func__);
 		return -EINVAL;
@@ -1247,7 +1261,7 @@ int rproc_pa_to_da(struct rproc *rproc, phys_addr_t pa, u64 *da)
 {
 	int i, ret = -EINVAL;
 	struct rproc_mem_entry *maps = NULL;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!rproc || !da)
 		return -EINVAL;
 
@@ -1275,7 +1289,7 @@ int rproc_set_secure(const char *name, bool enable)
 {
 	struct rproc *rproc;
 	int ret;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	rproc = __find_rproc_by_name(name);
 	if (!rproc) {
 		pr_err("can't find remote processor %s\n", name);
@@ -1316,6 +1330,7 @@ EXPORT_SYMBOL(rproc_set_secure);
 
 int rproc_error_notify(struct rproc *rproc)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return _event_notify(rproc, RPROC_ERROR, NULL);
 }
 EXPORT_SYMBOL_GPL(rproc_error_notify);
@@ -1325,6 +1340,7 @@ struct rproc *rproc_get(const char *name)
 	struct rproc *rproc, *ret = NULL;
 	struct device *dev;
 	int err;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	rproc = __find_rproc_by_name(name);
 	if (!rproc) {
@@ -1388,6 +1404,7 @@ void rproc_put(struct rproc *rproc)
 {
 	struct device *dev = rproc->dev;
 	int ret;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* make sure rproc is not loading now */
 	wait_for_completion(&rproc->firmware_loading_complete);
@@ -1438,7 +1455,7 @@ void rproc_put(struct rproc *rproc)
 	 * this is important, because the fw loading might have failed.
 	 */
 	if (rproc->state == RPROC_RUNNING || rproc->state == RPROC_CRASHED) {
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 		/*
 		 * Call resume, it will cancel any pending autosuspend,
 		 * so that no callback is executed after the device is stopped.
@@ -1492,6 +1509,7 @@ EXPORT_SYMBOL_GPL(rproc_put);
 static void rproc_error_work(struct work_struct *work)
 {
 	struct rproc *rproc = container_of(work, struct rproc, error_work);
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	dev_dbg(rproc->dev, "%s\n", __func__);
 	_event_notify(rproc, RPROC_ERROR, NULL);
@@ -1499,19 +1517,22 @@ static void rproc_error_work(struct work_struct *work)
 
 int rproc_event_register(struct rproc *rproc, struct notifier_block *nb)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return blocking_notifier_chain_register(&rproc->nbh, nb);
 }
 EXPORT_SYMBOL_GPL(rproc_event_register);
 
 int rproc_event_unregister(struct rproc *rproc, struct notifier_block *nb)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return blocking_notifier_chain_unregister(&rproc->nbh, nb);
 }
 EXPORT_SYMBOL_GPL(rproc_event_unregister);
 
 void rproc_last_busy(struct rproc *rproc)
 {
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 	struct device *dev = rproc->dev;
 
 	mutex_lock(&rproc->pm_lock);
@@ -1542,7 +1563,7 @@ void rproc_last_busy(struct rproc *rproc)
 }
 EXPORT_SYMBOL(rproc_last_busy);
 
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 static int rproc_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -1620,7 +1641,7 @@ static int rproc_runtime_resume(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct rproc *rproc = platform_get_drvdata(pdev);
 	int ret = 0;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	dev_dbg(dev, "Enter %s\n", __func__);
 
 	if (rproc->ops->resume)
@@ -1638,7 +1659,7 @@ static int rproc_runtime_suspend(struct device *dev)
 	struct rproc *rproc = platform_get_drvdata(pdev);
 	int ret = 0;
 	unsigned to;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	dev_dbg(dev, "Enter %s\n", __func__);
 
 	if (rproc->state == RPROC_SUSPENDED)
@@ -1708,7 +1729,7 @@ rproc_set_constraints(struct rproc *rproc, enum rproc_constraint type, long v)
 	int ret;
 	char *cname[] = {"scale", "latency", "bandwidth"};
 	int (*func)(struct rproc *, long);
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	switch (type) {
 	case RPROC_CONSTRAINT_SCALE:
 		func = rproc->ops->scale;
@@ -1756,7 +1777,7 @@ int rproc_register(struct device *dev, const char *name,
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct rproc *rproc;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!dev || !name || !ops)
 		return -EINVAL;
 
@@ -1772,7 +1793,7 @@ int rproc_register(struct device *dev, const char *name,
 	rproc->firmware = firmware;
 	rproc->owner = owner;
 	rproc->memory_pool = memory_pool;
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 	rproc->sus_timeout = sus_timeout;
 	mutex_init(&rproc->pm_lock);
 #endif
@@ -1826,7 +1847,7 @@ EXPORT_SYMBOL_GPL(rproc_register);
 int rproc_unregister(const char *name)
 {
 	struct rproc *rproc;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	rproc = __find_rproc_by_name(name);
 	if (!rproc) {
 		pr_err("can't find remote processor %s\n", name);

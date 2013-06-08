@@ -42,8 +42,10 @@ EXPORT_SYMBOL(omap_ion_tiler_alloc);
 int omap_ion_nonsecure_tiler_alloc(struct ion_client *client,
 			 struct omap_ion_tiler_alloc_data *data)
 {
-	if (!nonsecure_tiler_heap)
+	if (!nonsecure_tiler_heap){
+		pr_err("nonsecure_tiler_heap isn't initialized!");
 		return -ENOMEM;
+	}
 	return omap_tiler_alloc(nonsecure_tiler_heap, client, data);
 }
 EXPORT_SYMBOL(omap_ion_nonsecure_tiler_alloc);

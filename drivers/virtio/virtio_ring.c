@@ -404,6 +404,15 @@ static inline bool more_used(const struct vring_virtqueue *vq)
 	return vq->last_used_idx != vq->vring.used->idx;
 }
 
+
+bool virtqueue_more_used(struct virtqueue *_vq)
+{
+	struct vring_virtqueue *vq = to_vvq(_vq);
+
+	return more_used(vq);
+}
+EXPORT_SYMBOL_GPL(virtqueue_more_used);
+
 /**
  * virtqueue_get_buf - get the next used buffer
  * @vq: the struct virtqueue we're talking about.

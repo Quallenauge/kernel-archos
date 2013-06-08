@@ -58,6 +58,7 @@
 static void __iommu_set_twl(struct omap_iommu *obj, bool on)
 {
 	u32 l = iommu_read_reg(obj, MMU_CNTL);
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (on)
 		iommu_write_reg(obj, MMU_IRQ_TWL_MASK, MMU_IRQENABLE);
@@ -78,6 +79,7 @@ static int omap2_iommu_enable(struct omap_iommu *obj)
 {
 	u32 l, pa;
 	struct iommu_platform_data *pdata = obj->dev->platform_data;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (!obj->secure_mode) {
 		if (!obj->iopgd || !IS_ALIGNED((u32)obj->iopgd,  SZ_16K))
@@ -87,10 +89,12 @@ static int omap2_iommu_enable(struct omap_iommu *obj)
 		if (!IS_ALIGNED(pa, SZ_16K))
 			return -EINVAL;
 	} else {
+
 		pa = (u32)obj->secure_ttb;
 		if (!pa || !IS_ALIGNED(pa, SZ_16K))
 			return -EINVAL;
 	}
+	printk("%s:%s:%d: Secure mode %d, pa: %0xp\n",__FILE__,__FUNCTION__,__LINE__, obj->secure_mode, pa);
 
 	l = iommu_read_reg(obj, MMU_REVISION);
 	dev_info(obj->dev, "%s: version %d.%d\n", obj->name,
@@ -110,6 +114,7 @@ static void omap2_iommu_disable(struct omap_iommu *obj)
 {
 	struct omap_hwmod *oh;
 	u32 l;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	oh = omap_hwmod_lookup(obj->name);
 	if (!oh)
@@ -144,6 +149,7 @@ out:
 
 static void omap2_iommu_set_twl(struct omap_iommu *obj, bool on)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	__iommu_set_twl(obj, false);
 }
 
@@ -153,6 +159,7 @@ static u32 omap2_iommu_fault_isr(struct omap_iommu *obj, u32 *ra)
 	u32 stat, da;
 	u32 errs = 0;
 
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	oh = omap_hwmod_lookup(obj->name);
 	if (!oh)
 		return 0;
@@ -160,6 +167,7 @@ static u32 omap2_iommu_fault_isr(struct omap_iommu *obj, u32 *ra)
 	stat = iommu_read_reg(obj, MMU_IRQSTATUS);
 	stat &= MMU_IRQ_MASK;
 	if (!stat) {
+		printk("%s:%s:%d: Error=<MMU_IRQ_MASK>\n",__FILE__,__FUNCTION__,__LINE__);
 		*ra = 0;
 		return 0;
 	}
@@ -167,16 +175,28 @@ static u32 omap2_iommu_fault_isr(struct omap_iommu *obj, u32 *ra)
 	da = iommu_read_reg(obj, MMU_FAULT_AD);
 	*ra = da;
 
-	if (stat & MMU_IRQ_TLBMISS)
+	printk("%s:%s:%d: obj=0x%p da=0x%d\n",__FILE__,__FUNCTION__,__LINE__, obj, da);
+
+	if (stat & MMU_IRQ_TLBMISS){
 		errs |= OMAP_IOMMU_ERR_TLB_MISS;
-	if (stat & MMU_IRQ_TRANSLATIONFAULT)
+		printk("%s:%s:%d: Error=<OMAP_IOMMU_ERR_TLB_MISS>\n",__FILE__,__FUNCTION__,__LINE__);
+	}
+	if (stat & MMU_IRQ_TRANSLATIONFAULT){
 		errs |= OMAP_IOMMU_ERR_TRANS_FAULT;
-	if (stat & MMU_IRQ_EMUMISS)
+		printk("%s:%s:%d: Error=<OMAP_IOMMU_ERR_TRANS_FAULT>\n",__FILE__,__FUNCTION__,__LINE__);
+	}
+	if (stat & MMU_IRQ_EMUMISS){
 		errs |= OMAP_IOMMU_ERR_EMU_MISS;
-	if (stat & MMU_IRQ_TABLEWALKFAULT)
+		printk("%s:%s:%d: Error=<OMAP_IOMMU_ERR_EMU_MISS>\n",__FILE__,__FUNCTION__,__LINE__);
+	}
+	if (stat & MMU_IRQ_TABLEWALKFAULT){
 		errs |= OMAP_IOMMU_ERR_TBLWALK_FAULT;
-	if (stat & MMU_IRQ_MULTIHITFAULT)
+		printk("%s:%s:%d: Error=<OMAP_IOMMU_ERR_TBLWALK_FAULT>\n",__FILE__,__FUNCTION__,__LINE__);
+	}
+	if (stat & MMU_IRQ_MULTIHITFAULT){
 		errs |= OMAP_IOMMU_ERR_MULTIHIT_FAULT;
+		printk("%s:%s:%d: Error=<OMAP_IOMMU_ERR_MULTIHIT_FAULT>\n",__FILE__,__FUNCTION__,__LINE__);
+	}
 	iommu_write_reg(obj, stat, MMU_IRQSTATUS);
 
 	clkdm_deny_idle(oh->clkdm);
@@ -186,18 +206,21 @@ static u32 omap2_iommu_fault_isr(struct omap_iommu *obj, u32 *ra)
 
 static void omap2_tlb_read_cr(struct omap_iommu *obj, struct cr_regs *cr)
 {
+//	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	cr->cam = iommu_read_reg(obj, MMU_READ_CAM);
 	cr->ram = iommu_read_reg(obj, MMU_READ_RAM);
 }
 
 static void omap2_tlb_load_cr(struct omap_iommu *obj, struct cr_regs *cr)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	iommu_write_reg(obj, cr->cam | MMU_CAM_V, MMU_CAM);
 	iommu_write_reg(obj, cr->ram, MMU_RAM);
 }
 
 static u32 omap2_cr_to_virt(struct cr_regs *cr)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	u32 page_size = cr->cam & MMU_CAM_PGSZ_MASK;
 	u32 mask = get_cam_va_mask(cr->cam & page_size);
 
@@ -208,6 +231,7 @@ static struct cr_regs *omap2_alloc_cr(struct omap_iommu *obj,
 						struct iotlb_entry *e)
 {
 	struct cr_regs *cr;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (e->da & ~(get_cam_va_mask(e->pgsz))) {
 		dev_err(obj->dev, "%s:\twrong alignment: %08x\n", __func__,
@@ -227,6 +251,7 @@ static struct cr_regs *omap2_alloc_cr(struct omap_iommu *obj,
 
 static inline int omap2_cr_valid(struct cr_regs *cr)
 {
+//	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return cr->cam & MMU_CAM_V;
 }
 
@@ -234,6 +259,7 @@ static u32 omap2_get_pte_attr(struct iotlb_entry *e)
 {
 	u32 attr;
 
+//	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	attr = e->mixed << 5;
 	attr |= e->endian;
 	attr |= e->elsz >> 3;
@@ -246,6 +272,7 @@ static ssize_t
 omap2_dump_cr(struct omap_iommu *obj, struct cr_regs *cr, char *buf)
 {
 	char *p = buf;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* FIXME: Need more detail analysis of cam/ram */
 	p += sprintf(p, "%08x %08x %01x\n", cr->cam, cr->ram,
@@ -271,6 +298,7 @@ static ssize_t
 omap2_iommu_dump_ctx(struct omap_iommu *obj, char *buf, ssize_t len)
 {
 	char *p = buf;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	pr_reg(REVISION);
 	pr_reg(IRQSTATUS);
@@ -294,6 +322,7 @@ out:
 
 static void omap2_cr_to_e(struct cr_regs *cr, struct iotlb_entry *e)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	e->da		= cr->cam & MMU_CAM_VATAG_MASK;
 	e->pa		= cr->ram & MMU_RAM_PADDR_MASK;
 	e->valid	= cr->cam & MMU_CAM_V;
@@ -327,12 +356,14 @@ static const struct iommu_functions omap2_iommu_ops = {
 
 static int __init omap2_iommu_init(void)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return omap_install_iommu_arch(&omap2_iommu_ops);
 }
 module_init(omap2_iommu_init);
 
 static void __exit omap2_iommu_exit(void)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	omap_uninstall_iommu_arch(&omap2_iommu_ops);
 }
 module_exit(omap2_iommu_exit);

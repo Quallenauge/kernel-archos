@@ -1,52 +1,26 @@
 menu "Rpmsg drivers (EXPERIMENTAL)"
-
-# RPMSG always gets selected by whoever wants it
 config RPMSG
-	tristate
+	tristate "Virtio-based remote processor messaging bus"
+	default y
 	select VIRTIO
 	select VIRTIO_RING
-	depends on EXPERIMENTAL
-
-config RPMSG_RESMGR_FWK
-	tristate
-	depends on RPMSG
+	depends on OMAP_RPMSG
 	---help---
-	  Add a framework based on RPMSG to request and release
-	  resources from a remote Processor. This generic layer
-	  takes advantage of RPMSG to exchange messages with the
-	  remote processor
+	  This virtio driver provides support for shared-memory-based
+          remote processor messaging, by registering the RPMSG bus which
+          in turn enables a handful of IPC drivers.
 
-	  If unsure, say N.
-
-config RPMSG_RESMGR
-	tristate "Resource Manager based on RPMSG"
-	depends on RPMSG
-	select RPMSG_RESMGR_FWK
-	---help---
-	  Add the request and release mechanisms for various resources
-	  that can be made avaiable for the remote processors in an SoC.
-	  The resource manager ensures aribitration of resources requests
-	  from any remote processor within the SoC
-
-	  If unsure, say N.
-
-config OMAP_RPMSG_RESMGR
-	tristate "OMAP rpmsg resource manager support"
-	depends on ARCH_OMAP4 || ARCH_OMAP5
-	depends on RPMSG
-	select RPMSG_RESMGR
-	---help---
-	  Add OMAP SoC specific request and release OMAP resources
-	  from a remote Processor. This extends the generic RPMSG_RESMGR
-	  to support OMAP specific resources. Common resources requested by
-	  a remote processor in the SoC include gptimers, sdma channels,
-	  auxiliary clocks,etc.
+	  Such support is usually required to offload cpu-intensive
+          or latency-sensitive tasks to specialized remote processors with
+          dedicated hardware accelerators and/or real-time properties.
 
 	  If unsure, say N.
 
 config RPMSG_OMX
 	tristate "rpmsg OMX driver"
+	default y
 	depends on RPMSG
+	depends on REMOTEPROC
 	---help---
 	  An rpmsg driver that exposes OMX API to user space, in order to
 	  allow multimedia applications to offload OMX processing to
@@ -54,18 +28,29 @@ config RPMSG_OMX
 
 	  If unsure, say N.
 
-config RPC_OMAP
-	tristate "OMAP Remote Procedure Call driver"
-	default n
+config RPMSG_RESMGR
+	tristate "rpmsg resource manager"
+	default y
 	depends on RPMSG
-	depends on REMOTEPROC || REMOTE_PROC
-	depends on OMAP_REMOTEPROC || OMAP_REMOTEPROC
-	depends on (DRM_OMAP_DMM_TILER && ION_OMAP) || (DMA_SHARED_BUFFER && DRM_OMAP)
+	depends on OMAP_RPRES
 	---help---
-	  An rpmsg driver that exposes the Remote Procedure Call API to
-	  user space, in order to allow applications to distribute
-	  remote calls to more power-efficient remote processors on OMAP4+ systems.
+	  Add Framework base on RPMSG to request and release resources
+	  from a remote Processor.
+	  Say either Y or M. You know you want to.
 
-	  If unsure, say N.
+config RPMSG_CLIENT_SAMPLE
+	tristate "An rpmsg client sample"
+	default m
+	depends on RPMSG
+	---help---
+	  This is just a sample client driver for the rpmsg bus.
+	  Say either Y or M. You know you want to.
 
+config RPMSG_SERVER_SAMPLE
+	tristate "An rpmsg server sample"
+	default m
+	depends on RPMSG
+	---help---
+	  This is just a sample server driver for the rpmsg bus.
+	  Say either Y or M. You know you want to.
 endmenu

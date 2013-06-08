@@ -40,7 +40,7 @@ static struct emif_device_details *emif_config;
 //We need structure for mempool
 // So declare at least one heap of each kind with 1MB size
 static struct ion_platform_data archos_ion_heap = {
-	.nr = 2,
+	.nr = 5,
 	.heaps = {
 		{
 			.type = ION_HEAP_TYPE_CARVEOUT,
@@ -54,6 +54,23 @@ static struct ion_platform_data archos_ion_heap = {
 			.name = "tiler",
 			.base = ARCHOS_PHYS_ADDR_HEAP_TILER,
 			.size = ARCHOS_OMAP4_ION_HEAP_TILER_SIZE,
+		},
+		{
+			.type = OMAP_ION_HEAP_TYPE_TILER,
+			.id = OMAP_ION_HEAP_NONSECURE_TILER,
+			.name = "nonsecure_tiler",
+			.base = 0x80000000 + SZ_512M + SZ_2M,
+			.size = OMAP4_ION_HEAP_NONSECURE_TILER_SIZE,
+		},
+		{
+			.type = ION_HEAP_TYPE_SYSTEM,
+			.id = OMAP_ION_HEAP_SYSTEM,
+			.name = "system",
+		},
+		{
+			.type = OMAP_ION_HEAP_TYPE_TILER_RESERVATION,
+			.id = OMAP_ION_HEAP_TILER_RESERVATION,
+			.name = "tiler_reservation",
 		},
 	},
 };

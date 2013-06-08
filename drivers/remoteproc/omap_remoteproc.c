@@ -48,7 +48,7 @@ struct omap_rproc_priv {
 	int (*iommu_cb)(struct rproc *, u64, u32);
 	int (*wdt_cb)(struct rproc *);
 	u64 bootaddr;
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 	struct omap_mbox *mbox;
 	void __iomem *idle;
 	u32 idle_mask;
@@ -57,15 +57,17 @@ struct omap_rproc_priv {
 #endif
 };
 
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 static bool _may_suspend(struct omap_rproc_priv *rpp)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return readl(rpp->idle) & rpp->idle_mask;
 }
 
 static int _suspend(struct omap_rproc_priv *rpp, bool force)
 {
 	unsigned long timeout = msecs_to_jiffies(PM_SUSPEND_TIMEOUT) + jiffies;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (force)
 		omap_mbox_msg_send(rpp->mbox, PM_SUSPEND_MBOX_FORCE);
@@ -85,6 +87,7 @@ static int _suspend(struct omap_rproc_priv *rpp, bool force)
 static int omap_suspend(struct rproc *rproc, bool force)
 {
 	struct omap_rproc_priv *rpp = rproc->priv;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (rpp->idle && (force || _may_suspend(rpp)))
 		return _suspend(rpp, force);
@@ -97,6 +100,7 @@ static void omap_rproc_dump_registers(struct rproc *rproc)
 {
 	struct device *dev = rproc->dev;
 	struct omap_rproc_pdata *pdata = dev->platform_data;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	pdata->ops->dump_registers(rproc);
 }
@@ -125,6 +129,7 @@ omap_rproc_map(struct device *dev, struct iommu_domain *domain, u32 da, u32 pa, 
 	int size_flag[] = {MMU_CAM_PGSZ_16M, MMU_CAM_PGSZ_1M,
 		MMU_CAM_PGSZ_64K, MMU_CAM_PGSZ_4K};
 	int i, ret;
+	printk(">>%s:%s:%d: da=%d, pa: %d, size=%d\n",__FILE__,__FUNCTION__,__LINE__,da,pa,size);
 
 	while (size) {
 		/*
@@ -171,6 +176,7 @@ static const char * const rproc_err_names[] = {
 /* translate rproc_err to string */
 static const char *rproc_err_to_string(enum rproc_err type)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (type < ARRAY_SIZE(rproc_err_names))
 		return rproc_err_names[type];
 	return "unkown";
@@ -186,7 +192,7 @@ static const char *rproc_err_to_string(enum rproc_err type)
 void rproc_error_reporter(struct rproc *rproc, enum rproc_err type)
 {
 	struct device *dev;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!rproc) {
 		pr_err("invalid rproc handle\n");
 		return;
@@ -219,6 +225,7 @@ static int rproc_iommu_fault(struct iommu_domain *domain, struct device *dev,
 		unsigned long iova, int flags, void *token)
 {
 	struct rproc *rproc = token;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	dev_err(dev, "iommu fault: da 0x%lx flags 0x%x\n", iova, flags);
 	rproc_error_reporter(rproc, RPROC_ERR_MMUFAULT);
@@ -245,9 +252,15 @@ static int rproc_iommu_fault(struct iommu_domain *domain, struct device *dev,
 static inline void _load_boot_addr(struct rproc *rproc, u64 bootaddr)
 {
 	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
-	if (pdata->boot_reg)
+	if (pdata->boot_reg){
+		printk("Write bootadr: %d to boot_reg: %lu\n", bootaddr, pdata->boot_reg);
 		writel(bootaddr, pdata->boot_reg);
+	}else{
+		printk("No valid boot reg!\n");
+	}
+
 	return;
 }
 
@@ -259,7 +272,9 @@ int omap_rproc_activate(struct omap_device *od)
 	struct omap_rproc_pdata *pdata = dev->platform_data;
 	struct omap_rproc_timers_info *timers = pdata->timers;
 	struct omap_rproc_priv *rpp = rproc->priv;
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 //	struct omap_iommu *iommu;
 //	if (!rpp->iommu) {
 //		iommu = iommu_get(pdata->iommu_name);
@@ -326,6 +341,15 @@ int omap_rproc_activate(struct omap_device *od)
 		clkdm_allow_idle(pdata->clkdm);
 
 	return ret;
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
+free_domain:
+	iommu_domain_free(domain);
+err_mmu:
+	if (pdata->clkdm)
+		clkdm_allow_idle(pdata->clkdm);
+	kfree(rpp);
+#endif
+	return ret;
 }
 
 int omap_rproc_deactivate(struct omap_device *od)
@@ -335,7 +359,9 @@ int omap_rproc_deactivate(struct omap_device *od)
 	struct device *dev = rproc->dev;
 	struct omap_rproc_pdata *pdata = dev->platform_data;
 	struct omap_rproc_timers_info *timers = pdata->timers;
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 	struct omap_rproc_priv *rpp = rproc->priv;
 #endif
 	if (pdata->clkdm)
@@ -350,7 +376,7 @@ int omap_rproc_deactivate(struct omap_device *od)
 	for (i = 0; i < pdata->timers_cnt; i++)
 		omap_dm_timer_stop(timers[i].odt);
 
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 //	if (rpp->iommu) {
 //		iommu_put(rpp->iommu);
 //		rpp->iommu = NULL;
@@ -382,7 +408,7 @@ static int omap_rproc_iommu_init(struct rproc *rproc,
 	struct iommu_domain *domain;
 	struct omap_rproc_priv *rpp;
 	int iommu_sdata[2] = {0, 0};
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	rpp = kzalloc(sizeof(*rpp), GFP_KERNEL);
 	if (!rpp)
 		return -ENOMEM;
@@ -435,6 +461,19 @@ static int omap_rproc_iommu_init(struct rproc *rproc,
 		goto free_domain;
 	}
 
+	printk("RProc Secure Mode: %d\n", rproc->secure_mode);
+	if (!rproc->secure_mode) {
+		for (i = 0; rproc->memory_maps[i].size; i++) {
+			const struct rproc_mem_entry *me =
+							&rproc->memory_maps[i];
+
+			ret = omap_rproc_map(dev, domain, me->da, me->pa,
+								 me->size);
+			if (ret)
+				goto detach_dev;
+		}
+	}
+
 	if (pdata->clkdm)
 		clkdm_allow_idle(pdata->clkdm);
 
@@ -475,7 +514,7 @@ static int omap_rproc_iommu_init(struct rproc *rproc,
 	int ret, i;
 	struct iommu_domain *domain;
 	struct omap_rproc_priv *rpp;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	rpp = kzalloc(sizeof(*rpp), GFP_KERNEL);
 	if (!rpp)
 		return -ENOMEM;
@@ -548,13 +587,13 @@ err_mmu:
 }
 #endif
 
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 static int _init_pm_flags(struct rproc *rproc)
 {
 	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
 	struct omap_rproc_priv *rpp = rproc->priv;
 	struct omap_mbox *mbox;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!rpp->mbox) {
 		mbox = omap_mbox_get(pdata->sus_mbox_name, NULL);
 		if (IS_ERR(mbox))
@@ -591,7 +630,7 @@ err_idle:
 static void _destroy_pm_flags(struct rproc *rproc)
 {
 	struct omap_rproc_priv *rpp = rproc->priv;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (rpp->mbox) {
 		omap_mbox_put(rpp->mbox, NULL);
 		rpp->mbox = NULL;
@@ -611,7 +650,7 @@ static int omap_rproc_watchdog_init(struct rproc *rproc,
 		 int (*callback)(struct rproc *rproc))
 {
 	struct omap_rproc_priv *rpp = rproc->priv;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	rpp->wdt_cb = callback;
 	return 0;
 }
@@ -619,7 +658,7 @@ static int omap_rproc_watchdog_init(struct rproc *rproc,
 static int omap_rproc_watchdog_exit(struct rproc *rproc)
 {
 	struct omap_rproc_priv *rpp = rproc->priv;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	rpp->wdt_cb = NULL;
 	return 0;
 }
@@ -632,7 +671,7 @@ static irqreturn_t omap_rproc_watchdog_isr(int irq, void *p)
 	struct omap_dm_timer *timer = NULL;
 	struct omap_rproc_priv *rpp = rproc->priv;
 	int i;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	for (i = 0; i < pdata->timers_cnt; i++) {
 		if (irq == omap_dm_timer_get_irq(timers[i].odt)) {
 			timer = timers[i].odt;
@@ -657,7 +696,7 @@ static int omap_rproc_pm_init(struct rproc *rproc, u64 susp_addr)
 	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
 	phys_addr_t pa;
 	int ret;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	ret = rproc_da_to_pa(rproc, susp_addr, &pa);
 	if (!ret)
 		pdata->suspend_addr = (u32)pa;
@@ -674,7 +713,7 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 	struct omap_rproc_priv *rpp = rproc->priv;
 	int i;
 	int ret = 0;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (rproc->secure_mode) {
 		rproc->secure_reset = true;
 		ret = rproc_drm_invoke_service(rproc->secure_mode);
@@ -685,7 +724,7 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 		}
 	}
 
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 	ret = _init_pm_flags(rproc);
 	if (ret)
 		return ret;
@@ -729,7 +768,7 @@ static int omap_rproc_iommu_exit(struct rproc *rproc)
 {
 	struct omap_rproc_priv *rpp = rproc->priv;
 	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (pdata->clkdm)
 		clkdm_wakeup(pdata->clkdm);
 
@@ -751,8 +790,8 @@ int omap_rproc_stop(struct rproc *rproc)
 	struct omap_rproc_pdata *pdata = dev->platform_data;
 	struct omap_rproc_timers_info *timers = pdata->timers;
 	int ret, i;
-
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 	_destroy_pm_flags(rproc);
 #endif
 	if (rproc->secure_reset) {
@@ -785,7 +824,7 @@ err:
 static int omap_rproc_set_lat(struct rproc *rproc, long val)
 {
 	int ret = 0;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!strcmp(rproc->name, "ipu"))
 		pm_qos_update_request(rproc->qos_request, val);
 	else
@@ -797,18 +836,20 @@ static int omap_rproc_set_lat(struct rproc *rproc, long val)
 
 static int omap_rproc_set_l3_bw(struct rproc *rproc, long val)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return omap_pm_set_min_bus_tput(rproc->dev, OCP_INITIATOR_AGENT, val);
 }
 
 static int omap_rproc_scale(struct rproc *rproc, long val)
 {
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return omap_device_scale(rproc->dev, val);
 }
 
 static struct rproc_ops omap_rproc_ops = {
 	.start = omap_rproc_start,
 	.stop = omap_rproc_stop,
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 	.suspend = omap_suspend,
 #endif
 	.iommu_init = omap_rproc_iommu_init,
@@ -827,7 +868,7 @@ static struct rproc_ops omap_rproc_ops = {
 static int omap_rproc_probe(struct platform_device *pdev)
 {
 	struct omap_rproc_pdata *pdata = pdev->dev.platform_data;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	pdata->clkdm = clkdm_lookup(pdata->clkdm_name);
 
 	return rproc_register(&pdev->dev, pdata->name, &omap_rproc_ops,

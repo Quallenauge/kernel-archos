@@ -1,7 +1,8 @@
 /*
  * Remote processor resource manager
  *
- * Copyright (C) 2012 Texas Instruments, Inc.
+ * Copyright (C) 2011 Texas Instruments, Inc.
+ * Copyright (C) 2011 Google, Inc.
  *
  * Fernando Guzman Lugo <fernando.lugo@ti.com>
  * Miguel Vadillo <vadillo@ti.com>
@@ -11,356 +12,995 @@
  * may be copied, distributed, and modified under those terms.
  */
 
-#define pr_fmt(fmt)    "%s: " fmt, __func__
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/virtio.h>
 #include <linux/slab.h>
 #include <linux/rpmsg.h>
+#include <linux/delay.h>
 #include <linux/idr.h>
+#include <linux/remoteproc.h>
+#include <linux/clk.h>
+#include <linux/regulator/consumer.h>
+#include <linux/regulator/driver.h>
+#include <linux/regulator/machine.h>
+#include <linux/gpio.h>
 #include <linux/err.h>
 #include <linux/list.h>
 #include <linux/debugfs.h>
-#include <linux/remoteproc.h>
 #include <linux/rpmsg_resmgr.h>
+#include <linux/pm_runtime.h>
+#include <plat/dmtimer.h>
+#include <plat/rpres.h>
+#include <plat/clock.h>
+#include <plat/dma.h>
+#include <plat/i2c.h>
 
-#define MAX_RES_SIZE 128
-#define MAX_MSG (sizeof(struct rprm_msg) + sizeof(struct rprm_request) +\
-		MAX_RES_SIZE)
-#define MAX_RES_BUF 512
-#define MAX_DENTRY_SIZE 128
+#define NAME_SIZE	50
+#define REGULATOR_MAX	1
+#define NUM_SRC_CLK	3
+#define AUX_CLK_MIN	0
+#define AUX_CLK_MAX	5
+#define GPTIMERS_MAX	11
+#define MHZ		1000000
+#define MAX_MSG		(sizeof(struct rprm_ack) + sizeof(struct rprm_sdma))
 
-/**
- * struct rprm_elem - an instance of this struct represents a resource
- * @next: pointer to next element
- * @res: pointer to the rprm_res structure which this element belongs to
- * @handle: stores handle returned by low level modules
- * @id: resource id
- * @base: base address of the resource registers (will be mapped to the rproc
- *	  address space in the future)
- * @constraints: stores the constraints requested for the resource
- */
+static struct dentry *rprm_dbg;
+
+static char *regulator_name[] = {
+	"cam2pwr"
+};
+
+static char *clk_src_name[] = {
+	"sys_clkin_ck",
+	"dpll_core_m3x2_ck",
+	"dpll_per_m3x2_ck",
+};
+
+static const char const *rnames[] = {
+	[RPRM_GPTIMER]		= "GP Timer",
+	[RPRM_L3BUS]		= "L3 bus",
+	[RPRM_IVAHD]		= "IVA HD",
+	[RPRM_IVASEQ0]		= "IVA SEQ0",
+	[RPRM_IVASEQ1]		= "IVA SEQ1",
+	[RPRM_ISS]		= "ISS",
+	[RPRM_SL2IF]		= "SL2IF",
+	[RPRM_FDIF]		= "FDIF",
+	[RPRM_AUXCLK]		= "AUXCLK",
+	[RPRM_REGULATOR]	= "REGULATOR",
+	[RPRM_GPIO]		= "GPIO",
+	[RPRM_SDMA]		= "SDMA",
+	[RPRM_IPU]		= "IPU",
+	[RPRM_DSP]		= "DSP",
+	[RPRM_I2C]		= "I2C",
+};
+
+static const char *rname(u32 type) {
+	if (type >= RPRM_MAX)
+		return "(invalid)";
+	return rnames[type];
+}
+
 struct rprm_elem {
 	struct list_head next;
-	struct rprm_res *res;
-	void *handle;
+	u32 src;
+	u32 type;
 	u32 id;
+	void *handle;
 	u32 base;
-	struct rprm_constraints_data constraints;
+	struct rprm_constraints_data *constraints;
+	char res[];
 };
 
-/**
- * struct rprm - remoteproc resource manager instance
- * @res_list: list to the resources that belongs to this channel
- * @id_list: idrs of the resources
- * @lock: protection
- * @dentry: debug entry
- * @rpdev: pointer to the channel of the connection.
- */
 struct rprm {
 	struct list_head res_list;
+	struct idr conn_list;
 	struct idr id_list;
 	struct mutex lock;
-	struct dentry *dentry;
-	struct rpmsg_channel *rpdev;
+	struct dentry *dbg_dir;
 };
 
-/* default constraint values for removing constraints */
+struct rprm_auxclk_depot {
+	struct clk *aux_clk;
+	struct clk *src;
+};
+
+struct rprm_regulator_depot {
+	struct regulator *reg_p;
+	u32 orig_uv;
+};
+
 static struct rprm_constraints_data def_data = {
 	.frequency	= 0,
 	.bandwidth	= -1,
 	.latency	= -1,
 };
 
-/* List of availabe resources */
-static LIST_HEAD(res_table);
-static DEFINE_SPINLOCK(table_lock);
-
-static struct rprm_res *__find_res_by_name(const char *name)
+static int _get_rprm_size(u32 type)
 {
-	struct rprm_res *res;
-
-	list_for_each_entry(res, &res_table, next)
-		if (!strcmp(res->name, name))
-			return res;
-
-	return NULL;
+	switch (type) {
+	case RPRM_GPTIMER:
+		return sizeof(struct rprm_gpt);
+	case RPRM_AUXCLK:
+		return sizeof(struct rprm_auxclk);
+	case RPRM_REGULATOR:
+		return sizeof(struct rprm_regulator);
+	case RPRM_GPIO:
+		return sizeof(struct rprm_gpio);
+	case RPRM_SDMA:
+		return sizeof(struct rprm_sdma);
+	case RPRM_I2C:
+		return sizeof(struct rprm_i2c);
+	}
+	return 0;
 }
 
-static int _set_constraints(struct device *dev, struct rprm_elem *e,
-				struct rprm_constraints_data *c)
+static int rprm_gptimer_request(struct rprm_elem *e, struct rprm_gpt *obj)
 {
-	int ret = 0;
-	u32 mask = 0;
+	int ret;
+	struct omap_dm_timer *gpt;
 
-	if (c->mask & RPRM_SCALE) {
-		if (!e->res->ops->scale) {
-			ret = -ENOSYS;
+	if (obj->id > GPTIMERS_MAX) {
+		pr_err("Invalid gptimer %u\n", obj->id);
+		return -EINVAL;
+	}
+
+	gpt = omap_dm_timer_request_specific(obj->id);
+	if (!gpt)
+		return -EBUSY;
+
+	ret = omap_dm_timer_set_source(gpt, obj->src_clk);
+	if (!ret)
+		e->handle = gpt;
+	else
+		omap_dm_timer_free(gpt);
+
+	return ret;
+}
+
+static void rprm_gptimer_release(struct omap_dm_timer *obj)
+{
+	omap_dm_timer_free(obj);
+}
+
+static int rprm_auxclk_request(struct rprm_elem *e, struct rprm_auxclk *obj)
+{
+	int ret;
+	char clk_name[NAME_SIZE];
+	char src_clk_name[NAME_SIZE];
+	struct rprm_auxclk_depot *acd;
+	struct clk *src_parent;
+
+	if ((obj->id < AUX_CLK_MIN) || (obj->id > AUX_CLK_MAX)) {
+		pr_err("Invalid aux_clk %d\n", obj->id);
+		return -EINVAL;
+	}
+
+	/* Create auxclks depot */
+	acd = kmalloc(sizeof(*acd), GFP_KERNEL);
+	if (!acd)
+		return -ENOMEM;
+
+	sprintf(clk_name, "auxclk%d_ck", obj->id);
+	acd->aux_clk = clk_get(NULL, clk_name);
+	if (!acd->aux_clk) {
+		pr_err("%s: unable to get clock %s\n", __func__, clk_name);
+		ret = -EIO;
+		goto error;
+	}
+
+	if (unlikely(acd->aux_clk->usecount))
+		pr_warn("There are other users of %d clk\n", obj->id);
+
+	sprintf(src_clk_name, "auxclk%d_src_ck", obj->id);
+	acd->src = clk_get(NULL, src_clk_name);
+	if (!acd->src) {
+		pr_err("%s: unable to get clock %s\n", __func__, src_clk_name);
+		ret = -EIO;
+		goto error_aux;
+	}
+
+	src_parent = clk_get(NULL, clk_src_name[obj->parent_src_clk]);
+	if (!src_parent) {
+		pr_err("%s: unable to get parent clock %s\n", __func__,
+					clk_src_name[obj->parent_src_clk]);
+		ret = -EIO;
+		goto error_aux_src;
+	}
+
+	ret = clk_set_rate(src_parent, (obj->parent_src_clk_rate * MHZ));
+	if (ret) {
+		pr_err("%s: rate not supported by %s\n", __func__,
+					clk_src_name[obj->parent_src_clk]);
+		goto error_aux_src_parent;
+	}
+
+	ret = clk_set_parent(acd->src, src_parent);
+	if (ret) {
+		pr_err("%s: unable to set clk %s as parent of aux_clk %s\n",
+			__func__,
+			clk_src_name[obj->parent_src_clk],
+			src_clk_name);
+		goto error_aux_src_parent;
+	}
+
+	ret = clk_enable(acd->src);
+	if (ret) {
+		pr_err("%s: error enabling %s\n", __func__, src_clk_name);
+		goto error_aux_src_parent;
+	}
+
+	ret = clk_set_rate(acd->aux_clk, (obj->clk_rate * MHZ));
+	if (ret) {
+		pr_err("%s: rate not supported by %s\n", __func__, clk_name);
+		goto error_aux_enable;
+	}
+
+	ret = clk_enable(acd->aux_clk);
+	if (ret) {
+		pr_err("%s: error enabling %s\n", __func__, clk_name);
+		goto error_aux_enable;
+	}
+	clk_put(src_parent);
+
+	e->handle = acd;
+
+	return 0;
+error_aux_enable:
+	clk_disable(acd->src);
+error_aux_src_parent:
+	clk_put(src_parent);
+error_aux_src:
+	clk_put(acd->src);
+error_aux:
+	clk_put(acd->aux_clk);
+error:
+	kfree(acd);
+
+	return ret;
+}
+
+static void rprm_auxclk_release(struct rprm_auxclk_depot *obj)
+{
+	clk_disable((struct clk *)obj->aux_clk);
+	clk_put((struct clk *)obj->aux_clk);
+	clk_disable((struct clk *)obj->src);
+	clk_put((struct clk *)obj->src);
+
+	kfree(obj);
+}
+
+static
+int rprm_regulator_request(struct rprm_elem *e, struct rprm_regulator *obj)
+{
+	int ret;
+	struct rprm_regulator_depot *rd;
+	char *reg_name;
+
+	if (obj->id > REGULATOR_MAX) {
+		pr_err("Invalid regulator %d\n", obj->id);
+		return -EINVAL;
+	}
+
+	/* Create regulator depot */
+	rd = kmalloc(sizeof(*rd), GFP_KERNEL);
+	if (!rd)
+		return -ENOMEM;
+
+	reg_name = regulator_name[obj->id - 1];
+	rd->reg_p = regulator_get_exclusive(NULL, reg_name);
+	if (IS_ERR_OR_NULL(rd->reg_p)) {
+		pr_err("%s: error providing regulator %s\n", __func__, reg_name);
+		ret = -EINVAL;
+		goto error;
+	}
+
+	rd->orig_uv = regulator_get_voltage(rd->reg_p);
+
+	ret = regulator_set_voltage(rd->reg_p, obj->min_uv, obj->max_uv);
+	if (ret) {
+		pr_err("%s: error setting %s voltage\n", __func__, reg_name);
+		goto error_reg;
+	}
+
+	ret = regulator_enable(rd->reg_p);
+	if (ret) {
+		pr_err("%s: error enabling %s ldo\n", __func__, reg_name);
+		goto error_reg;
+	}
+
+	e->handle = rd;
+
+	return 0;
+
+error_reg:
+	regulator_put(rd->reg_p);
+error:
+	kfree(rd);
+
+	return ret;
+}
+
+static void rprm_regulator_release(struct rprm_regulator_depot *obj)
+{
+	int ret;
+
+	ret = regulator_disable(obj->reg_p);
+	if (ret) {
+		pr_err("%s: error disabling ldo\n", __func__);
+		return;
+	}
+
+	/* Restore orginal voltage */
+	ret = regulator_set_voltage(obj->reg_p, obj->orig_uv, obj->orig_uv);
+	if (ret) {
+		pr_err("%s: error restoring voltage\n", __func__);
+		return;
+	}
+
+	regulator_put(obj->reg_p);
+	kfree(obj);
+}
+
+static int rprm_gpio_request(struct rprm_elem *e, struct rprm_gpio *obj)
+{
+	int ret;
+	struct rprm_gpio *gd;
+
+	/* Create gpio depot */
+	gd = kmalloc(sizeof(*gd), GFP_KERNEL);
+	if (!gd)
+		return -ENOMEM;
+
+	ret = gpio_request(obj->id , "rpmsg_resmgr");
+	if (ret) {
+		pr_err("%s: error providing gpio %d\n", __func__, obj->id);
+		return ret;
+	}
+
+	e->handle = memcpy(gd, obj, sizeof(*obj));
+
+	return ret;
+}
+
+static void rprm_gpio_release(struct rprm_gpio *obj)
+{
+	gpio_free(obj->id);
+	kfree(obj);
+}
+
+static int rprm_sdma_request(struct rprm_elem *e, struct rprm_sdma *obj)
+{
+	int ret;
+	int sdma;
+	int i;
+	struct rprm_sdma *sd;
+
+	/* Create sdma depot */
+	sd = kmalloc(sizeof(*sd), GFP_KERNEL);
+	if (!sd)
+		return -ENOMEM;
+
+	if (obj->num_chs > MAX_NUM_SDMA_CHANNELS) {
+		pr_err("Not able to provide %u channels\n", obj->num_chs);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < obj->num_chs; i++) {
+		ret = omap_request_dma(0, "rpmsg_resmgr", NULL, NULL, &sdma);
+		if (ret) {
+			pr_err("Error providing sdma channel %d\n", ret);
 			goto err;
 		}
+		obj->channels[i] = sdma;
+		pr_debug("Providing sdma ch %d\n", sdma);
+	}
 
-		ret = e->res->ops->scale(dev, e->handle, c->frequency);
+	e->handle = memcpy(sd, obj, sizeof(*obj));
+
+	return 0;
+err:
+	while (i--)
+		omap_free_dma(obj->channels[i]);
+	kfree(sd);
+	return ret;
+}
+
+static void rprm_sdma_release(struct rprm_sdma *obj)
+{
+	int i = obj->num_chs;
+
+	while (i--) {
+		omap_free_dma(obj->channels[i]);
+		pr_debug("Releasing sdma ch %d\n", obj->channels[i]);
+	}
+	kfree(obj);
+}
+
+/**
+ * i2c_detect_ext_master - Perform some special handling
+ * for externally controlled I2C devices.
+ * For now we only disable the spurious IRQ
+ * @adap: the adapter driving the client
+ * Context: can sleep
+ *
+ * This detects registered I2C devices which are controlled
+ * by a remote/external proc.
+ */
+#if !defined(CONFIG_HWSPINLOCK)
+void i2c_detect_ext_master(struct i2c_adapter *adap)
+{
+	struct i2c_adapter *found;
+	struct i2c_client *client;
+
+	/* First make sure that this adapter was ever added */
+	mutex_lock(&core_lock);
+	found = idr_find(&i2c_adapter_idr, adap->nr);
+	mutex_unlock(&core_lock);
+	if (found != adap) {
+		pr_debug("i2c-core: attempting to process unregistered "
+			 "adapter [%s]\n", adap->name);
+		return;
+	}
+
+	/* Disable IRQ(s) automatically registeried via HWMOD
+	 * for I2C channel controlled by remote master
+	 */
+	mutex_lock(&adap->ext_clients_lock);
+	list_for_each_entry(client, &adap->ext_clients,
+			    detected) {
+		dev_dbg(&adap->dev, "Client detected %s at 0x%x\n",
+			client->name, client->addr);
+		disable_irq(client->irq);
+	}
+	mutex_unlock(&adap->ext_clients_lock);
+
+	return;
+}
+#else
+void i2c_detect_ext_master(struct i2c_adapter *adap) { return; }
+#endif
+
+static int rprm_i2c_request(struct rprm_elem *e, struct rprm_i2c *obj)
+{
+	struct device *i2c_dev;
+	struct i2c_adapter *adapter;
+	int ret = -EINVAL;
+
+	adapter = i2c_get_adapter(obj->id);
+	if (!adapter) {
+		pr_err("%s: could not get i2c%d adapter\n", __func__, obj->id);
+		return -EINVAL;
+	}
+
+	i2c_dev = adapter->dev.parent;
+
+	i2c_detect_ext_master(adapter);
+	i2c_put_adapter(adapter);
+
+	ret = pm_runtime_get_sync(i2c_dev);
+	/*
+	 * pm_runtime_get_sync can return 1 in case it is already active,
+	 * change it to 0 to indicate success.
+	 */
+	ret -= ret == 1;
+	if (!ret)
+		e->handle = i2c_dev;
+	else
+		dev_warn(i2c_dev, "%s: failed get sync %d\n", __func__, ret);
+
+	return ret;
+}
+
+static int rprm_i2c_release(struct device *i2c_dev)
+{
+	int ret = -EINVAL;
+
+	if (IS_ERR_OR_NULL(i2c_dev)) {
+		pr_err("%s: invalid device passed\n", __func__);
+		return ret;
+	}
+
+	ret = pm_runtime_put_sync(i2c_dev);
+	if (ret)
+		dev_warn(i2c_dev, "%s: failed put sync %d\n", __func__, ret);
+
+	return ret;
+
+}
+
+static const char *_get_rpres_name(int type)
+{
+	switch (type) {
+	case RPRM_IVAHD:
+		return "rpres_iva";
+	case RPRM_IVASEQ0:
+		return "rpres_iva_seq0";
+	case RPRM_IVASEQ1:
+		return "rpres_iva_seq1";
+	case RPRM_ISS:
+		return "rpres_iss";
+	case RPRM_FDIF:
+		return "rpres_fdif";
+	case RPRM_SL2IF:
+		return "rpres_sl2if";
+	}
+	return "";
+}
+
+static int _rpres_set_constraints(struct rprm_elem *e, u32 type, long val)
+{
+	switch (type) {
+	case RPRM_SCALE:
+		return rpres_set_constraints(e->handle,
+					     RPRES_CONSTRAINT_SCALE,
+					     val);
+	case RPRM_LATENCY:
+		return rpres_set_constraints(e->handle,
+					     RPRES_CONSTRAINT_LATENCY,
+					     val);
+	case RPRM_BANDWIDTH:
+		return rpres_set_constraints(e->handle,
+					     RPRES_CONSTRAINT_BANDWIDTH,
+					     val);
+	}
+	pr_err("Invalid constraint\n");
+	return -EINVAL;
+}
+
+static int _rproc_set_constraints(struct rprm_elem *e, u32 type, long val)
+{
+	switch (type) {
+	case RPRM_SCALE:
+		return rproc_set_constraints(e->handle,
+					     RPROC_CONSTRAINT_SCALE,
+					     val);
+	case RPRM_LATENCY:
+		return rproc_set_constraints(e->handle,
+					     RPROC_CONSTRAINT_LATENCY,
+					     val);
+	case RPRM_BANDWIDTH:
+		return rproc_set_constraints(e->handle,
+					     RPROC_CONSTRAINT_BANDWIDTH,
+					     val);
+	}
+	pr_err("Invalid constraint\n");
+	return -EINVAL;
+}
+
+static
+int _set_constraints(struct rprm_elem *e, struct rprm_constraints_data *c)
+{
+	int ret = -EINVAL;
+	u32 mask = 0;
+	int (*_set_constraints_func)(struct rprm_elem *, u32 type, long val);
+
+	switch (e->type) {
+	case RPRM_IVAHD:
+	case RPRM_ISS:
+	case RPRM_FDIF:
+		_set_constraints_func = _rpres_set_constraints;
+		break;
+	case RPRM_IPU:
+	case RPRM_DSP:
+		_set_constraints_func = _rproc_set_constraints;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (c->mask & RPRM_SCALE) {
+		ret = _set_constraints_func(e, RPRM_SCALE, c->frequency);
 		if (ret)
 			goto err;
 		mask |= RPRM_SCALE;
-		e->constraints.frequency = c->frequency;
+		e->constraints->frequency = c->frequency;
 	}
 
 	if (c->mask & RPRM_LATENCY) {
-		if (!e->res->ops->latency) {
-			ret = -ENOSYS;
-			goto err;
-		}
-
-		ret = e->res->ops->latency(dev, e->handle, c->latency);
+		ret = _set_constraints_func(e, RPRM_LATENCY, c->latency);
 		if (ret)
 			goto err;
 		mask |= RPRM_LATENCY;
-		e->constraints.latency = c->latency;
+		e->constraints->latency = c->latency;
 	}
 
 	if (c->mask & RPRM_BANDWIDTH) {
-		if (!e->res->ops->bandwidth) {
-			ret = -ENOSYS;
-			goto err;
-		}
-
-		ret = e->res->ops->bandwidth(dev, e->handle, c->bandwidth);
+		ret = _set_constraints_func(e, RPRM_BANDWIDTH, c->bandwidth);
 		if (ret)
 			goto err;
 		mask |= RPRM_BANDWIDTH;
-		e->constraints.bandwidth = c->bandwidth;
+		e->constraints->bandwidth = c->bandwidth;
 	}
 err:
-	if (ret)
-		dev_err(dev, "error updating contraints for %s:\n"
-			"Mask:0x%x\n"
-			"Frequency:%ld\n"
-			"Latency:%ld\n"
-			"Bandwidth:%ld\n",
-			e->res->name, c->mask, c->frequency,
-			c->latency, c->bandwidth);
-	/*
-	 * even in case of a error update the mask with the constraints that
-	 * were set, so that those constraints can be removed
-	 */
 	c->mask = mask;
 	return ret;
 }
 
-/* update constaints for a resource */
-static int rprm_update_constraints(struct rprm *rprm, int res_id,
-			   struct rprm_constraints_data *data, bool set)
+static int rprm_set_constraints(struct rprm *rprm, u32 addr, int res_id,
+			   void *data, bool set)
 {
 	int ret = 0;
 	struct rprm_elem *e;
-	struct device *dev = &rprm->rpdev->dev;
 
 	mutex_lock(&rprm->lock);
+	if (!idr_find(&rprm->conn_list, addr)) {
+		ret = -ENOTCONN;
+		goto out;
+	}
+
 	e = idr_find(&rprm->id_list, res_id);
-	if (!e) {
+	if (!e || e->src != addr) {
 		ret = -ENOENT;
 		goto out;
 	}
 
-	dev_dbg(dev, "%s contraint for %s:\n"
-		"Mask:0x%x\n"
-		"Frequency:%ld\n"
-		"Latency:%ld\n"
-		"Bandwidth:%ld\n",
-		set ? "setting" : "clearing", e->res->name, data->mask,
-		data->frequency, data->latency, data->bandwidth);
-
-	if (set) {
-		ret = _set_constraints(dev, e, data);
-		if (!ret) {
-			e->constraints.mask |= data->mask;
-			goto out;
-		}
-		/* if error continue to remove the constraints that were set */
+	if (!e->constraints) {
+		pr_warn("No constraints\n");
+		ret = -EINVAL;
+		goto out;
 	}
 
-	/* use def data structure values in order to remove constraints */
-	def_data.mask = data->mask;
+	if (set) {
+		ret = _set_constraints(e, data);
+		if (!ret) {
+			e->constraints->mask |=
+				((struct rprm_constraints_data *)data)->mask;
+			goto out;
+		}
+	}
+	def_data.mask = ((struct rprm_constraints_data *)data)->mask;
 	if (def_data.mask) {
-		int tmp;
-
-		tmp = _set_constraints(dev, e, &def_data);
-		if (!tmp)
-			e->constraints.mask &= ~data->mask;
-		/* do not overwrite ret if there was a previous error */
-		ret = ret ? : tmp;
+		_set_constraints(e, &def_data);
+		e->constraints->mask &=
+				~((struct rprm_constraints_data *)data)->mask;
 	}
 out:
 	mutex_unlock(&rprm->lock);
 	return ret;
 }
 
-static int _resource_release(struct rprm *rprm, struct rprm_elem *e)
+
+static int rprm_rpres_request(struct rprm_elem *e, int type)
 {
-	int ret;
-	struct device *dev = &rprm->rpdev->dev;
+	const char *res_name = _get_rpres_name(type);
+	struct rpres *res;
 
-	dev_dbg(dev, "releasing %s resource\n", e->res->name);
+	e->constraints = kzalloc(sizeof(*(e->constraints)), GFP_KERNEL);
+	if (!(e->constraints))
+		return -ENOMEM;
 
-	/* if there are constraints then remove them */
-	if (e->constraints.mask) {
-		def_data.mask = e->constraints.mask;
-		 _set_constraints(dev, e, &def_data);
-		e->constraints.mask &= ~def_data.mask;
+	res = rpres_get(res_name);
+
+	if (IS_ERR(res)) {
+		pr_err("%s: error requesting %s\n", __func__, res_name);
+		kfree(e->constraints);
+		return PTR_ERR(res);
 	}
-
-	if (e->res->ops->release) {
-		ret = e->res->ops->release(e->handle);
-		if (ret) {
-			dev_err(dev, "failed to release %s ret %d\n",
-							e->res->name, ret);
-			return ret;
-		}
-	}
-
-	list_del(&e->next);
-	module_put(e->res->owner);
-	kfree(e);
+	e->handle = res;
 
 	return 0;
 }
 
-static int rprm_resource_release(struct rprm *rprm, int res_id)
+static void rprm_rpres_release(struct rpres *res)
 {
-	struct device *dev = &rprm->rpdev->dev;
-	struct rprm_elem *e;
-	int ret;
-
-	mutex_lock(&rprm->lock);
-	e = idr_find(&rprm->id_list, res_id);
-	if (!e) {
-		dev_err(dev, "invalid resource id\n");
-		ret = -ENOENT;
-		goto out;
-	}
-
-	ret = _resource_release(rprm, e);
-	if (ret)
-		goto out;
-
-	idr_remove(&rprm->id_list, res_id);
-out:
-	mutex_unlock(&rprm->lock);
-	return ret;
+	rpres_put(res);
 }
 
-static int rprm_resource_request(struct rprm *rprm, const char *name,
-				int *res_id, void *data, size_t len)
+static int rprm_rproc_request(struct rprm_elem *e, char *name)
 {
-	struct device *dev = &rprm->rpdev->dev;
-	struct rprm_elem *e;
-	struct rprm_res *res;
-	int ret;
+	struct rproc *rp;
 
-	dev_dbg(dev, "requesting %s with data len %d\n", name, len);
+	e->constraints = kzalloc(sizeof(*(e->constraints)), GFP_KERNEL);
+	if (!(e->constraints))
+		return -ENOMEM;
 
-	/* resource must be registered */
-	res = __find_res_by_name(name);
-	if (!res) {
-		dev_err(dev, "resource no valid %s\n", name);
-		return -ENOENT;
+	rp = rproc_get(name);
+	if (IS_ERR(rp)) {
+		pr_debug("Error requesting %s\n", name);
+		kfree(e->constraints);
+		return PTR_ERR(rp);
 	}
+	e->handle = rp;
 
-	/* prevent underlying implementation from being removed */
-	if (!try_module_get(res->owner)) {
-		dev_err(dev, "can't get owner\n");
+	return 0;
+}
+
+static void rprm_rproc_release(struct rproc *rp)
+{
+	rproc_put(rp);
+}
+
+static int _resource_free(struct rprm_elem *e)
+{
+	int ret = 0;
+	if (e->constraints && e->constraints->mask) {
+		def_data.mask = e->constraints->mask;
+		_set_constraints(e, &def_data);
+	}
+	kfree(e->constraints);
+
+	switch (e->type) {
+	case RPRM_GPTIMER:
+		rprm_gptimer_release(e->handle);
+		break;
+	case RPRM_IVAHD:
+	case RPRM_IVASEQ0:
+	case RPRM_IVASEQ1:
+	case RPRM_ISS:
+	case RPRM_SL2IF:
+	case RPRM_FDIF:
+		rprm_rpres_release(e->handle);
+		break;
+	case RPRM_IPU:
+	case RPRM_DSP:
+		rprm_rproc_release(e->handle);
+		break;
+	case RPRM_AUXCLK:
+		rprm_auxclk_release(e->handle);
+		break;
+	case RPRM_I2C:
+		ret = rprm_i2c_release(e->handle);
+		break;
+	case RPRM_REGULATOR:
+		rprm_regulator_release(e->handle);
+		break;
+	case RPRM_GPIO:
+		rprm_gpio_release(e->handle);
+		break;
+	case RPRM_SDMA:
+		rprm_sdma_release(e->handle);
+		break;
+	case RPRM_L3BUS:
+		/* ignore silently */
+		break;
+	default:
 		return -EINVAL;
 	}
 
-	if (!res->ops->request) {
-		ret = -ENOSYS;
-		goto err_module;
+	return ret;
+}
+
+static int rprm_resource_free(struct rprm *rprm, u32 addr, int res_id)
+{
+	int ret = 0;
+	struct rprm_elem *e;
+
+	mutex_lock(&rprm->lock);
+	if (!idr_find(&rprm->conn_list, addr)) {
+		ret = -ENOTCONN;
+		goto out;
 	}
 
-	e = kzalloc(sizeof *e, GFP_KERNEL);
-	if (!e) {
-		ret = -ENOMEM;
-		goto err_module;
+	e = idr_find(&rprm->id_list, res_id);
+	if (!e || e->src != addr) {
+		ret = -ENOENT;
+		goto out;
+	}
+	idr_remove(&rprm->id_list, res_id);
+	list_del(&e->next);
+out:
+	mutex_unlock(&rprm->lock);
+
+	if (!ret) {
+		ret = _resource_free(e);
+		kfree(e);
+	}
+
+	return ret;
+}
+
+static int _resource_alloc(struct rprm_elem *e, int type, void *data)
+{
+	int ret = 0;
+
+	switch (type) {
+	case RPRM_GPTIMER:
+		ret = rprm_gptimer_request(e, data);
+		break;
+	case RPRM_IVAHD:
+	case RPRM_IVASEQ0:
+	case RPRM_IVASEQ1:
+	case RPRM_ISS:
+	case RPRM_SL2IF:
+	case RPRM_FDIF:
+		ret = rprm_rpres_request(e, type);
+		break;
+	case RPRM_IPU:
+		ret = rprm_rproc_request(e, "ipu");
+		break;
+	case RPRM_DSP:
+		ret = rprm_rproc_request(e, "dsp");
+		break;
+	case RPRM_AUXCLK:
+		ret = rprm_auxclk_request(e, data);
+		break;
+	case RPRM_I2C:
+		ret = rprm_i2c_request(e, data);
+		break;
+	case RPRM_REGULATOR:
+		ret = rprm_regulator_request(e, data);
+		break;
+	case RPRM_GPIO:
+		ret = rprm_gpio_request(e, data);
+		break;
+	case RPRM_SDMA:
+		ret = rprm_sdma_request(e, data);
+		break;
+	case RPRM_L3BUS:
+		/* ignore silently; */
+		break;
+	default:
+		pr_err("%s: invalid source %d!\n", __func__, type);
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
+static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
+				int type, void *data)
+{
+	struct rprm_elem *e;
+	int ret;
+	int rlen = _get_rprm_size(type);
+
+	e = kzalloc(sizeof(*e) + rlen, GFP_KERNEL);
+	if (!e)
+		return -ENOMEM;
+
+	ret = _resource_alloc(e, type, data);
+	if (ret) {
+		pr_err("%s: request for %d (%s) failed: %d\n", __func__,
+				type, rname(type), ret);
+		goto err_res_alloc;
 	}
 
 	mutex_lock(&rprm->lock);
-	ret = res->ops->request(&e->handle, data, len);
-	if (ret) {
-		dev_err(dev, "request for %s failed: %d\n", name, ret);
-		goto err_free;
+	if (!idr_find(&rprm->conn_list, addr)) {
+		pr_err("%s: addr %d not connected!\n", __func__, addr);
+		ret = -ENOTCONN;
+		goto err;
 	}
-
 	/*
 	 * Create a resource id to avoid sending kernel address to the
 	 * remote processor.
 	 */
 	if (!idr_pre_get(&rprm->id_list, GFP_KERNEL)) {
 		ret = -ENOMEM;
-		goto err_release;
+		goto err;
 	}
-
 	ret = idr_get_new(&rprm->id_list, e, res_id);
 	if (ret)
-		goto err_release;
+		goto err;
 
+	e->type = type;
+	e->src = addr;
 	e->id = *res_id;
-	e->res = res;
+	memcpy(e->res, data, rlen);
 	list_add(&e->next, &rprm->res_list);
 	mutex_unlock(&rprm->lock);
 
 	return 0;
-err_release:
-	if (res->ops->release)
-		res->ops->release(e->handle);
-err_free:
-	kfree(e);
+err:
 	mutex_unlock(&rprm->lock);
-err_module:
-	module_put(res->owner);
+	_resource_free(e);
+err_res_alloc:
+	kfree(e);
+
 	return ret;
 }
 
-static int _request_data(struct device *dev, struct rprm_elem *e,
-				u32 type, char data[], int len)
+static int rprm_disconnect_client(struct rprm *rprm, u32 addr)
+{
+	struct rprm_elem *e, *tmp;
+	int ret;
+
+	mutex_lock(&rprm->lock);
+	if (!idr_find(&rprm->conn_list, addr)) {
+		ret = -ENOTCONN;
+		goto out;
+	}
+	list_for_each_entry_safe(e, tmp, &rprm->res_list, next) {
+		if (e->src == addr) {
+			_resource_free(e);
+			idr_remove(&rprm->id_list, e->id);
+			list_del(&e->next);
+			kfree(e);
+		}
+	}
+
+	idr_remove(&rprm->conn_list, addr);
+out:
+	mutex_unlock(&rprm->lock);
+
+	return 0;
+}
+
+static int rpmsg_connect_client(struct rprm *rprm, u32 addr)
+{
+	int ret;
+	int tid;
+
+	mutex_lock(&rprm->lock);
+	if (idr_find(&rprm->conn_list, addr)) {
+		pr_err("Connection already opened\n");
+		ret = -EISCONN;
+		goto out;
+	}
+	if (!idr_pre_get(&rprm->conn_list, GFP_KERNEL)) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	ret = idr_get_new_above(&rprm->conn_list, &rprm->res_list, addr, &tid);
+	BUG_ON(addr != tid);
+out:
+	mutex_unlock(&rprm->lock);
+
+	return ret;
+}
+
+static int _request_max_freq(struct rprm_elem *e, unsigned long *freq)
 {
 	int ret = 0;
-	unsigned long freq;
+
+	switch (e->type) {
+	case RPRM_IVAHD:
+	case RPRM_FDIF:
+		*freq = rpres_get_max_freq(e->handle);
+		break;
+	default:
+		pr_err("%s: not supported for resource type %d!\n",
+							__func__, e->type);
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+static int _request_data(struct rprm_elem *e, int type, void *data, int len)
+{
+	int ret = 0;
 
 	switch (type) {
 	case RPRM_MAX_FREQ:
-		if (len != sizeof freq) {
+		if (len != sizeof(unsigned long)) {
 			ret = -EINVAL;
 			break;
 		}
-		if (e->res->ops->get_max_freq) {
-			freq = e->res->ops->get_max_freq(e->handle);
-			memcpy(data, &freq, len);
-		} else
-			ret = -EINVAL;
+		ret = _request_max_freq(e, data);
 		break;
 	default:
-		dev_err(dev, "%s: invalid data request %d!\n", __func__, type);
+		pr_err("%s: invalid data request %d!\n", __func__, type);
 		ret = -EINVAL;
+		break;
 	}
+
 	return ret;
 }
 
-static int rprm_req_data(struct rprm *rprm, u32 res_id, u32 type,
-				char data[], int len)
+static int rprm_req_data(struct rprm *rprm, u32 addr, int res_id,
+				void *data, int len)
 {
 	int ret = 0;
 	struct rprm_elem *e;
-	struct device *dev = &rprm->rpdev->dev;
+	struct rprm_request_data *rd = data;
 
 	mutex_lock(&rprm->lock);
+	if (!idr_find(&rprm->conn_list, addr)) {
+		ret = -ENOTCONN;
+		goto out;
+	}
+
 	e = idr_find(&rprm->id_list, res_id);
-	if (!e) {
+	if (!e || e->src != addr) {
 		ret = -ENOENT;
 		goto out;
 	}
 
-	ret = _request_data(dev, e, type, data, len);
+	ret = _request_data(e, rd->type, rd->data, len - sizeof(*rd));
 out:
 	mutex_unlock(&rprm->lock);
 	return ret;
@@ -369,131 +1009,175 @@ out:
 static void rprm_cb(struct rpmsg_channel *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
+	int ret;
 	struct device *dev = &rpdev->dev;
 	struct rprm *rprm = dev_get_drvdata(dev);
-	struct rprm_msg *msg = data;
-	struct rprm_request *req;
-	struct rprm_release *rel;
-	struct rprm_constraint *c;
-	struct rprm_request_data *rd;
+	struct rprm_request *req = data;
 	char ack_msg[MAX_MSG];
 	struct rprm_ack *ack = (void *)ack_msg;
-	struct rprm_request_ack *rack = (void *)ack->data;
-	int res_id;
-	int ret;
-	bool set;
+	int r_sz = 0;
 
-	dev_dbg(dev, "resmgr msg from %u and len %d\n" , src, len);
-
-	len -= sizeof *msg;
-	if (len < 0) {
-		dev_err(dev, "Bad message: no message header\n");
+	if (len < sizeof(*req)) {
+		dev_err(dev, "Bad message\n");
 		return;
 	}
 
-	/* we only accept action request from established channels */
-	if (rpdev->dst != src) {
-		dev_err(dev, "remote endpoint %d not connected to this resmgr\n"
-			"channel, expected %d endpoint\n", src, rpdev->dst);
-		ret = -ENOTCONN;
-		goto out;
-	}
+	dev_dbg(dev, "resource type %d\n"
+		"request type %d\n"
+		"res_id %d",
+		req->res_type, req->acquire, req->res_id);
 
-	dev_dbg(dev, "resmgr action %d\n" , msg->action);
-
-	switch (msg->action) {
-	case RPRM_REQUEST:
-		len -= sizeof *req;
-		if (len < 0) {
-			dev_err(dev, "Bad message: no request header\n");
+	switch (req->acquire) {
+	case RPRM_CONNECT:
+		ret = rpmsg_connect_client(rprm, src);
+		if (ret)
+			dev_err(dev, "connection failed! ret %d\n", ret);
+		break;
+	case RPRM_REQ_ALLOC:
+		r_sz = len - sizeof(*req);
+		if (r_sz != _get_rprm_size(req->res_type)) {
+			r_sz = 0;
 			ret = -EINVAL;
 			break;
 		}
-
-		req = (void *)msg->data;
-		/* make sure NULL terminated resource name */
-		req->res_name[sizeof req->res_name - 1] = '\0';
-		ret = rprm_resource_request(rprm, req->res_name, &res_id,
-								req->data, len);
-		if (ret) {
-			dev_err(dev, "resource allocation failed %d!\n", ret);
+		ret = rprm_resource_alloc(rprm, src, &req->res_id,
+					req->res_type, req->data);
+		if (ret)
+			dev_err(dev, "resource allocation failed! ret %d\n",
+				ret);
+		break;
+	case RPRM_REQ_FREE:
+		ret = rprm_resource_free(rprm, src, req->res_id);
+		if (ret)
+			dev_err(dev, "resource release failed! ret %d\n", ret);
+		return;
+	case RPRM_DISCONNECT:
+		ret = rprm_disconnect_client(rprm, src);
+		if (ret)
+			dev_err(dev, "disconnection failed ret %d\n", ret);
+		return;
+	case RPRM_REQ_CONSTRAINTS:
+		r_sz = len - sizeof(*req);
+		if (r_sz != sizeof(struct rprm_constraints_data)) {
+			r_sz = 0;
+			ret = -EINVAL;
 			break;
 		}
-
-		rack->res_id = res_id;
-		memcpy(rack->data, req->data, len);
-		len += sizeof *rack;
-		break;
-	case RPRM_RELEASE:
-		len -= sizeof *rel;
-		if (len < 0) {
-			dev_err(dev, "Bad message: no release header\n");
-			return;
-		}
-
-		rel = (void *)msg->data;
-		ret = rprm_resource_release(rprm, rel->res_id);
+		ret = rprm_set_constraints(rprm, src, req->res_id,
+						req->data, true);
 		if (ret)
-			dev_err(dev, "resource release failed %d!\n", ret);
-		/* no ack for release resource */
+			dev_err(dev, "set constraints failed! ret %d\n", ret);
+		break;
+	case RPRM_REL_CONSTRAINTS:
+		ret = rprm_set_constraints(rprm, src, req->res_id,
+						req->data, false);
+		if (ret)
+			dev_err(dev, "rel constraints failed! ret %d\n", ret);
 		return;
-	case RPRM_SET_CONSTRAINTS:
-	case RPRM_CLEAR_CONSTRAINTS:
-		len -= sizeof *c;
-		if (len < 0) {
-			dev_err(dev, "Bad message\n");
-			return;
-		}
-
-		set = msg->action == RPRM_SET_CONSTRAINTS;
-		c = (void *)msg->data;
-		ret = rprm_update_constraints(rprm, c->res_id, &c->cdata, set);
-		if (ret)
-			dev_err(dev, "%s constraints failed! ret %d\n",
-				set ? "set" : "clear", ret);
-
-		/* no ack when removing constraints */
-		if (!set)
-			return;
-
-		len = sizeof *c;
-		memcpy(ack->data, c, len);
-		break;
 	case RPRM_REQ_DATA:
-		len -= sizeof(*rd);
-		if (len < 0) {
-			dev_err(dev, "Bad request data message\n");
+		r_sz = len - sizeof(*req);
+		if (r_sz < 0) {
+			r_sz = 0;
 			ret = -EINVAL;
 			break;
 		}
-		rd = (void *)msg->data;
-		ret = rprm_req_data(rprm, rd->res_id, rd->type, ack->data, len);
+		ret = rprm_req_data(rprm, src, req->res_id, req->data, r_sz);
 		if (ret)
 			dev_err(dev, "request data failed! ret %d\n", ret);
 		break;
 	default:
-		dev_err(dev, "Unknow action %d\n", msg->action);
+		dev_err(dev, "Unknow request\n");
 		ret = -EINVAL;
 	}
-out:
-	ack->action = msg->action;
+
 	ack->ret = ret;
-	len = ret ? 0 : len;
-	ret = rpmsg_sendto(rpdev, ack, sizeof *ack + len, src);
+	ack->res_type = req->res_type;
+	ack->res_id = req->res_id;
+	memcpy(ack->data, req->data, r_sz);
+
+	ret = rpmsg_sendto(rpdev, ack, sizeof(*ack) + r_sz, src);
 	if (ret)
 		dev_err(dev, "rprm ack failed: %d\n", ret);
 }
 
-/* print constraint information for a resource */
-static int _snprint_constraints_info(struct rprm_elem *e, char *buf, size_t len)
+static int _printf_gptimer_args(char *buf, struct rprm_gpt *obj)
 {
-	return snprintf(buf, len,
+	return sprintf(buf,
+		"Id:%d\n"
+		"Source:%d\n",
+		obj->id, obj->src_clk);
+}
+
+static int _printf_auxclk_args(char *buf, struct rprm_auxclk *obj)
+{
+	return sprintf(buf,
+		"Id:%d\n"
+		"Rate:%2d\n"
+		"ParentSrc:%d\n"
+		"ParentSrcRate:%d\n",
+		obj->id, obj->clk_rate, obj->parent_src_clk,
+		obj->parent_src_clk_rate);
+}
+
+static int _printf_regulator_args(char *buf, struct rprm_regulator *obj)
+{
+	return sprintf(buf,
+		"Id:%d\n"
+		"min_uV:%d\n"
+		"max_uV:%d\n",
+		obj->id, obj->min_uv, obj->max_uv);
+}
+
+static int _printf_gpio_args(char *buf, struct rprm_gpio *obj)
+{
+	return sprintf(buf, "Id:%d\n", obj->id);
+}
+
+static int _printf_i2c_args(char *buf, struct rprm_i2c *obj)
+{
+	return sprintf(buf, "Id:%d\n", obj->id);
+}
+
+static int _printf_sdma_args(char *buf, struct rprm_sdma *obj)
+{
+	int i, ret = 0;
+	ret += sprintf(buf, "NumChannels:%d\n", obj->num_chs);
+	for (i = 0 ; i < obj->num_chs; i++)
+		ret += sprintf(buf + ret, "Channel[%d]:%d\n", i,
+			obj->channels[i]);
+	return ret;
+}
+
+static int _print_res_args(char *buf, struct rprm_elem *e)
+{
+	void *res = (void *)e->res;
+
+	switch (e->type) {
+	case RPRM_GPTIMER:
+		return _printf_gptimer_args(buf, res);
+	case RPRM_AUXCLK:
+		return _printf_auxclk_args(buf, res);
+	case RPRM_I2C:
+		return _printf_i2c_args(buf, res);
+	case RPRM_REGULATOR:
+		return _printf_regulator_args(buf, res);
+	case RPRM_GPIO:
+		return _printf_gpio_args(buf, res);
+	case RPRM_SDMA:
+		return _printf_sdma_args(buf, res);
+	}
+	return 0;
+}
+
+static int _printf_constraints_args(char *buf, struct rprm_elem *e)
+{
+	return sprintf(buf,
 		"Mask:0x%x\n"
 		"Frequency:%ld\n"
 		"Latency:%ld\n"
 		"Bandwidth:%ld\n",
-		e->constraints.mask, e->constraints.frequency,
-		e->constraints.latency, e->constraints.bandwidth);
+		e->constraints->mask, e->constraints->frequency,
+		e->constraints->latency, e->constraints->bandwidth);
 }
 
 static ssize_t rprm_dbg_read(struct file *filp, char __user *userbuf,
@@ -501,42 +1185,33 @@ static ssize_t rprm_dbg_read(struct file *filp, char __user *userbuf,
 {
 	struct rprm *rprm = filp->private_data;
 	struct rprm_elem *e;
-	char buf[MAX_RES_BUF];
+	char res[512];
 	int total = 0, c, tmp;
 	loff_t p = 0, pt;
-	size_t len = MAX_RES_BUF;
 
-	mutex_lock(&rprm->lock);
-	c = snprintf(buf, len, "## resource list for remote endpoint %d ##\n",
-							rprm->rpdev->src);
 	list_for_each_entry(e, &rprm->res_list, next) {
-		c += snprintf(buf + c, len - c , "\n-resource name:%s\n",
-							e->res->name);
-		if (e->res->ops->get_info)
-			c += e->res->ops->get_info(e->handle,
-						buf + c, len - c);
+		c = sprintf(res,
+			"\nResource Name:%s\n"
+			"Source address:%d\n",
+			rnames[e->type], e->src);
 
-		if (e->constraints.mask)
-			c += _snprint_constraints_info(e, buf + c, len - c);
+		if (_get_rprm_size(e->type))
+			c += _print_res_args(res + c, e);
+
+		if (e->constraints && e->constraints->mask)
+			c += _printf_constraints_args(res + c, e);
 
 		p += c;
-		/* if resource already read then continue */
-		if (*ppos >= p) {
-			c = 0;
+		if (*ppos >= p)
 			continue;
-		}
-
 		pt = c - p + *ppos;
 		tmp = simple_read_from_buffer(userbuf + total, count, &pt,
-						 buf, c);
+						 res, c);
 		total += tmp;
 		*ppos += tmp;
-		/* if userbuf is full then break */
 		if (tmp - c)
 			break;
-		c = 0;
 	}
-	mutex_unlock(&rprm->lock);
 
 	return total;
 }
@@ -553,122 +1228,54 @@ static const struct file_operations rprm_dbg_ops = {
 	.llseek	= generic_file_llseek,
 };
 
-/**
- * rprm_resource_register - register a new resource
- * @res: pointer to the resource structure
- *
- * This function registers a new resource @res so that, a remote processor
- * can request it and then release it when it is not needed anymore.
- *
- * On success 0 is returned. Otherwise, will return proper error.
- */
-int rprm_resource_register(struct rprm_res *res)
-{
-	int ret = 0;
-
-	if (!res || !res->name || !res->ops)
-		return -EINVAL;
-
-	spin_lock(&table_lock);
-	/* resources cannot have the same name */
-	if (__find_res_by_name(res->name)) {
-		pr_err("resource %s already exists!\n", res->name);
-		ret = -EEXIST;
-		goto unlock;
-	}
-
-	list_add_tail(&res->next, &res_table);
-	pr_debug("registering resource %s\n", res->name);
-unlock:
-	spin_unlock(&table_lock);
-
-	return ret;
-}
-EXPORT_SYMBOL(rprm_resource_register);
-
-/**
- * rprm_resource_unregister - unregister a resource
- * @res: pointer to the resource structure
- *
- * This function unregisters a resource @res previously registered. After this
- * the remote processor cannot request @res anymore.
- *
- * On success 0 is returned. Otherwise, -EINVAL is returned.
- */
-int rprm_resource_unregister(struct rprm_res *res)
-{
-	if (!res)
-		return -EINVAL;
-
-	spin_lock(&table_lock);
-	list_del(&res->next);
-	spin_unlock(&table_lock);
-	pr_debug("unregistering resource %s\n", res->name);
-
-	return 0;
-}
-EXPORT_SYMBOL(rprm_resource_unregister);
-
-/* probe function is called every time a new connection(device) is created */
 static int rprm_probe(struct rpmsg_channel *rpdev)
 {
 	struct rprm *rprm;
-	struct rprm_ack ack;
-	struct rproc *rproc = vdev_to_rproc(rpdev->vrp->vdev);
-	char name[MAX_DENTRY_SIZE];
-	int ret = 0;
 
-	rprm = kmalloc(sizeof *rprm, GFP_KERNEL);
-	if (!rprm) {
-		ret = -ENOMEM;
-		goto out;
-	}
+	rprm = kmalloc(sizeof(*rprm), GFP_KERNEL);
+	if (!rprm)
+		return -ENOMEM;
 
 	mutex_init(&rprm->lock);
-	idr_init(&rprm->id_list);
-	/*
-	 * Beside the idr we create a linked list, that way we can cleanup the
-	 * resources allocated in reverse order as they were requested which
-	 * is safer.
-	 */
 	INIT_LIST_HEAD(&rprm->res_list);
-	rprm->rpdev = rpdev;
+	idr_init(&rprm->conn_list);
+	idr_init(&rprm->id_list);
 	dev_set_drvdata(&rpdev->dev, rprm);
 
-	snprintf(name, MAX_DENTRY_SIZE, "resmgr-%s", dev_name(&rpdev->dev));
-	name[MAX_DENTRY_SIZE - 1] = '\0';
-	/*
-	 * Create a debug entry in the same rproc directory so that we can know
-	 * which remote proc is using this resmgr connection
-	 */
-	rprm->dentry = debugfs_create_file(name, 0400, rproc->dbg_dir, rprm,
-							&rprm_dbg_ops);
-out:
-	/* send a message back to ack the connection */
-	ack.action = RPRM_CONNECT;
-	ack.ret = ret;
-	if (rpmsg_send(rpdev, &ack, sizeof ack))
-		dev_err(&rpdev->dev, "error sending respond!\n");
+	rprm->dbg_dir = debugfs_create_dir(dev_name(&rpdev->dev), rprm_dbg);
+	if (!rprm->dbg_dir)
+		dev_err(&rpdev->dev, "can't create debugfs dir\n");
 
-	return ret;
+	debugfs_create_file("resources", 0400, rprm->dbg_dir, rprm,
+							&rprm_dbg_ops);
+
+	return 0;
 }
 
-/* remove function is called when the connection is terminated */
 static void __devexit rprm_remove(struct rpmsg_channel *rpdev)
 {
 	struct rprm *rprm = dev_get_drvdata(&rpdev->dev);
 	struct rprm_elem *e, *tmp;
 
-	/* clean up remaining resources */
-	mutex_lock(&rprm->lock);
-	list_for_each_entry_safe(e, tmp, &rprm->res_list, next)
-		_resource_release(rprm, e);
+	dev_info(&rpdev->dev, "Enter %s\n", __func__);
 
+	if (rprm->dbg_dir)
+		debugfs_remove_recursive(rprm->dbg_dir);
+
+	mutex_lock(&rprm->lock);
+
+	/* clean up remaining resources */
+	list_for_each_entry_safe(e, tmp, &rprm->res_list, next) {
+		_resource_free(e);
+		list_del(&e->next);
+		kfree(e);
+	}
 	idr_remove_all(&rprm->id_list);
 	idr_destroy(&rprm->id_list);
+	idr_remove_all(&rprm->conn_list);
+	idr_destroy(&rprm->conn_list);
+
 	mutex_unlock(&rprm->lock);
-	if (rprm->dentry)
-		debugfs_remove(rprm->dentry);
 
 	kfree(rprm);
 }
@@ -690,17 +1297,30 @@ static struct rpmsg_driver rprm_driver = {
 	.remove		= __devexit_p(rprm_remove),
 };
 
-static int __init rprm_init(void)
+static int __init init(void)
 {
-	return register_rpmsg_driver(&rprm_driver);
-}
-module_init(rprm_init);
+	int r;
 
-static void __exit rprm_fini(void)
+	if (debugfs_initialized()) {
+		rprm_dbg = debugfs_create_dir(KBUILD_MODNAME, NULL);
+		if (!rprm_dbg)
+			pr_err("Error creating rprm debug directory\n");
+	}
+	r = register_rpmsg_driver(&rprm_driver);
+	if (r && rprm_dbg)
+		debugfs_remove_recursive(rprm_dbg);
+
+	return r;
+}
+
+static void __exit fini(void)
 {
+	if (rprm_dbg)
+		debugfs_remove_recursive(rprm_dbg);
 	unregister_rpmsg_driver(&rprm_driver);
 }
-module_exit(rprm_fini);
+module_init(init);
+module_exit(fini);
 
 MODULE_DESCRIPTION("Remote Processor Resource Manager");
 MODULE_LICENSE("GPL v2");

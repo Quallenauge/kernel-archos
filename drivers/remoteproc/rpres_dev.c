@@ -144,6 +144,7 @@ static inline struct device *__find_device_by_name(const char *name)
 struct device *omap4_get_fdif_device(void)
 {
 	struct device *dev;
+	printk("%s:%s:%d: Try to find device named: fdif\n", __FILE__,__FUNCTION__,__LINE__);
 	dev = __find_device_by_name("fdif");
 	if (!dev)
 	{
@@ -159,7 +160,8 @@ struct device *omap4_get_fdif_device(void)
 struct device *omap2_get_iva_device(void)
 {
 	struct device *dev;
-	dev = __find_device_by_name("iva");
+	printk("%s:%s:%d: Try to find device named: iva\n", __FILE__,__FUNCTION__,__LINE__);
+	dev = __find_device_by_name("iva.0");
 	if (!dev)
 	{
 		printk("%s:%s:%d: Cant find device named: iva\n", __FILE__,__FUNCTION__,__LINE__);

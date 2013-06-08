@@ -22,7 +22,7 @@
 #include <linux/rpmsg.h>
 #include <linux/ion.h>
 
-int debug_imt = 1;
+int debug_imt = 2;
 int debug_iva = 1;
 
 module_param(debug_imt, int, 0644);
@@ -269,10 +269,11 @@ static void rpmsg_cb(struct rpmsg_channel *rpdev, void *data,
 	char buffer[16 + 512];
 	struct imt_rpc_req *req = (struct imt_rpc_req*)buffer;
 
-//	DBG("imt: rpmsg_cb: len=%d, src=%d", len, src);
+	DBG("imt: rpmsg_cb: len=%d, src=%d", len, src);
 
 	memcpy( req, data, len );
 	
+	DBG("imt: After memcpy().");
 	handle_request( req );
 }
 

@@ -45,6 +45,29 @@ config OMAP_DEBUG_LEDS
 	depends on OMAP_DEBUG_DEVICES
 	default y if LEDS_CLASS
 
+config OMAP_RPMSG
+	tristate "OMAP Virtio-based remote processor messaging support"
+	depends on ARCH_OMAP4
+	default y
+	select VIRTIO
+	select VIRTIO_RING
+	select OMAP_MBOX_FWK
+	help
+	  Say Y if you want to enable OMAP virtio-based remote-processor
+	  communication, currently only available with OMAP4. This is required
+	  for offloading tasks to the remote on-chip M3s or C64x+ dsp,
+	  usually used by multimedia frameworks to offload cpu-intensive and/or
+          latency-sensitive tasks.
+
+config OMAP_RPMSG_RECOVERY
+	bool "OMAP RPMSG recovery"
+	default y
+	depends on OMAP_RPMSG
+	help
+	  Say Y if you want RPMSG to reset the rpmsg channels after a fatal
+	  error in remote proc. That way it will restart all the channels and
+	  the remote processor, causing a clean restart.
+
 config POWER_AVS_OMAP
 	bool "AVS(Adaptive Voltage Scaling) support for OMAP IP versions 1&2"
 	depends on POWER_AVS && (ARCH_OMAP3 || ARCH_OMAP4 || ARCH_OMAP5) && PM
