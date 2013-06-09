@@ -10,7 +10,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-#define DEBUG
+// #define DEBUG
 
 #include <linux/err.h>
 #include <linux/module.h>
@@ -68,7 +68,7 @@ static struct kmem_cache *iopte_cachep;
  **/
 int omap_install_iommu_arch(const struct iommu_functions *ops)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (arch_iommu)
 		return -EBUSY;
 
@@ -85,7 +85,7 @@ EXPORT_SYMBOL_GPL(omap_install_iommu_arch);
  **/
 void omap_uninstall_iommu_arch(const struct iommu_functions *ops)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (arch_iommu != ops)
 		pr_err("%s: not your arch\n", __func__);
 
@@ -102,7 +102,7 @@ EXPORT_SYMBOL_GPL(omap_uninstall_iommu_arch);
  **/
 void omap_iommu_save_ctx(struct device *dev)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 }
 EXPORT_SYMBOL_GPL(omap_iommu_save_ctx);
 
@@ -115,14 +115,14 @@ EXPORT_SYMBOL_GPL(omap_iommu_save_ctx);
  **/
 void omap_iommu_restore_ctx(struct device *dev)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 }
 EXPORT_SYMBOL_GPL(omap_iommu_restore_ctx);
 
 static inline
 void omap_iommu_remove_latency_req(struct omap_iommu *oiommu)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!strcmp(oiommu->name, "ipu"))
 		pm_qos_remove_request(&oiommu->qos_request.pm_qos);
 	else if (dev_pm_qos_remove_request(&oiommu->qos_request.dev_pm_qos) < 0)
@@ -133,7 +133,7 @@ static inline
 int omap_iommu_update_latency(struct omap_iommu *oiommu, int val)
 {
 	int ret = 0;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (!strcmp(oiommu->name, "ipu"))
 		pm_qos_update_request(&oiommu->qos_request.pm_qos, val);
@@ -159,7 +159,7 @@ static int omap_iommu_runtime_suspend(struct device *dev)
 {
 	struct omap_iommu *obj = to_iommu(dev);
 	int pm_constraint, ret = 0;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	dev_dbg(obj->dev, "%s: %s\n", __func__, obj->name);
 
@@ -184,7 +184,7 @@ static int omap_iommu_runtime_resume(struct device *dev)
 	struct omap_iommu *obj = to_iommu(dev);
 	int pm_constraint, ret = 0;
 
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	dev_dbg(obj->dev, "%s: %s\n", __func__, obj->name);
 
 	if (!arch_iommu)
@@ -221,7 +221,7 @@ static void omap_iommu_domain_idle(struct iommu_domain *domain)
 {
 	struct omap_iommu_domain *omap_domain = domain->priv;
 	struct omap_iommu *oiommu = omap_domain->iommu_dev;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	pm_runtime_put(oiommu->dev);
 }
@@ -234,7 +234,7 @@ static void omap_iommu_domain_activate(struct iommu_domain *domain)
 {
 	struct omap_iommu_domain *omap_domain = domain->priv;
 	struct omap_iommu *oiommu = omap_domain->iommu_dev;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	pm_runtime_get_sync(oiommu->dev);
 }
@@ -244,14 +244,14 @@ static void omap_iommu_domain_activate(struct iommu_domain *domain)
  **/
 u32 omap_iommu_arch_version(void)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return arch_iommu->version;
 }
 EXPORT_SYMBOL_GPL(omap_iommu_arch_version);
 
 static int iommu_enable(struct omap_iommu *obj)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!obj)
 		return -EINVAL;
 
@@ -265,7 +265,7 @@ static int iommu_enable(struct omap_iommu *obj)
 
 static void iommu_disable(struct omap_iommu *obj)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!obj)
 		return;
 
@@ -279,7 +279,7 @@ static void iommu_disable(struct omap_iommu *obj)
  */
 void omap_iotlb_cr_to_e(struct cr_regs *cr, struct iotlb_entry *e)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	BUG_ON(!cr || !e);
 
 	arch_iommu->cr_to_e(cr, e);
@@ -288,7 +288,7 @@ EXPORT_SYMBOL_GPL(omap_iotlb_cr_to_e);
 
 static inline int iotlb_cr_valid(struct cr_regs *cr)
 {
-//	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+//	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!cr)
 		return -EINVAL;
 
@@ -298,7 +298,7 @@ static inline int iotlb_cr_valid(struct cr_regs *cr)
 static inline struct cr_regs *iotlb_alloc_cr(struct omap_iommu *obj,
 					     struct iotlb_entry *e)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!e)
 		return NULL;
 
@@ -307,26 +307,26 @@ static inline struct cr_regs *iotlb_alloc_cr(struct omap_iommu *obj,
 
 static u32 iotlb_cr_to_virt(struct cr_regs *cr)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return arch_iommu->cr_to_virt(cr);
 }
 
 static u32 get_iopte_attr(struct iotlb_entry *e)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return arch_iommu->get_pte_attr(e);
 }
 
 static u32 iommu_report_fault(struct omap_iommu *obj, u32 *da)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return arch_iommu->fault_isr(obj, da);
 }
 
 static void iotlb_lock_get(struct omap_iommu *obj, struct iotlb_lock *l)
 {
 	u32 val;
-//	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+//	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	val = iommu_read_reg(obj, MMU_LOCK);
 
@@ -338,7 +338,7 @@ static void iotlb_lock_get(struct omap_iommu *obj, struct iotlb_lock *l)
 static void iotlb_lock_set(struct omap_iommu *obj, struct iotlb_lock *l)
 {
 	u32 val;
-//	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+//	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	val = (l->base << MMU_LOCK_BASE_SHIFT);
 	val |= (l->vict << MMU_LOCK_VICT_SHIFT);
@@ -348,13 +348,13 @@ static void iotlb_lock_set(struct omap_iommu *obj, struct iotlb_lock *l)
 
 static void iotlb_read_cr(struct omap_iommu *obj, struct cr_regs *cr)
 {
-//	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+//	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	arch_iommu->tlb_read_cr(obj, cr);
 }
 
 static void iotlb_load_cr(struct omap_iommu *obj, struct cr_regs *cr)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	arch_iommu->tlb_load_cr(obj, cr);
 
 	iommu_write_reg(obj, 1, MMU_FLUSH_ENTRY);
@@ -370,7 +370,7 @@ static void iotlb_load_cr(struct omap_iommu *obj, struct cr_regs *cr)
 static inline ssize_t iotlb_dump_cr(struct omap_iommu *obj, struct cr_regs *cr,
 				    char *buf)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	BUG_ON(!cr || !buf);
 
 	return arch_iommu->dump_cr(obj, cr, buf);
@@ -382,7 +382,7 @@ static struct cr_regs __iotlb_read_cr(struct omap_iommu *obj, int n)
 	struct cr_regs cr;
 	struct iotlb_lock l;
 
-//	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+//	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	iotlb_lock_get(obj, &l);
 	l.vict = n;
 	iotlb_lock_set(obj, &l);
@@ -402,7 +402,7 @@ static int load_iotlb_entry(struct omap_iommu *obj, struct iotlb_entry *e)
 	int err = 0;
 	struct iotlb_lock l;
 	struct cr_regs *cr;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (obj && obj->secure_mode) {
 		WARN_ON(1);
@@ -464,7 +464,7 @@ out:
 
 static int load_iotlb_entry(struct omap_iommu *obj, struct iotlb_entry *e)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return 0;
 }
 
@@ -472,7 +472,7 @@ static int load_iotlb_entry(struct omap_iommu *obj, struct iotlb_entry *e)
 
 static int prefetch_iotlb_entry(struct omap_iommu *obj, struct iotlb_entry *e)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return load_iotlb_entry(obj, e);
 }
 
@@ -487,7 +487,7 @@ static void flush_iotlb_page(struct omap_iommu *obj, u32 da)
 {
 	int i;
 	struct cr_regs cr;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (obj && obj->secure_mode) {
 		WARN_ON(1);
@@ -526,7 +526,7 @@ static void flush_iotlb_page(struct omap_iommu *obj, u32 da)
 static void flush_iotlb_all(struct omap_iommu *obj)
 {
 	struct iotlb_lock l;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	pm_runtime_get_sync(obj->dev);
 
@@ -546,7 +546,7 @@ ssize_t omap_iommu_dump_ctx(struct omap_iommu *obj, char *buf, ssize_t bytes)
 	if (!obj || !buf)
 		return -EINVAL;
 
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	pm_runtime_get_sync(obj->dev);
 
 	bytes = arch_iommu->dump_ctx(obj, buf, bytes);
@@ -564,7 +564,7 @@ __dump_tlb_entries(struct omap_iommu *obj, struct cr_regs *crs, int num)
 	struct iotlb_lock saved;
 	struct cr_regs tmp;
 	struct cr_regs *p = crs;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	pm_runtime_get_sync(obj->dev);
 	iotlb_lock_get(obj, &saved);
@@ -592,7 +592,7 @@ size_t omap_dump_tlb_entries(struct omap_iommu *obj, char *buf, ssize_t bytes)
 	struct cr_regs *cr;
 	char *p = buf;
 
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	num = bytes / sizeof(*cr);
 	num = min(obj->nr_tlb_entries, num);
 
@@ -611,7 +611,7 @@ EXPORT_SYMBOL_GPL(omap_dump_tlb_entries);
 
 int omap_foreach_iommu_device(void *data, int (*fn)(struct device *, void *))
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return driver_for_each_device(&omap_iommu_driver.driver,
 				      NULL, data, fn);
 }
@@ -624,7 +624,7 @@ EXPORT_SYMBOL_GPL(omap_foreach_iommu_device);
  */
 static void flush_iopgd_range(u32 *first, u32 *last)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	dmac_flush_range(first, last);
 	outer_flush_range(virt_to_phys(first), virt_to_phys(last));
 }
@@ -632,14 +632,14 @@ static void flush_iopgd_range(u32 *first, u32 *last)
 
 static void flush_iopte_range(u32 *first, u32 *last)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	dmac_flush_range(first, last);
 	outer_flush_range(virt_to_phys(first), virt_to_phys(last));
 }
 
 static void iopte_free(u32 *iopte)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	/* Note: freed iopte's must be clean ready for re-use */
 	kmem_cache_free(iopte_cachep, iopte);
 }
@@ -647,7 +647,7 @@ static void iopte_free(u32 *iopte)
 static u32 *iopte_alloc(struct omap_iommu *obj, u32 *iopgd, u32 da)
 {
 	u32 *iopte;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* a table has already existed */
 	if (*iopgd)
@@ -686,7 +686,7 @@ pte_ready:
 static int iopgd_alloc_section(struct omap_iommu *obj, u32 da, u32 pa, u32 prot)
 {
 	u32 *iopgd = iopgd_offset(obj, da);
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if ((da | pa) & ~IOSECTION_MASK) {
 		dev_err(obj->dev, "%s: %08x:%08x should aligned on %08lx\n",
@@ -703,7 +703,7 @@ static int iopgd_alloc_super(struct omap_iommu *obj, u32 da, u32 pa, u32 prot)
 {
 	u32 *iopgd = iopgd_offset(obj, da);
 	int i;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if ((da | pa) & ~IOSUPER_MASK) {
 		dev_err(obj->dev, "%s: %08x:%08x should aligned on %08lx\n",
@@ -721,7 +721,7 @@ static int iopte_alloc_page(struct omap_iommu *obj, u32 da, u32 pa, u32 prot)
 {
 	u32 *iopgd = iopgd_offset(obj, da);
 	u32 *iopte = iopte_alloc(obj, iopgd, da);
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (IS_ERR(iopte))
 		return PTR_ERR(iopte);
@@ -740,7 +740,7 @@ static int iopte_alloc_large(struct omap_iommu *obj, u32 da, u32 pa, u32 prot)
 	u32 *iopgd = iopgd_offset(obj, da);
 	u32 *iopte = iopte_alloc(obj, iopgd, da);
 	int i;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if ((da | pa) & ~IOLARGE_MASK) {
 		dev_err(obj->dev, "%s: %08x:%08x should aligned on %08lx\n",
@@ -763,7 +763,7 @@ iopgtable_store_entry_core(struct omap_iommu *obj, struct iotlb_entry *e)
 	int (*fn)(struct omap_iommu *, u32, u32, u32);
 	u32 prot;
 	int err;
-//	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+//	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (!obj || !e)
 		return -EINVAL;
@@ -804,7 +804,7 @@ iopgtable_store_entry_core(struct omap_iommu *obj, struct iotlb_entry *e)
 int omap_iopgtable_store_entry(struct omap_iommu *obj, struct iotlb_entry *e)
 {
 	int err;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (obj && obj->secure_mode) {
 		WARN_ON(1);
@@ -830,7 +830,7 @@ static void
 iopgtable_lookup_entry(struct omap_iommu *obj, u32 da, u32 **ppgd, u32 **ppte)
 {
 	u32 *iopgd = NULL, *iopte = NULL;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (obj && obj->secure_mode) {
 		WARN_ON(1);
@@ -853,7 +853,7 @@ static size_t iopgtable_clear_entry_core(struct omap_iommu *obj, u32 da)
 	size_t bytes;
 	u32 *iopgd = iopgd_offset(obj, da);
 	int nent = 1;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (!*iopgd)
 		return 0;
@@ -905,7 +905,7 @@ out:
 static size_t iopgtable_clear_entry(struct omap_iommu *obj, u32 da)
 {
 	size_t bytes;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (obj && obj->secure_mode) {
 		WARN_ON(1);
@@ -925,7 +925,7 @@ static size_t iopgtable_clear_entry(struct omap_iommu *obj, u32 da)
 static void iopgtable_clear_entry_all(struct omap_iommu *obj)
 {
 	int i;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	spin_lock(&obj->page_table_lock);
 
@@ -960,7 +960,7 @@ static irqreturn_t iommu_fault_handler(int irq, void *data)
 	u32 *iopgd, *iopte;
 	struct omap_iommu *obj = data;
 	struct iommu_domain *domain = obj->domain;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (!obj->refcount)
 		return IRQ_NONE;
@@ -996,7 +996,7 @@ static int device_match_by_alias(struct device *dev, void *data)
 {
 	struct omap_iommu *obj = to_iommu(dev);
 	const char *name = data;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	return strcmp(obj->name, name) == 0;
 }
@@ -1016,8 +1016,8 @@ static struct omap_iommu *omap_iommu_attach(const char *name,
 	int *data = domain->iommu_data;
 	int pm_constraint = 0;
 
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
-	printk("omap_iommu_driver is 0x%p\n", &omap_iommu_driver);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk("omap_iommu_driver is 0x%p\n", &omap_iommu_driver);
 
 	dev = driver_find_device(&omap_iommu_driver.driver, NULL,
 				(void *)name,
@@ -1080,7 +1080,7 @@ err_enable:
 static void omap_iommu_detach(struct omap_iommu *obj)
 {
 	int pm_constraint;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (!obj || IS_ERR(obj))
 		return;
@@ -1113,7 +1113,7 @@ static int __devinit omap_iommu_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct iommu_platform_data *pdata = pdev->dev.platform_data;
 
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	//printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	obj = kzalloc(sizeof(*obj) + MMU_REG_SIZE, GFP_KERNEL);
 	if (!obj)
 		return -ENOMEM;
@@ -1283,7 +1283,7 @@ omap_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 	struct omap_iommu_arch_data *arch_data = dev->archdata.iommu;
 	int ret = 0;
 
-	printk("%s:%s:%d: Domain ptr: 0x%p archdate=0x%p, dev->name=%s\n",__FILE__,__FUNCTION__,__LINE__, domain, arch_data, dev_name(dev));
+	//printk("%s:%s:%d: Domain ptr: 0x%p archdate=0x%p, dev->name=%s\n",__FILE__,__FUNCTION__,__LINE__, domain, arch_data, dev_name(dev));
 
 	spin_lock(&omap_domain->lock);
 

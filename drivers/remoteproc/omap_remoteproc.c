@@ -264,6 +264,24 @@ static inline void _load_boot_addr(struct rproc *rproc, u64 bootaddr)
 	return;
 }
 
+static void rproc_activate_iommu(struct omap_rproc_priv *rpp)
+{
+	struct iommu_domain *domain = rpp->domain;
+
+	printk("activating iommu\n");
+	if (domain)
+		iommu_domain_activate(domain);
+}
+
+static void rproc_idle_iommu(struct omap_rproc_priv *rpp)
+{
+	struct iommu_domain *domain = rpp->domain;
+
+	printk("de-activating iommu\n");
+	if (domain)
+		iommu_domain_idle(domain);
+}
+
 int omap_rproc_activate(struct omap_device *od)
 {
 	int i, ret = 0;
@@ -286,22 +304,24 @@ int omap_rproc_activate(struct omap_device *od)
 //		rpp->iommu = iommu;
 //	}
 
-	struct iommu_domain *domain;
-	if (!rpp->domain) {
-		domain = iommu_domain_alloc(dev->bus);
-		if (!domain) {
-			dev_err(dev, "can't alloc iommu domain\n");
-			ret = -ENOMEM;
-			goto err_mmu;
-		}
-
-		ret = iommu_attach_device(domain, dev);
-		if (ret) {
-			dev_err(dev, "can't attach iommu device: %d\n", ret);
-			goto free_domain;
-		}
-		rpp->domain = domain;
-	}
+//	struct iommu_domain *domain;
+//	if (!rpp->domain) {
+//		domain = iommu_domain_alloc(dev->bus);
+//		if (!domain) {
+//			dev_err(dev, "can't alloc iommu domain\n");
+//			ret = -ENOMEM;
+//			goto err_mmu;
+//		}
+//
+//		ret = iommu_attach_device(domain, dev);
+//		if (ret) {
+//			dev_err(dev, "can't attach iommu device: %d\n", ret);
+//			goto free_domain;
+//		}
+//		rpp->domain = domain;
+//	}
+	//Try to ise activate/deactivate like the 3.4 way
+	rproc_activate_iommu(rpp);
 
 	if (!rpp->mbox)
 		rpp->mbox = omap_mbox_get(pdata->sus_mbox_name, NULL);
@@ -341,14 +361,16 @@ int omap_rproc_activate(struct omap_device *od)
 		clkdm_allow_idle(pdata->clkdm);
 
 	return ret;
-#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
-free_domain:
-	iommu_domain_free(domain);
-err_mmu:
-	if (pdata->clkdm)
-		clkdm_allow_idle(pdata->clkdm);
-	kfree(rpp);
-#endif
+//#ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
+//free_domain:
+//	if (rpp->domain){
+//		iommu_domain_free(rpp->domain);
+//	}
+//err_mmu:
+//	if (pdata->clkdm)
+//		clkdm_allow_idle(pdata->clkdm);
+//	kfree(rpp);
+//#endif
 	return ret;
 }
 
@@ -381,11 +403,13 @@ int omap_rproc_deactivate(struct omap_device *od)
 //		iommu_put(rpp->iommu);
 //		rpp->iommu = NULL;
 //	}
-	if (rpp->domain) {
-		iommu_detach_device(rpp->domain, rproc->dev);
-		iommu_domain_free(rpp->domain);
-		rpp->domain = NULL;
-	}
+//	if (rpp->domain) {
+//		iommu_detach_device(rpp->domain, rproc->dev);
+//		iommu_domain_free(rpp->domain);
+//		rpp->domain = NULL;
+//	}
+	//Try to ise activate/deactivate like the 3.4 way
+	rproc_idle_iommu(rpp);
 
 	if (rpp->mbox) {
 		omap_mbox_put(rpp->mbox, NULL);

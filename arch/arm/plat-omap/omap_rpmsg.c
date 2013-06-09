@@ -17,6 +17,7 @@
  * GNU General Public License for more details.
  */
 
+#define DEBUG
 #define pr_fmt(fmt) "%s: " fmt, __func__
 
 #include <linux/init.h>
@@ -666,6 +667,7 @@ static int __init omap_rpmsg_ini(void)
 	phys_addr_t psize = 0;
 	bool set_ipu = true;
 
+	printk("%s:%s\n", __FILE__,__FUNCTION__);
 	for (i = 0; i < ARRAY_SIZE(omap_rpmsg_vprocs); i++) {
 		struct omap_rpmsg_vproc *rpdev = &omap_rpmsg_vprocs[i];
 
