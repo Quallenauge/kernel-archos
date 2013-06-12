@@ -3,8 +3,6 @@
  *    g.revaillot, revaillot@archos.com
  */
 
-#define DEBUG
-#include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
@@ -111,8 +109,6 @@ static int tr16c0_archos_demux_i2c(int demux)
 
 		gpio_free(i2c4_scl_gpio);
 		gpio_free(i2c4_sda_gpio);
-
-		msleep(2000);
 
 		// mux back to i2c lines.
 		omap_mux_init_signal("i2c4_scl.i2c4_scl", OMAP_PIN_INPUT);
