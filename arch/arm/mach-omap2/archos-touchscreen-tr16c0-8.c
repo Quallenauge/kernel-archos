@@ -3,8 +3,8 @@
  *    g.revaillot, revaillot@archos.com
  */
 
-//#define DEBUG
-
+#define DEBUG
+#include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
@@ -112,6 +112,8 @@ static int tr16c0_archos_demux_i2c(int demux)
 		gpio_free(i2c4_scl_gpio);
 		gpio_free(i2c4_sda_gpio);
 
+		msleep(2000);
+
 		// mux back to i2c lines.
 		omap_mux_init_signal("i2c4_scl.i2c4_scl", OMAP_PIN_INPUT);
 		omap_mux_init_signal("i2c4_sda.i2c4_sda", OMAP_PIN_INPUT);
@@ -199,14 +201,20 @@ int __init archos_touchscreen_tr16c0_init(struct tr16c0_platform_data *pdata)
 			pr_err("%s : could not request irq gpio %d\n",
 					__func__, irq_gpio);
 			return ret;
+		}else{
+			pr_debug("%s : could sucessfully request irq gpio %d\n",
+								__func__, irq_gpio);
 		}
 
 		gpio_direction_input(irq_gpio);
 
-		if (conf->irq_signal)
+		if (conf->irq_signal){
 			omap_mux_init_signal(conf->irq_signal,
 					OMAP_PIN_INPUT
 					| OMAP_PIN_OFF_WAKEUPENABLE);
+			pr_debug("%s : omap_mux_init_signal() called...\n",
+								__func__);
+		}
 		else
 			omap_mux_init_gpio(irq_gpio,
 					OMAP_PIN_INPUT

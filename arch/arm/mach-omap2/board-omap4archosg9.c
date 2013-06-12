@@ -84,6 +84,7 @@ static struct akm8975_platform_data board_akm8975_pdata;
 
 static void remux_regulator_gpio(int gpio)
 {
+	printk(">>%s:%s: GPIO: %d\n",__FILE__,__FUNCTION__,gpio);
 	switch (gpio) {
 	default:
 		omap_mux_init_gpio(gpio, OMAP_PIN_INPUT|OMAP_PIN_OUTPUT);
@@ -101,6 +102,7 @@ static void remux_regulator_gpio(int gpio)
 		omap_mux_init_gpio(gpio, OMAP_PIN_INPUT_PULLUP|OMAP_PIN_OUTPUT);
 		break;
 	}
+	printk("<<%s:%s\n",__FILE__,__FUNCTION__);
 }
 
 
@@ -1502,47 +1504,57 @@ static int __init omap4_i2c_init(void)
 
 	return 0;
 }
-
+// Taken from stock rom
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux board_mux[] __initdata = {
-	OMAP4_MUX(USBB2_ULPITLL_CLK, OMAP_MUX_MODE3 | OMAP_PIN_OUTPUT
-					| OMAP_PULL_ENA),
-	OMAP4_MUX(SYS_NIRQ2, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP
-					| OMAP_PIN_OFF_WAKEUPENABLE),
-	OMAP4_MUX(SYS_NIRQ1, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP
-					| OMAP_PIN_OFF_WAKEUPENABLE),
-
-	/* IO optimization pdpu and offmode settings to reduce leakage */
-	OMAP4_MUX(GPMC_A17, OMAP_MUX_MODE3 | OMAP_INPUT_EN),
-	OMAP4_MUX(GPMC_NBE1, OMAP_MUX_MODE3 | OMAP_PIN_OUTPUT),
-	OMAP4_MUX(GPMC_NCS4, OMAP_MUX_MODE3 | OMAP_INPUT_EN),
-	OMAP4_MUX(GPMC_NCS5, OMAP_MUX_MODE3 | OMAP_PULL_ENA | OMAP_PULL_UP
-					| OMAP_OFF_EN | OMAP_OFF_PULL_EN),
-	OMAP4_MUX(GPMC_NCS7, OMAP_MUX_MODE3 | OMAP_INPUT_EN),
-	OMAP4_MUX(GPMC_NBE1, OMAP_MUX_MODE3 | OMAP_PULL_ENA | OMAP_PULL_UP
-					| OMAP_OFF_EN | OMAP_OFF_PULL_EN),
-	OMAP4_MUX(GPMC_WAIT0, OMAP_MUX_MODE3 | OMAP_INPUT_EN),
-	OMAP4_MUX(GPMC_NOE, OMAP_MUX_MODE1 | OMAP_INPUT_EN),
-	OMAP4_MUX(MCSPI1_CS1, OMAP_MUX_MODE3 | OMAP_PULL_ENA | OMAP_PULL_UP
-					| OMAP_OFF_EN | OMAP_OFF_PULL_EN),
-	OMAP4_MUX(MCSPI1_CS2, OMAP_MUX_MODE3 | OMAP_PULL_ENA | OMAP_PULL_UP
-					| OMAP_OFF_EN | OMAP_OFF_PULL_EN),
-	OMAP4_MUX(SDMMC5_CLK, OMAP_MUX_MODE0 | OMAP_INPUT_EN | OMAP_OFF_EN
-					| OMAP_OFF_PULL_EN),
-	OMAP4_MUX(GPMC_NCS1, OMAP_MUX_MODE3 | OMAP_INPUT_EN | OMAP_WAKEUP_EN),
-	OMAP4_MUX(GPMC_A24, OMAP_MUX_MODE3 | OMAP_INPUT_EN | OMAP_WAKEUP_EN),
-
-	OMAP4_MUX(ABE_MCBSP1_DR, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
-
-
 	OMAP4_MUX(UART3_RX_IRRX, OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE7),
 	OMAP4_MUX(UART3_TX_IRTX, OMAP_PIN_INPUT_PULLDOWN | OMAP_MUX_MODE7),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
-
 #else
 #define board_mux	NULL
 #endif
+
+//#ifdef CONFIG_OMAP_MUX
+//static struct omap_board_mux board_mux[] __initdata = {
+//	OMAP4_MUX(USBB2_ULPITLL_CLK, OMAP_MUX_MODE3 | OMAP_PIN_OUTPUT
+//					| OMAP_PULL_ENA),
+//	OMAP4_MUX(SYS_NIRQ2, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP
+//					| OMAP_PIN_OFF_WAKEUPENABLE),
+//	OMAP4_MUX(SYS_NIRQ1, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP
+//					| OMAP_PIN_OFF_WAKEUPENABLE),
+//
+//	/* IO optimization pdpu and offmode settings to reduce leakage */
+//	OMAP4_MUX(GPMC_A17, OMAP_MUX_MODE3 | OMAP_INPUT_EN),
+//	OMAP4_MUX(GPMC_NBE1, OMAP_MUX_MODE3 | OMAP_PIN_OUTPUT),
+//	OMAP4_MUX(GPMC_NCS4, OMAP_MUX_MODE3 | OMAP_INPUT_EN),
+//	OMAP4_MUX(GPMC_NCS5, OMAP_MUX_MODE3 | OMAP_PULL_ENA | OMAP_PULL_UP
+//					| OMAP_OFF_EN | OMAP_OFF_PULL_EN),
+//	OMAP4_MUX(GPMC_NCS7, OMAP_MUX_MODE3 | OMAP_INPUT_EN),
+//	OMAP4_MUX(GPMC_NBE1, OMAP_MUX_MODE3 | OMAP_PULL_ENA | OMAP_PULL_UP
+//					| OMAP_OFF_EN | OMAP_OFF_PULL_EN),
+//	OMAP4_MUX(GPMC_WAIT0, OMAP_MUX_MODE3 | OMAP_INPUT_EN),
+//	OMAP4_MUX(GPMC_NOE, OMAP_MUX_MODE1 | OMAP_INPUT_EN),
+//	OMAP4_MUX(MCSPI1_CS1, OMAP_MUX_MODE3 | OMAP_PULL_ENA | OMAP_PULL_UP
+//					| OMAP_OFF_EN | OMAP_OFF_PULL_EN),
+//	OMAP4_MUX(MCSPI1_CS2, OMAP_MUX_MODE3 | OMAP_PULL_ENA | OMAP_PULL_UP
+//					| OMAP_OFF_EN | OMAP_OFF_PULL_EN),
+//	OMAP4_MUX(SDMMC5_CLK, OMAP_MUX_MODE0 | OMAP_INPUT_EN | OMAP_OFF_EN
+//					| OMAP_OFF_PULL_EN),
+//	OMAP4_MUX(GPMC_NCS1, OMAP_MUX_MODE3 | OMAP_INPUT_EN | OMAP_WAKEUP_EN),
+//	OMAP4_MUX(GPMC_A24, OMAP_MUX_MODE3 | OMAP_INPUT_EN | OMAP_WAKEUP_EN),
+//
+//	OMAP4_MUX(ABE_MCBSP1_DR, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
+//
+//
+//	OMAP4_MUX(UART3_RX_IRRX, OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE7),
+//	OMAP4_MUX(UART3_TX_IRTX, OMAP_PIN_INPUT_PULLDOWN | OMAP_MUX_MODE7),
+//	{ .reg_offset = OMAP_MUX_TERMINATOR },
+//};
+//
+//#else
+//#define board_mux	NULL
+//#endif
 
 static int omap4_twl6030_hsmmc_late_init(struct device *dev)
 {
@@ -1627,17 +1639,25 @@ static int __init omap4_leds_init(void)
 static void __init board_touch_init(void)
 {
 	struct feature_tag_touchscreen * tsp;
+	int ret;
 
 	/* check which touch screen we have */
 	tsp = get_feature_tag(FTAG_HAS_TOUCHSCREEN,
 			feature_tag_size(feature_tag_touchscreen));
-	if (!tsp || (tsp->vendor == 0)) {
-		i2c_register_board_info(4, cypress_tsp_i2c_boardinfo, 1);
-		archos_touchscreen_tm340_init(&board_tma340_pdata);
-	} else {
+	if (!tsp){
+		printk("Feature tag resolution claims that FTAG_HAS_TOUCHSCREEN is not available!\n");
+	}
+//	My development device has a tr16c0 touchscreen
+//	if (!tsp || (tsp->vendor == 0)) {
+//		ret = i2c_register_board_info(4, cypress_tsp_i2c_boardinfo, 1);
+//		printk("%s:%s: i2c_register_board_info returns %d\n",__FILE__,__FUNCTION__, ret);
+//		printk("Using tm340_init method!\n");
+//		archos_touchscreen_tm340_init(&board_tma340_pdata);
+//	} else {
 		i2c_register_board_info(4, tr16c0_tsp_i2c_boardinfo, 1);
 		archos_touchscreen_tr16c0_init(&board_tr16c0_pdata);
-	}
+		printk("Using tr16c0_init method!\n");
+//	}
 }
 
 static void __init board_buttons_init(void)
@@ -1654,6 +1674,8 @@ static void __init board_buttons_init(void)
 		omap_mux_init_gpio(gpio_volume_buttons[1].gpio, OMAP_PIN_INPUT);
 
 		platform_device_register(&volume_keys_gpio);
+	}else{
+		printk("Feature tag resolution claims that FTAG_HAS_GPIO_VOLUME_KEYS is not available!\n");
 	}
 }
 

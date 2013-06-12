@@ -9,7 +9,7 @@
  * Please see Documentation/driver-model/platform.txt for more
  * information.
  */
-
+#define DEBUG
 #include <linux/string.h>
 #include <linux/platform_device.h>
 #include <linux/of_device.h>

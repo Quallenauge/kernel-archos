@@ -159,6 +159,7 @@ static void cypress_tma340_power(struct i2c_client *client, int on_off)
 {
 	struct cypress_tma340_priv *priv = i2c_get_clientdata(client);
 	static int state = -1;
+	int ret;
 
 	if (state == on_off)
 		return;
@@ -169,9 +170,11 @@ static void cypress_tma340_power(struct i2c_client *client, int on_off)
 	state = on_off;
 
 	if (on_off) {
-		regulator_enable(priv->regulator);
+		ret = regulator_enable(priv->regulator);
+		printk("%s:%s: Enabling the regulator returned: %d\n",__FILE__,__FUNCTION__, ret);
 	} else {
-		regulator_disable(priv->regulator);
+//		ret = regulator_disable(priv->regulator);
+		printk("%s:%s: Disabling the regulator returned: %d\n",__FILE__,__FUNCTION__, ret);
 	}
 }
 
@@ -223,7 +226,9 @@ static int cypress_tma340_read(struct i2c_client * client, u8 addr, u8 *value, u
 	msg[1].buf = value;
 	msg[1].len = len;
 
+	printk("%s: Read is performed on addr=%d\n",__FUNCTION__,  addr);
 	ret = i2c_transfer(client->adapter, msg, 2);
+	printk("%s: Read was done with ret=%d\n",__FUNCTION__,  ret);
 
 	if (ret == 2)
 		return len;
@@ -1065,6 +1070,11 @@ static int cypress_tma340_probe(struct i2c_client *client, const struct i2c_devi
 	struct cypress_tma340_priv *priv;
 	int retry;
 	int ret;
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		dev_err(&client->dev, "I2C functionality not Supported\n");
+		return -EIO;
+	}
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (priv == NULL)

@@ -3,6 +3,7 @@
  *    g.revaillot, revaillot@archos.com
  */
 
+#define DEBUG
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
@@ -38,7 +39,8 @@ static struct fixed_voltage_config fixed_reg_tsp_vcc = {
 	.microvolts	= 3300000,
 	.gpio		= -EINVAL,
 	.enable_high	= 1,
-	.enabled_at_boot= 0,
+//	.enabled_at_boot= 0,
+	.enabled_at_boot= 1,
 	.init_data	= &fixed_reg_tsp_vcc_initdata,
 };
 static struct platform_device fixed_supply_tsp_vcc = {
@@ -47,16 +49,24 @@ static struct platform_device fixed_supply_tsp_vcc = {
 	.dev.platform_data = &fixed_reg_tsp_vcc,
 };
 
+static struct omap_device_pad touchscreen_padconfig __initdata = {
+		.enable	= OMAP_PIN_INPUT_PULLUP | OMAP_PIN_OFF_WAKEUPENABLE,
+		.flags  = OMAP_PIN_INPUT_PULLUP | OMAP_DEVICE_PAD_WAKEUP,
+};
+
 int __init archos_touchscreen_tm340_init(struct cypress_tma340_platform_data *pdata)
 {
 	const struct archos_i2c_tsp_config *tsp_config;
 	const struct archos_i2c_tsp_conf *conf;
 	int ret;
+	printk(">>%s:%s\n",__FILE__,__FUNCTION__);
 
 	tsp_config = omap_get_config(ARCHOS_TAG_I2C_TSP,
 			struct archos_i2c_tsp_config);
-	if (tsp_config == NULL)
+	if (tsp_config == NULL){
+		pr_err("%s: ARCHOS_TAG_I2C_TSP not found!\n", __FUNCTION__);
 		return -ENODEV;
+	}
 
 	conf = hwrev_ptr(tsp_config, system_rev);
 
@@ -86,14 +96,20 @@ int __init archos_touchscreen_tm340_init(struct cypress_tma340_platform_data *pd
 		if (!ret) {
 			gpio_direction_input(conf->irq_gpio);
 
-			if (conf->irq_signal)
+			if (conf->irq_signal){
+//				Not compatible, since WAKEUPENABLE is defined.
 				omap_mux_init_signal(conf->irq_signal,
 						OMAP_PIN_INPUT_PULLUP |
 						OMAP_PIN_OFF_WAKEUPENABLE);
-			else
+//				touchscreen_padconfig.name = conf->irq_signal;
+//				omap_hwmod_mux_init(&touchscreen_padconfig, 1);
+//				omap_mux_init_signal(conf->irq_signal, OMAP_PIN_INPUT_PULLUP);
+			}
+			else{
 				omap_mux_init_gpio(conf->irq_gpio, 
 						OMAP_PIN_INPUT_PULLUP |
 						OMAP_PIN_OFF_WAKEUPENABLE);
+			}
 
 			gpio_export(conf->irq_gpio, false);
 		} else {
