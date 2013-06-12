@@ -23,6 +23,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
  */
+#define DEBUG
+#include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/io.h>
@@ -185,7 +187,8 @@ int omap_mux_init_gpio(int gpio, int val)
 	return -ENODEV;
 }
 
-static int __init _omap_mux_get_by_name(struct omap_mux_partition *partition,
+//TODO: Archos: Touchpad drivers are using this method after initialization!
+static int /*__init*/ _omap_mux_get_by_name(struct omap_mux_partition *partition,
 					const char *muxname,
 					struct omap_mux **found_mux)
 {
@@ -194,7 +197,6 @@ static int __init _omap_mux_get_by_name(struct omap_mux_partition *partition,
 	const char *mode_name;
 	int found = 0, found_mode = 0, mode0_len = 0;
 	struct list_head *muxmodes = &partition->muxmodes;
-
 	mode_name = strchr(muxname, '.');
 	if (mode_name) {
 		mode0_len = strlen(muxname) - strlen(mode_name);
@@ -242,7 +244,8 @@ static int __init _omap_mux_get_by_name(struct omap_mux_partition *partition,
 	return -ENODEV;
 }
 
-int __init omap_mux_get_by_name(const char *muxname,
+//TODO: Archos: Touchpad drivers are using this method after initialization!
+int /*__init*/ omap_mux_get_by_name(const char *muxname,
 			struct omap_mux_partition **found_partition,
 			struct omap_mux **found_mux)
 {
@@ -251,8 +254,9 @@ int __init omap_mux_get_by_name(const char *muxname,
 	list_for_each_entry(partition, &mux_partitions, node) {
 		struct omap_mux *mux = NULL;
 		int mux_mode = _omap_mux_get_by_name(partition, muxname, &mux);
-		if (mux_mode < 0)
+		if (mux_mode < 0){
 			continue;
+		}
 
 		*found_partition = partition;
 		*found_mux = mux;
@@ -278,16 +282,18 @@ int omap_mux_init_signal(const char *muxname, int val)
 	if (val & OMAP_WAKEUP_EN) {
 		pr_err("%s must not set the WAKEUPENABLE bit, muxing aborted\n",
 		       __func__);
-		return -EINVAL;
+//		return -EINVAL;
 	}
 
 	mux_mode = omap_mux_get_by_name(muxname, &partition, &mux);
-	if (mux_mode < 0)
+	if (mux_mode < 0){
+		pr_err("%s: Mux %s not found!\n", __func__, muxname);
 		return mux_mode;
+	}
 
 	old_mode = omap_mux_read(partition, mux->reg_offset);
 	mux_mode |= val;
-	pr_debug("%s: Setting signal %s 0x%04x -> 0x%04x\n",
+	pr_err("%s: Setting signal %s 0x%04x -> 0x%04x\n",
 			 __func__, muxname, old_mode, mux_mode);
 	omap_mux_write(partition, mux_mode, mux->reg_offset);
 
