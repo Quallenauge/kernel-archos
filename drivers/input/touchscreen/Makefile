@@ -78,3 +78,4 @@ obj-$(CONFIG_TOUCHSCREEN_TR16C0)	+= tr16c0-i2c.o
 obj-$(CONFIG_TOUCHSCREEN_PIXCIR_I2C_TS)	+= pixcir_i2c_tsp.o
 obj-$(CONFIG_TOUCHSCREEN_CPT_I2C_TSP)	+= cpt_i2c_tsp.o
 obj-$(CONFIG_TOUCHSCREEN_BYD_I2C_TSP)	+= byd_i2c_tsp.o
+obj-$(CONFIG_TOUCHSCREEN_CYPRESS_TMA340)	+= cypress-tma340.o
