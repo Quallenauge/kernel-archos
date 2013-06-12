@@ -105,9 +105,13 @@ static int fixed_voltage_enable(struct regulator_dev *dev)
 {
 	struct fixed_voltage_data *data = rdev_get_drvdata(dev);
 
+	printk("%s:%s:\n",__FILE__,__FUNCTION__);
 	if (gpio_is_valid(data->gpio)) {
+		printk("GPIO %d is valid!\n",data->gpio);
 		gpio_set_value_cansleep(data->gpio, data->enable_high);
 		data->is_enabled = true;
+	}else{
+		printk("GPIO %d is NOT valid!\n",data->gpio);
 	}
 
 	return 0;
@@ -240,6 +244,10 @@ static int __devinit reg_fixed_voltage_probe(struct platform_device *pdev)
 							config->gpio, ret);
 			goto err_gpio;
 		}
+
+		// Archos is using the remux method
+		if (config->remux)
+			config->remux(config->gpio);
 
 	} else {
 		/* Regulator without GPIO control is considered
