@@ -919,33 +919,33 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 		serial_out(up, UART_OMAP_MDR1, up->mdr1);
 
 	/* Hardware Flow Control Configuration */
-
-	if (termios->c_cflag & CRTSCTS) {
-		printk("Enable hardware flow control...");
-		efr |= (UART_EFR_CTS | UART_EFR_RTS);
-		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
-
-		up->mcr = serial_in(up, UART_MCR);
-		serial_out(up, UART_MCR, up->mcr | UART_MCR_TCRTLR);
-
-		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
-		up->efr = serial_in(up, UART_EFR);
-		serial_out(up, UART_EFR, up->efr | UART_EFR_ECB);
-
-		serial_out(up, UART_TI752_TCR, OMAP_UART_TCR_TRIG);
-		serial_out(up, UART_EFR, efr); /* Enable AUTORTS and AUTOCTS */
-		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
-		serial_out(up, UART_MCR, up->mcr | UART_MCR_RTS);
-		serial_out(up, UART_LCR, cval);
-	}
-	else {
-			/* Disable AUTORTS and AUTOCTS */
-			up->efr &= ~(UART_EFR_CTS | UART_EFR_RTS);
-
-			serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
-			serial_out(up, UART_EFR, up->efr);
-			serial_out(up, UART_LCR, cval);
-	}
+	//TODO: ARCHOS: I don't want that
+//	if (termios->c_cflag & CRTSCTS) {
+//		printk("Enable hardware flow control...");
+//		efr |= (UART_EFR_CTS | UART_EFR_RTS);
+//		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
+//
+//		up->mcr = serial_in(up, UART_MCR);
+//		serial_out(up, UART_MCR, up->mcr | UART_MCR_TCRTLR);
+//
+//		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
+//		up->efr = serial_in(up, UART_EFR);
+//		serial_out(up, UART_EFR, up->efr | UART_EFR_ECB);
+//
+//		serial_out(up, UART_TI752_TCR, OMAP_UART_TCR_TRIG);
+//		serial_out(up, UART_EFR, efr); /* Enable AUTORTS and AUTOCTS */
+//		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
+//		serial_out(up, UART_MCR, up->mcr | UART_MCR_RTS);
+//		serial_out(up, UART_LCR, cval);
+//	}
+//	else {
+//			/* Disable AUTORTS and AUTOCTS */
+//			up->efr &= ~(UART_EFR_CTS | UART_EFR_RTS);
+//
+//			serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
+//			serial_out(up, UART_EFR, up->efr);
+//			serial_out(up, UART_LCR, cval);
+//	}
 
 	serial_omap_set_mctrl(&up->port, up->port.mctrl);
 	/* Software Flow Control Configuration */
