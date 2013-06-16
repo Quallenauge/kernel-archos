@@ -1,7 +1,7 @@
 /*
  * Freescale MAG3110 eCompass board configuration
  */
-
+#define DEBUG
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>

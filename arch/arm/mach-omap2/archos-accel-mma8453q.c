@@ -1,7 +1,7 @@
 /*
  * MMA8453Q Accelerometer board configuration
  */
-
+#define DEBUG
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
