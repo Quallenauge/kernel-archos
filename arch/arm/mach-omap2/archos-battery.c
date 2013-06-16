@@ -1,3 +1,4 @@
+#define DEBUG
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/stat.h>
@@ -548,6 +549,7 @@ static int __init archos_battery_probe(struct platform_device *pdev)
 	const struct archos_ext_power_config *power_cfg;
 	const struct archos_ext_power_conf *power_conf;
 
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	bat = kzalloc(sizeof(struct archos_battery), GFP_KERNEL);
 	if (bat == NULL)
 		return -ENOMEM;
@@ -608,12 +610,16 @@ static int __init archos_battery_probe(struct platform_device *pdev)
 			wake_lock_init(&bat->wl, WAKE_LOCK_SUSPEND, "dc_detect");
 			INIT_DELAYED_WORK(&bat->work, dcin_read_dc_detect_delayed);
 		}
+	}else{
+		printk("%s:%s:%d: No charge config for ARCHOS_TAG_CHARGE exists.\n",__FILE__,__FUNCTION__,__LINE__);
 	}
 
 	power_cfg = omap_get_config(ARCHOS_TAG_POWER_EXT, struct archos_ext_power_config);
 	power_conf = hwrev_ptr(power_cfg, system_rev);
 	if (!IS_ERR(power_conf)) {
 		bat->charger_type = power_conf->charger_type;
+	}else{
+		printk("%s:%s:%d: No power config for ARCHOS_TAG_POWER_EXT exists.\n",__FILE__,__FUNCTION__,__LINE__);
 	}
 
 	platform_set_drvdata(pdev, bat);
@@ -637,6 +643,8 @@ static int __init archos_battery_probe(struct platform_device *pdev)
 			printk(KERN_DEBUG "archos_battery_probe: "
 				"cannot register usb supply: %i\n", ret);
 		}
+	}else{
+		dev_dbg(&pdev->dev, "Do not register when twl6030 is in use to avoid conflicts in android hc.\n");
 	}
 
 	ret = device_create_file(&pdev->dev, &dev_attr_voltage_avg);
