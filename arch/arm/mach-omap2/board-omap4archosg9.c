@@ -350,6 +350,22 @@ static struct archos_accel_config accel_config __initdata = {
 	},
 };
 
+static struct archos_charge_config charge_config __initdata = {
+	.nrev = 6,
+	.rev[0] = {
+		.charge_enable  = UNUSED_GPIO,
+		.charge_high    = UNUSED_GPIO,
+		.charge_low     = UNUSED_GPIO,
+		.charger_type	= CHARGER_TWL6030USB_DC,
+	},
+	.rev[1 ... 5] = {
+		.charge_enable  = UNUSED_GPIO,
+		.charge_high    = UNUSED_GPIO,
+		.charge_low     = UNUSED_GPIO,
+		.charger_type	= CHARGER_TWL6030USB,
+	},
+};
+
 static struct archos_compass_config compass_config __initdata = {
 	.nrev = 6,
 	.rev[0 ... 5] = {
@@ -1604,7 +1620,7 @@ static struct omap_board_config_kernel board_config[] __initdata = {
 		{ ARCHOS_TAG_AUDIO_TWL6040,	&audio_config},
 		{ ARCHOS_TAG_ACCEL,			&accel_config},
 		{ ARCHOS_TAG_COMPASS,		&compass_config},
-//		{ ARCHOS_TAG_CHARGE,		&charge_config},
+		{ ARCHOS_TAG_CHARGE,		&charge_config},
 		{ ARCHOS_TAG_DISPLAY,		&display_config},
 
 // DISABLED FOR DEVELOPMENT
