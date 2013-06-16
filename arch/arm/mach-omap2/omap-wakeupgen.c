@@ -653,6 +653,23 @@ int __init omap_wakeupgen_init(void)
 
 	spi_irq_banks = min(max_spi_reg, irq_banks);
 
+/*
+ *		omap_wakeupgen_init() called omap4_get_sar_ram_base() to obtain
+ *		the IO mapping for the SAR registers.  However, it returned a NULL
+ *		pointer since the SAR register mapping is setup by omap4_sar_ram_init()
+ *		which is not run until a later point in it.  omap4_sar_ram_init() can
+ *		not be run earlier.  Instead, let omap_wakeupgen_init() do its own
+ *		temporary IO mapping.
+ */
+//		sar_base = omap4_get_sar_ram_base();
+
+		sar_base = ioremap(OMAP44XX_SAR_RAM_BASE, SZ_16K);
+		
+
+		
+		// Patch END
+		iounmap(sar_base);
+		sar_base = NULL;
 	irq_hotplug_init();
 	irq_pm_init();
 
