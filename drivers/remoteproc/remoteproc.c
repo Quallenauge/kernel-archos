@@ -1227,6 +1227,7 @@ out:
 	release_firmware(fw);
 complete_fw:
 	/* allow all contexts calling rproc_put() to proceed */
+	printk("%s:%s:%d: firmware_loading_complete\n", __FILE__,__FUNCTION__,__LINE__);
 	complete_all(&rproc->firmware_loading_complete);
 	if (ret)
 		_event_notify(rproc, RPROC_LOAD_ERROR, NULL);

@@ -582,7 +582,7 @@ static int twl6030_get_gpadc_conversion(struct twl6030_bci_device_info *di,
 	struct twl6030_gpadc_request req;
 	int temp = 0;
 	int ret;
-	/*TODO: Archos debug*/ printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	/*TODO: Archos debug*/ // printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	req.channels = (1 << channel_no);
 	req.method = TWL6030_GPADC_SW2;

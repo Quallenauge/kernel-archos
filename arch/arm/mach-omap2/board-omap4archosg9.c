@@ -595,10 +595,12 @@ static struct platform_device board_vwlan_device = {
 static int __init board_wifi_init(void)
 {
 	const struct archos_wifi_bt_dev_conf *conf_ptr;
-
+	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	conf_ptr = hwrev_ptr(&board_wifi_bt_config, system_rev);
-	if (IS_ERR(conf_ptr))
+	if (IS_ERR(conf_ptr)){
+		printk(KERN_ERR "No valid hw revision found for wifi init()\n");
 		return -EINVAL;
+	}
 
 	/* bt */
 	wilink_pdata.nshutdown_gpio = conf_ptr->bt_power;
@@ -610,11 +612,12 @@ static int __init board_wifi_init(void)
 	else
 		omap_mux_init_gpio(conf_ptr->wifi_irq, OMAP_PIN_INPUT);
 
-//	board_wlan_data.irq = OMAP_GPIO_IRQ(conf_ptr->wifi_irq);
-	board_wlan_data.irq = conf_ptr->wifi_irq;
+	board_wlan_data.irq = gpio_to_irq(conf_ptr->wifi_irq);
 
-	if (conf_ptr->wifi_power_signal)
+	if (conf_ptr->wifi_power_signal){
+		printk("%s: Register wifi_power_signal\n",__FUNCTION__);
 		omap_mux_init_signal(conf_ptr->wifi_power_signal, OMAP_PIN_OUTPUT);
+	}
 	else
 		omap_mux_init_gpio(conf_ptr->wifi_power, OMAP_PIN_OUTPUT);
 
@@ -625,6 +628,7 @@ static int __init board_wifi_init(void)
 		pr_err("Error setting wl12xx data\n");
 	platform_device_register(&board_vwlan_device);
 
+	printk("<<%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return 0;
 }
 

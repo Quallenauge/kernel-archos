@@ -43,7 +43,7 @@ static DEVICE_ATTR(iommu_group, S_IRUGO, show_iommu_group, NULL);
 static int add_iommu_group(struct device *dev, void *data)
 {
 	unsigned int groupid;
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	/*TODO Archos log */// printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (iommu_device_group(dev, &groupid) == 0)
 		return device_create_file(dev, &dev_attr_iommu_group);
 
@@ -113,7 +113,7 @@ EXPORT_SYMBOL_GPL(bus_set_iommu);
 
 bool iommu_present(struct bus_type *bus)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	/*TODO Archos log */// printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return bus->iommu_ops != NULL;
 }
 EXPORT_SYMBOL_GPL(iommu_present);
@@ -384,7 +384,7 @@ EXPORT_SYMBOL_GPL(iommu_unmap);
 
 int iommu_device_group(struct device *dev, unsigned int *groupid)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	/*TODO Archos log */// printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (iommu_present(dev->bus) && dev->bus->iommu_ops->device_group)
 		return dev->bus->iommu_ops->device_group(dev, groupid);
 
