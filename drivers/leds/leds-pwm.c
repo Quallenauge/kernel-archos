@@ -2,7 +2,7 @@
  * linux/drivers/leds-pwm.c
  *
  * simple PWM based LED control
- *
+ * Modified and inspired by upstream kernel patch: "leds: leds-pwm: Defer led_pwm_set() if PWM can sleep" c971ff185f6443e834686f140ba6d6e341ced600
  * Copyright 2009 Luotao Fu @ Pengutronix (l.fu@pengutronix.de)
  *
  * based on leds-gpio.c by Raphael Assenat <raph@8d.com>
@@ -22,13 +22,39 @@
 #include <linux/pwm.h>
 #include <linux/leds_pwm.h>
 #include <linux/slab.h>
+#include <linux/workqueue.h>
 
 struct led_pwm_data {
 	struct led_classdev	cdev;
 	struct pwm_device	*pwm;
-	unsigned int 		active_low;
-	unsigned int		period;
+	struct work_struct  work;
+	unsigned int         active_low;
+	unsigned int        period;
+	int duty;
+	bool can_sleep;
 };
+
+
+static void __led_pwm_set(struct led_pwm_data *led_dat)
+{
+ int new_duty = led_dat->duty;
+
+ pwm_config(led_dat->pwm, new_duty, led_dat->period);
+
+ if (new_duty == 0)
+     pwm_disable(led_dat->pwm);
+ else
+     pwm_enable(led_dat->pwm);
+}
+
+static void led_pwm_work(struct work_struct *work)
+{
+ struct led_pwm_data *led_dat =
+ container_of(work, struct led_pwm_data, work);
+
+ __led_pwm_set(led_dat);
+}
+
 
 static void led_pwm_set(struct led_classdev *led_cdev,
 	enum led_brightness brightness)
@@ -38,13 +64,20 @@ static void led_pwm_set(struct led_classdev *led_cdev,
 	unsigned int max = led_dat->cdev.max_brightness;
 	unsigned int period =  led_dat->period;
 
-	if (brightness == 0) {
-		pwm_config(led_dat->pwm, 0, period);
-		pwm_disable(led_dat->pwm);
-	} else {
-		pwm_config(led_dat->pwm, brightness * period / max, period);
-		pwm_enable(led_dat->pwm);
-	}
+	//    if (brightness == 0) {
+	//        pwm_config(led_dat->pwm, 0, period);
+	//        pwm_disable(led_dat->pwm);
+	//    } else {
+	//        pwm_config(led_dat->pwm, brightness * period / max, period);
+	//        pwm_enable(led_dat->pwm);
+	//    }
+
+	led_dat->duty = brightness * period / max;
+
+	if (led_dat->can_sleep)
+		schedule_work(&led_dat->work);
+	else
+		__led_pwm_set(led_dat);
 }
 
 static int led_pwm_probe(struct platform_device *pdev)
@@ -84,6 +117,11 @@ static int led_pwm_probe(struct platform_device *pdev)
 		led_dat->cdev.max_brightness = cur_led->max_brightness;
 		led_dat->cdev.flags |= LED_CORE_SUSPENDRESUME;
 
+		//led_dat->can_sleep = pwm_can_sleep(led_dat->pwm);
+		led_dat->can_sleep = true;
+		if (led_dat->can_sleep)
+			INIT_WORK(&led_dat->work, led_pwm_work);
+
 		ret = led_classdev_register(&pdev->dev, &led_dat->cdev);
 		if (ret < 0) {
 			pwm_free(led_dat->pwm);
@@ -119,6 +157,7 @@ static int __devexit led_pwm_remove(struct platform_device *pdev)
 	for (i = 0; i < pdata->num_leds; i++) {
 		led_classdev_unregister(&leds_data[i].cdev);
 		pwm_free(leds_data[i].pwm);
+		cancel_work_sync(&leds_data[i].work);
 	}
 
 	kfree(leds_data);
