@@ -156,5 +156,5 @@ void __init omap4_board_serial_init(void)
 	omap_serial_init_port(&uart1_board_data, &uart1_info);
 	omap_serial_init_port(&uart2_board_data, &uart2_info);
 //	omap_serial_init_port(&uart3_board_data, &uart3_info);
-	omap_serial_init_port(&uart4_board_data, &uart4_info);
+//	omap_serial_init_port(&uart4_board_data, &uart4_info);
 }
