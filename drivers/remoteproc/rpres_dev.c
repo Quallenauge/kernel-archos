@@ -160,11 +160,11 @@ struct device *omap4_get_fdif_device(void)
 struct device *omap2_get_iva_device(void)
 {
 	struct device *dev;
-	printk("%s:%s:%d: Try to find device named: iva\n", __FILE__,__FUNCTION__,__LINE__);
+	printk("%s:%s:%d: Try to find device named: iva.0\n", __FILE__,__FUNCTION__,__LINE__);
 	dev = __find_device_by_name("iva.0");
 	if (!dev)
 	{
-		printk("%s:%s:%d: Cant find device named: iva\n", __FILE__,__FUNCTION__,__LINE__);
+		printk("%s:%s:%d: Cant find device named: iva.0\n", __FILE__,__FUNCTION__,__LINE__);
 		return NULL;
 	}
 	if (dev && !pm_runtime_enabled(dev))

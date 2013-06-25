@@ -850,6 +850,8 @@ static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
 	if (!e)
 		return -ENOMEM;
 
+	pr_err("%s: Trying to request for %d (%s)\n", __func__, type, rname(type));
+
 	ret = _resource_alloc(e, type, data);
 	if (ret) {
 		pr_err("%s: request for %d (%s) failed: %d\n", __func__,
@@ -869,11 +871,15 @@ static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
 	 */
 	if (!idr_pre_get(&rprm->id_list, GFP_KERNEL)) {
 		ret = -ENOMEM;
+		pr_err("%s: request for %d (%s) failed: ENOMEMn", __func__, type, rname(type));
 		goto err;
 	}
 	ret = idr_get_new(&rprm->id_list, e, res_id);
-	if (ret)
+	if (ret){
+		pr_err("%s: request for %d (%s) failed: on call idr_get_new()\n", __func__, type, rname(type));
 		goto err;
+	}
+
 
 	e->type = type;
 	e->src = addr;

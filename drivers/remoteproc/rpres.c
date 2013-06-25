@@ -187,7 +187,7 @@ static int __devexit rpres_remove(struct platform_device *pdev)
 
 static struct platform_device_id rpres_id_table[] = {
 	{
-		.name	= "iva.0",
+		.name	= "iva",
 	},
 	{
 		.name	= "fdif",

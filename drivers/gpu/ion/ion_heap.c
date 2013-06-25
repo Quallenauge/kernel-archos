@@ -38,12 +38,15 @@ struct ion_heap *ion_heap_create(struct ion_platform_heap *heap_data)
 		break;
 	case ION_HEAP_TYPE_CARVEOUT:
 #ifdef CONFIG_ION_OMAP_DYNAMIC
+		pr_err("%s: ION_HEAP_TYPE_CARVEOUT requested!\n", __func__);
 		heap = omap_carveout_tiler_heap_create(heap_data);
 #else
 		heap = ion_carveout_heap_create(heap_data);
 #endif
+		break;
 	case ION_HEAP_TYPE_CUSTOM:
 #ifdef CONFIG_ION_OMAP_DYNAMIC
+		pr_err("%s: ION_HEAP_TYPE_CUSTOM requested!\n", __func__);
 		heap = omap_carveout_tiler_heap_create(heap_data);
 #else
 		pr_err("%s: ION_HEAP_TYPE_CUSTOM not supported in case CONFIG_ION_OMAP_DYNAMIC isn't specified!\n", __func__);
