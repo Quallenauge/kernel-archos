@@ -1532,7 +1532,7 @@ EXPORT_SYMBOL_GPL(rproc_event_unregister);
 
 void rproc_last_busy(struct rproc *rproc)
 {
-	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+//	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 #ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 	struct device *dev = rproc->dev;
 
