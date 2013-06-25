@@ -575,8 +575,9 @@ EXPORT_SYMBOL(is_tiler_addr);
 
 int tiler_get_fmt(uint32_t phys, enum tiler_fmt *fmt)
 {
-	if (!is_tiler_addr(phys))
+	if (!is_tiler_addr(phys)){
 		return 0;
+	}
 
 	*fmt = TILER_FMT(phys);
 	return 1;
@@ -612,8 +613,10 @@ int tilview_crop(struct tiler_view_t *view, u32 left, u32 top, u32 width,
 {
 	/* check for valid crop */
 	if (left + width < left || left + width > view->width ||
-	    top + height < top || top + height > view->height)
+	    top + height < top || top + height > view->height){
+		printk("%s: Error while cropping!\n",__FUNCTION__);
 		return -EINVAL;
+	}
 
 	view->tsptr += left * view->h_inc + top * view->v_inc;
 	view->width = width;
@@ -679,8 +682,10 @@ int tilview_rotate(struct tiler_view_t *view, int rotation)
 		return 0; /* nothing to do */
 
 	/* PAGE mode view cannot be rotated */
-	if (TILER_FMT(view->tsptr) == TILFMT_PAGE)
+	if (TILER_FMT(view->tsptr) == TILFMT_PAGE){
+		printk("%s: PAGE mode view cannot be rotated!\n",__FUNCTION__);
 		return -EPERM;
+	}
 
 	/*
 	 * first adjust top-left corner. NOTE: it rotates counter-clockwise:
@@ -727,8 +732,10 @@ int tilview_flip(struct tiler_view_t *view, bool flip_x, bool flip_y)
 		return 0; /* nothing to do */
 
 	/* PAGE mode view cannot be flipped */
-	if (TILER_FMT(view->tsptr) == TILFMT_PAGE)
+	if (TILER_FMT(view->tsptr) == TILFMT_PAGE){
+		printk("%s: PAGE mode view cannot be flipped!\n",__FUNCTION__);
 		return -EPERM;
+	}
 
 	/* adjust top-left corner */
 	if (flip_x)
