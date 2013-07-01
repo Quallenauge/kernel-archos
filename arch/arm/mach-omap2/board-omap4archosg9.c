@@ -1726,6 +1726,27 @@ static int twl6040_init(void)
 	return 0;
 }
 
+#if defined(CONFIG_TI_EMIF) || defined(CONFIG_TI_EMIF_MODULE)
+static struct __devinitdata emif_custom_configs custom_configs = {
+	.mask	= EMIF_CUSTOM_CONFIG_LPMODE,
+	.lpmode	= EMIF_LP_MODE_SELF_REFRESH,
+	.lpmode_timeout_performance = 512,
+	.lpmode_timeout_power = 512,
+	/* only at OPP100 should we use performance value */
+	.lpmode_freq_threshold = 400000000,
+};
+#endif
+
+static void set_osc_timings(void)
+{
+	/* Device Oscilator
+	 * tstart = 2ms + 2ms = 4ms.
+	 * tshut = Not defined in oscillator data sheet so setting to 1us
+	 */
+	omap_pm_setup_oscillator(4000, 1);
+}
+
+
 extern int add_preferred_console(char *name, int idx, char *options);
 static void __init board_init(void)
 {
@@ -1734,31 +1755,32 @@ static void __init board_init(void)
 
 	printk("%s: %u\n", __FILE__, __LINE__);
 
+#if defined(CONFIG_TI_EMIF) || defined(CONFIG_TI_EMIF_MODULE)
+	if (cpu_is_omap447x()) {
+		omap_emif_set_device_details(1, &lpddr2_elpida_4G_S4_info,
+				lpddr2_elpida_4G_S4_timings,
+				ARRAY_SIZE(lpddr2_elpida_4G_S4_timings),
+				&lpddr2_elpida_S4_min_tck, &custom_configs);
+		omap_emif_set_device_details(2, &lpddr2_elpida_4G_S4_info,
+				lpddr2_elpida_4G_S4_timings,
+				ARRAY_SIZE(lpddr2_elpida_4G_S4_timings),
+				&lpddr2_elpida_S4_min_tck, &custom_configs);
+	} else {
+		omap_emif_set_device_details(1, &lpddr2_elpida_2G_S4_x2_info,
+				lpddr2_elpida_2G_S4_timings,
+				ARRAY_SIZE(lpddr2_elpida_2G_S4_timings),
+				&lpddr2_elpida_S4_min_tck, &custom_configs);
+		omap_emif_set_device_details(2, &lpddr2_elpida_2G_S4_x2_info,
+				lpddr2_elpida_2G_S4_timings,
+				ARRAY_SIZE(lpddr2_elpida_2G_S4_timings),
+				&lpddr2_elpida_S4_min_tck, &custom_configs);
+	}
+#endif
+
 	omap_board_config = board_config;
 	omap_board_config_size = ARRAY_SIZE(board_config);
 
-//TODO Add archos emif configuration
-//#if defined(CONFIG_TI_EMIF) || defined(CONFIG_TI_EMIF_MODULE)
-//	if (cpu_is_omap447x()) {
-//		omap_emif_set_device_details(1, &lpddr2_elpida_4G_S4_info,
-//				lpddr2_elpida_4G_S4_timings,
-//				ARRAY_SIZE(lpddr2_elpida_4G_S4_timings),
-//				&lpddr2_elpida_S4_min_tck, &custom_configs);
-//		omap_emif_set_device_details(2, &lpddr2_elpida_4G_S4_info,
-//				lpddr2_elpida_4G_S4_timings,
-//				ARRAY_SIZE(lpddr2_elpida_4G_S4_timings),
-//				&lpddr2_elpida_S4_min_tck, &custom_configs);
-//	} else {
-//		omap_emif_set_device_details(1, &lpddr2_elpida_2G_S4_x2_info,
-//				lpddr2_elpida_2G_S4_timings,
-//				ARRAY_SIZE(lpddr2_elpida_2G_S4_timings),
-//				&lpddr2_elpida_S4_min_tck, &custom_configs);
-//		omap_emif_set_device_details(2, &lpddr2_elpida_2G_S4_x2_info,
-//				lpddr2_elpida_2G_S4_timings,
-//				ARRAY_SIZE(lpddr2_elpida_2G_S4_timings),
-//				&lpddr2_elpida_S4_min_tck, &custom_configs);
-//	}
-//#endif
+	set_osc_timings();
 
 	omap4_mux_init(board_mux, NULL, package);
 	omap_init_board_version(0);
