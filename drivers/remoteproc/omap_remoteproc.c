@@ -129,7 +129,7 @@ omap_rproc_map(struct device *dev, struct iommu_domain *domain, u32 da, u32 pa, 
 	int size_flag[] = {MMU_CAM_PGSZ_16M, MMU_CAM_PGSZ_1M,
 		MMU_CAM_PGSZ_64K, MMU_CAM_PGSZ_4K};
 	int i, ret;
-	printk(">>%s:%s:%d: da=%d, pa: %d, size=%d\n",__FILE__,__FUNCTION__,__LINE__,da,pa,size);
+	printk(">>%s:%s:%d: da=0x%x, pa: 0x%x, size=0x%x\n",__FILE__,__FUNCTION__,__LINE__,da,pa,size);
 
 	while (size) {
 		/*
@@ -255,7 +255,7 @@ static inline void _load_boot_addr(struct rproc *rproc, u64 bootaddr)
 	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (pdata->boot_reg){
-		printk("Write bootadr: %d to boot_reg: %lu\n", bootaddr, pdata->boot_reg);
+		printk("Write bootadr: 0x%x to boot_reg: %lu\n", bootaddr, pdata->boot_reg);
 		writel(bootaddr, pdata->boot_reg);
 	}else{
 		printk("No valid boot reg!\n");
@@ -329,7 +329,6 @@ int omap_rproc_activate(struct omap_device *od)
 	/**
 	 * explicitly configure a boot address from which remoteproc
 	 * starts executing code when taken out of reset.
-	 */
 	_load_boot_addr(rproc, rpp->bootaddr);
 
 	/**

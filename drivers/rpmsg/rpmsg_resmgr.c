@@ -12,7 +12,7 @@
  * may be copied, distributed, and modified under those terms.
  */
 
-
+//#define DEBUG
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/virtio.h>
@@ -140,7 +140,7 @@ static int rprm_gptimer_request(struct rprm_elem *e, struct rprm_gpt *obj)
 {
 	int ret;
 	struct omap_dm_timer *gpt;
-
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (obj->id > GPTIMERS_MAX) {
 		pr_err("Invalid gptimer %u\n", obj->id);
 		return -EINVAL;
@@ -171,7 +171,7 @@ static int rprm_auxclk_request(struct rprm_elem *e, struct rprm_auxclk *obj)
 	char src_clk_name[NAME_SIZE];
 	struct rprm_auxclk_depot *acd;
 	struct clk *src_parent;
-
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if ((obj->id < AUX_CLK_MIN) || (obj->id > AUX_CLK_MAX)) {
 		pr_err("Invalid aux_clk %d\n", obj->id);
 		return -EINVAL;
@@ -263,6 +263,7 @@ error:
 
 static void rprm_auxclk_release(struct rprm_auxclk_depot *obj)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	clk_disable((struct clk *)obj->aux_clk);
 	clk_put((struct clk *)obj->aux_clk);
 	clk_disable((struct clk *)obj->src);
@@ -277,6 +278,7 @@ int rprm_regulator_request(struct rprm_elem *e, struct rprm_regulator *obj)
 	int ret;
 	struct rprm_regulator_depot *rd;
 	char *reg_name;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (obj->id > REGULATOR_MAX) {
 		pr_err("Invalid regulator %d\n", obj->id);
@@ -325,7 +327,7 @@ error:
 static void rprm_regulator_release(struct rprm_regulator_depot *obj)
 {
 	int ret;
-
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	ret = regulator_disable(obj->reg_p);
 	if (ret) {
 		pr_err("%s: error disabling ldo\n", __func__);
@@ -347,7 +349,7 @@ static int rprm_gpio_request(struct rprm_elem *e, struct rprm_gpio *obj)
 {
 	int ret;
 	struct rprm_gpio *gd;
-
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	/* Create gpio depot */
 	gd = kmalloc(sizeof(*gd), GFP_KERNEL);
 	if (!gd)
@@ -366,6 +368,7 @@ static int rprm_gpio_request(struct rprm_elem *e, struct rprm_gpio *obj)
 
 static void rprm_gpio_release(struct rprm_gpio *obj)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	gpio_free(obj->id);
 	kfree(obj);
 }
@@ -376,6 +379,7 @@ static int rprm_sdma_request(struct rprm_elem *e, struct rprm_sdma *obj)
 	int sdma;
 	int i;
 	struct rprm_sdma *sd;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* Create sdma depot */
 	sd = kmalloc(sizeof(*sd), GFP_KERNEL);
@@ -410,6 +414,7 @@ err:
 static void rprm_sdma_release(struct rprm_sdma *obj)
 {
 	int i = obj->num_chs;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	while (i--) {
 		omap_free_dma(obj->channels[i]);
@@ -433,6 +438,7 @@ void i2c_detect_ext_master(struct i2c_adapter *adap)
 {
 	struct i2c_adapter *found;
 	struct i2c_client *client;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* First make sure that this adapter was ever added */
 	mutex_lock(&core_lock);
@@ -467,6 +473,7 @@ static int rprm_i2c_request(struct rprm_elem *e, struct rprm_i2c *obj)
 	struct device *i2c_dev;
 	struct i2c_adapter *adapter;
 	int ret = -EINVAL;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	adapter = i2c_get_adapter(obj->id);
 	if (!adapter) {
@@ -496,6 +503,7 @@ static int rprm_i2c_request(struct rprm_elem *e, struct rprm_i2c *obj)
 static int rprm_i2c_release(struct device *i2c_dev)
 {
 	int ret = -EINVAL;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (IS_ERR_OR_NULL(i2c_dev)) {
 		pr_err("%s: invalid device passed\n", __func__);
@@ -531,6 +539,7 @@ static const char *_get_rpres_name(int type)
 
 static int _rpres_set_constraints(struct rprm_elem *e, u32 type, long val)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	switch (type) {
 	case RPRM_SCALE:
 		return rpres_set_constraints(e->handle,
@@ -551,6 +560,7 @@ static int _rpres_set_constraints(struct rprm_elem *e, u32 type, long val)
 
 static int _rproc_set_constraints(struct rprm_elem *e, u32 type, long val)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	switch (type) {
 	case RPRM_SCALE:
 		return rproc_set_constraints(e->handle,
@@ -575,6 +585,7 @@ int _set_constraints(struct rprm_elem *e, struct rprm_constraints_data *c)
 	int ret = -EINVAL;
 	u32 mask = 0;
 	int (*_set_constraints_func)(struct rprm_elem *, u32 type, long val);
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	switch (e->type) {
 	case RPRM_IVAHD:
@@ -623,6 +634,7 @@ static int rprm_set_constraints(struct rprm *rprm, u32 addr, int res_id,
 {
 	int ret = 0;
 	struct rprm_elem *e;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	mutex_lock(&rprm->lock);
 	if (!idr_find(&rprm->conn_list, addr)) {
@@ -666,6 +678,7 @@ static int rprm_rpres_request(struct rprm_elem *e, int type)
 {
 	const char *res_name = _get_rpres_name(type);
 	struct rpres *res;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	e->constraints = kzalloc(sizeof(*(e->constraints)), GFP_KERNEL);
 	if (!(e->constraints))
@@ -685,12 +698,14 @@ static int rprm_rpres_request(struct rprm_elem *e, int type)
 
 static void rprm_rpres_release(struct rpres *res)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	rpres_put(res);
 }
 
 static int rprm_rproc_request(struct rprm_elem *e, char *name)
 {
 	struct rproc *rp;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	e->constraints = kzalloc(sizeof(*(e->constraints)), GFP_KERNEL);
 	if (!(e->constraints))
@@ -709,12 +724,14 @@ static int rprm_rproc_request(struct rprm_elem *e, char *name)
 
 static void rprm_rproc_release(struct rproc *rp)
 {
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	rproc_put(rp);
 }
 
 static int _resource_free(struct rprm_elem *e)
 {
 	int ret = 0;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (e->constraints && e->constraints->mask) {
 		def_data.mask = e->constraints->mask;
 		_set_constraints(e, &def_data);
@@ -766,6 +783,7 @@ static int rprm_resource_free(struct rprm *rprm, u32 addr, int res_id)
 {
 	int ret = 0;
 	struct rprm_elem *e;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	mutex_lock(&rprm->lock);
 	if (!idr_find(&rprm->conn_list, addr)) {
@@ -794,6 +812,7 @@ out:
 static int _resource_alloc(struct rprm_elem *e, int type, void *data)
 {
 	int ret = 0;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	switch (type) {
 	case RPRM_GPTIMER:
@@ -845,6 +864,7 @@ static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
 	struct rprm_elem *e;
 	int ret;
 	int rlen = _get_rprm_size(type);
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	e = kzalloc(sizeof(*e) + rlen, GFP_KERNEL);
 	if (!e)
@@ -902,6 +922,7 @@ static int rprm_disconnect_client(struct rprm *rprm, u32 addr)
 {
 	struct rprm_elem *e, *tmp;
 	int ret;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	mutex_lock(&rprm->lock);
 	if (!idr_find(&rprm->conn_list, addr)) {
@@ -928,6 +949,7 @@ static int rpmsg_connect_client(struct rprm *rprm, u32 addr)
 {
 	int ret;
 	int tid;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	mutex_lock(&rprm->lock);
 	if (idr_find(&rprm->conn_list, addr)) {
@@ -950,6 +972,7 @@ out:
 static int _request_max_freq(struct rprm_elem *e, unsigned long *freq)
 {
 	int ret = 0;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	switch (e->type) {
 	case RPRM_IVAHD:
@@ -969,6 +992,7 @@ static int _request_max_freq(struct rprm_elem *e, unsigned long *freq)
 static int _request_data(struct rprm_elem *e, int type, void *data, int len)
 {
 	int ret = 0;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	switch (type) {
 	case RPRM_MAX_FREQ:
@@ -993,6 +1017,7 @@ static int rprm_req_data(struct rprm *rprm, u32 addr, int res_id,
 	int ret = 0;
 	struct rprm_elem *e;
 	struct rprm_request_data *rd = data;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	mutex_lock(&rprm->lock);
 	if (!idr_find(&rprm->conn_list, addr)) {
@@ -1022,6 +1047,7 @@ static void rprm_cb(struct rpmsg_channel *rpdev, void *data, int len,
 	char ack_msg[MAX_MSG];
 	struct rprm_ack *ack = (void *)ack_msg;
 	int r_sz = 0;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (len < sizeof(*req)) {
 		dev_err(dev, "Bad message\n");
@@ -1194,6 +1220,7 @@ static ssize_t rprm_dbg_read(struct file *filp, char __user *userbuf,
 	char res[512];
 	int total = 0, c, tmp;
 	loff_t p = 0, pt;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	list_for_each_entry(e, &rprm->res_list, next) {
 		c = sprintf(res,
@@ -1237,6 +1264,7 @@ static const struct file_operations rprm_dbg_ops = {
 static int rprm_probe(struct rpmsg_channel *rpdev)
 {
 	struct rprm *rprm;
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	rprm = kmalloc(sizeof(*rprm), GFP_KERNEL);
 	if (!rprm)

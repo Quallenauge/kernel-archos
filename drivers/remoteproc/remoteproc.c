@@ -594,16 +594,17 @@ int rproc_da_to_pa(struct rproc *rproc, u64 da, phys_addr_t *pa)
 		return -EINTR;
 
 	maps = rproc->memory_maps;
-	for (i = 0; maps->size; maps++) {
+	pr_debug("%s: memory_map details: da=%d size %d\n",__func__, maps->size, maps->da);
+
+	for (i = 0; maps->size; maps++, i++) {
 		if (da >= maps->da && da < (maps->da + maps->size)) {
-			pr_debug("%s: matched mem entry no. %d\n",
-				__func__, i);
+			pr_debug("%s: matched mem entry no. %d\n", __func__, i);
 			*pa = maps->pa + (da - maps->da);
 			ret = 0;
 			break;
 		}
 	}
-
+	pr_debug("%s: da=0x%llu pa=0x%p\n",__func__, da, pa);
 	mutex_unlock(&rproc->lock);
 	return ret;
 }
@@ -904,9 +905,11 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 			}
 			break;
 		case RSC_BOOTADDR:
+			printk("Found boot address at: 0x%llu\n",da);
 			*bootaddr = da;
 			break;
 		case RSC_SUSPENDADDR:
+			printk("Found suspend address at: 0x%llu\n",da);
 			susp_addr = da;
 			break;
 		case RSC_DEVMEM:
@@ -928,9 +931,12 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 				rsc->pa = pa;
 			} else {
 #ifdef CONFIG_ION_OMAP_DYNAMIC
-				if (strcmp(rsc->name, "IPU_MEM_IOBUFS") != 0)
-#endif
+				if (strcmp(rsc->name, "IPU_MEM_IOBUFS") != 0){
+					ret = rproc_check_poolmem(rproc, rsc->len, pa);
+				}
+#else
 				ret = rproc_check_poolmem(rproc, rsc->len, pa);
+#endif
 				/*
 				 * ignore the error for DSP buffers as they can
 				 * not be assigned together with rest of dsp
@@ -1211,9 +1217,9 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 
 	left = fw->size - sizeof(struct fw_header) - image->header_len;
 
-	/* event currently used to bump the remoteproc to max freq
-	 * while booting.  */
-	_event_notify(rproc, RPROC_PRELOAD, NULL);
+//	/* event currently used to bump the remoteproc to max freq
+//	 * while booting.  */
+//	_event_notify(rproc, RPROC_PRELOAD, NULL);
 
 	ret = rproc_process_fw(rproc, section, left, &bootaddr);
 	if (ret) {
@@ -1229,8 +1235,8 @@ complete_fw:
 	/* allow all contexts calling rproc_put() to proceed */
 	printk("%s:%s:%d: firmware_loading_complete\n", __FILE__,__FUNCTION__,__LINE__);
 	complete_all(&rproc->firmware_loading_complete);
-	if (ret)
-		_event_notify(rproc, RPROC_LOAD_ERROR, NULL);
+//	if (ret)
+//		_event_notify(rproc, RPROC_LOAD_ERROR, NULL);
 }
 
 static int rproc_loader(struct rproc *rproc)
@@ -1342,6 +1348,7 @@ struct rproc *rproc_get(const char *name)
 	struct device *dev;
 	int err;
 	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+	dump_stack();
 
 	rproc = __find_rproc_by_name(name);
 	if (!rproc) {

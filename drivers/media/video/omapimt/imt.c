@@ -22,8 +22,8 @@
 #include <linux/rpmsg.h>
 #include <linux/ion.h>
 
-int debug_imt = 0;
-int debug_iva = 0;
+int debug_imt = 1;
+int debug_iva = 2;
 
 module_param(debug_imt, int, 0644);
 module_param(debug_iva, int, 0644);

@@ -53,6 +53,6 @@ config RPMSG_SERVER_SAMPLE
 	---help---
 	  This is just a sample server driver for the rpmsg bus.
 	  Say either Y or M. You know you want to.
-
+	  
 #source "drivers/rpmsg/omaprpc/Kconfig"
 endmenu
