@@ -16,7 +16,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
+//#define DEBUG
 #define pr_fmt(fmt) "%s: " fmt, __func__
 
 #include <linux/kernel.h>
@@ -125,6 +125,7 @@ static struct device_attribute rpmsg_dev_attrs[] = {
 static inline int rpmsg_id_match(const struct rpmsg_channel *rpdev,
 				  const struct rpmsg_device_id *id)
 {
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (strncmp(id->name, rpdev->id.name, RPMSG_NAME_SIZE))
 		return 0;
 
@@ -138,6 +139,7 @@ static int rpmsg_dev_match(struct device *dev, struct device_driver *drv)
 	struct rpmsg_driver *rpdrv = to_rpmsg_driver(drv);
 	const struct rpmsg_device_id *ids = rpdrv->id_table;
 	unsigned int i;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	for (i = 0; ids[i].name[0]; i++) {
 		if (rpmsg_id_match(rpdev, &ids[i]))
@@ -150,6 +152,7 @@ static int rpmsg_dev_match(struct device *dev, struct device_driver *drv)
 static int rpmsg_uevent(struct device *dev, struct kobj_uevent_env *env)
 {
 	struct rpmsg_channel *rpdev = to_rpmsg_channel(dev);
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	return add_uevent_var(env, "MODALIAS=" RPMSG_DEVICE_MODALIAS_FMT,
 					rpdev->id.name);
@@ -163,6 +166,7 @@ static struct rpmsg_endpoint *__rpmsg_create_ept(struct virtproc_info *vrp,
 	int err, tmpaddr, request;
 	struct rpmsg_endpoint *ept;
 	struct device *dev = rpdev ? &rpdev->dev : &vrp->vdev->dev;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (!idr_pre_get(&vrp->endpoints, GFP_KERNEL))
 		return NULL;
@@ -212,6 +216,7 @@ struct rpmsg_endpoint *rpmsg_create_ept(struct rpmsg_channel *rpdev,
 		void (*cb)(struct rpmsg_channel *, void *, int, void *, u32),
 		void *priv, u32 addr)
 {
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	return __rpmsg_create_ept(rpdev->vrp, rpdev, cb, priv, addr);
 }
 EXPORT_SYMBOL(rpmsg_create_ept);
@@ -219,6 +224,7 @@ EXPORT_SYMBOL(rpmsg_create_ept);
 void rpmsg_destroy_ept(struct rpmsg_endpoint *ept)
 {
 	struct virtproc_info *vrp = ept->rpdev->vrp;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	spin_lock(&vrp->endpoints_lock);
 	idr_remove(&vrp->endpoints, ept->addr);
@@ -235,6 +241,7 @@ static int rpmsg_dev_probe(struct device *dev)
 	struct virtproc_info *vrp = rpdev->vrp;
 	struct rpmsg_endpoint *ept;
 	int err;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	ept = rpmsg_create_ept(rpdev, rpdrv->callback, NULL, rpdev->src);
 	if (!ept) {
@@ -277,6 +284,7 @@ static int rpmsg_dev_remove(struct device *dev)
 	struct rpmsg_driver *rpdrv = to_rpmsg_driver(rpdev->dev.driver);
 	struct virtproc_info *vrp = rpdev->vrp;
 	int err = 0;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* tell remote processor's name service we're removing this channel */
 	if (rpdev->announce &&
@@ -310,6 +318,7 @@ static struct bus_type rpmsg_bus = {
 
 int register_rpmsg_driver(struct rpmsg_driver *rpdrv)
 {
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	rpdrv->drv.bus = &rpmsg_bus;
 	return driver_register(&rpdrv->drv);
 }
@@ -317,6 +326,7 @@ EXPORT_SYMBOL(register_rpmsg_driver);
 
 void unregister_rpmsg_driver(struct rpmsg_driver *rpdrv)
 {
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	driver_unregister(&rpdrv->drv);
 }
 EXPORT_SYMBOL(unregister_rpmsg_driver);
@@ -324,6 +334,7 @@ EXPORT_SYMBOL(unregister_rpmsg_driver);
 static void rpmsg_release_device(struct device *dev)
 {
 	struct rpmsg_channel *rpdev = to_rpmsg_channel(dev);
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	kfree(rpdev);
 }
@@ -333,6 +344,7 @@ static int rpmsg_channel_match(struct device *dev, void *data)
 {
 	struct rpmsg_channel_info *chinfo = data;
 	struct rpmsg_channel *rpdev = to_rpmsg_channel(dev);
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (chinfo->src != RPMSG_ADDR_ANY && chinfo->src != rpdev->src)
 		return 0;
@@ -352,6 +364,7 @@ static struct rpmsg_channel *rpmsg_create_channel(struct virtproc_info *vrp,
 	struct rpmsg_channel *rpdev;
 	struct device *tmp, *dev = &vrp->vdev->dev;
 	int ret;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* make sure a similar channel doesn't already exist */
 	tmp = device_find_child(dev, chinfo, rpmsg_channel_match);
@@ -398,6 +411,7 @@ static struct rpmsg_channel *rpmsg_create_channel(struct virtproc_info *vrp,
 
 static void rpmsg_destroy_channel(struct rpmsg_channel *rpdev)
 {
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	device_unregister(&rpdev->dev);
 }
 
@@ -406,6 +420,7 @@ static int rpmsg_destroy_channel_by_info(struct virtproc_info *vrp,
 {
 	struct virtio_device *vdev = vrp->vdev;
 	struct device *dev;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	dev = device_find_child(&vdev->dev, chinfo, rpmsg_channel_match);
 	if (!dev)
@@ -421,6 +436,7 @@ static void *get_a_buf(struct virtproc_info *vrp)
 {
 	unsigned int len;
 	void *buf = NULL;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* make sure the descriptors are updated before reading */
 	rmb();
@@ -445,6 +461,7 @@ int rpmsg_send_offchannel_raw(struct rpmsg_channel *rpdev, u32 src, u32 dst,
 	int err;
 	unsigned long offset;
 	void *sim_addr;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (src == RPMSG_ADDR_ANY || dst == RPMSG_ADDR_ANY) {
 		dev_err(dev, "invalid addr (src 0x%x, dst 0x%x)\n", src, dst);
@@ -530,6 +547,12 @@ int rpmsg_send_offchannel_raw(struct rpmsg_channel *rpdev, u32 src, u32 dst,
 
 	/* tell the remote processor it has a pending message to read */
 	virtqueue_kick(vrp->svq);
+	/*
+	* FIXME (if needed): the below virtqueue_kick is commented out
+	* to help with supporting the non-SMP boot of IPU processors, which
+	* is non-standard for 3.4 and upstream kernels.
+	*/
+	/* virtqueue_kick(vrp->rvq); */
 
 	err = 0;
 out:
@@ -540,6 +563,7 @@ EXPORT_SYMBOL(rpmsg_send_offchannel_raw);
 
 struct rproc *rpmsg_get_rproc_handle(struct rpmsg_channel *rpdev)
 {
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!rpdev || !rpdev->vrp)
 		return NULL;
 	return rpdev->vrp->rproc;
@@ -557,6 +581,7 @@ static void rpmsg_recv_done(struct virtqueue *rvq)
 	struct virtproc_info *vrp = rvq->vdev->priv;
 	struct device *dev = &rvq->vdev->dev;
 	int err;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	/* make sure the descriptors are updated before reading */
 	rmb();
@@ -604,6 +629,7 @@ static void rpmsg_recv_done(struct virtqueue *rvq)
 static void rpmsg_xmit_done(struct virtqueue *svq)
 {
 	struct virtproc_info *vrp = svq->vdev->priv;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	dev_dbg(&svq->vdev->dev, "%s\n", __func__);
 
@@ -620,6 +646,8 @@ static void rpmsg_ns_cb(struct rpmsg_channel *rpdev, void *data, int len,
 	struct virtproc_info *vrp = priv;
 	struct device *dev = &vrp->vdev->dev;
 	int ret;
+
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 #if 0
 	print_hex_dump(KERN_DEBUG, __func__, DUMP_PREFIX_NONE, 16, 1,
@@ -673,6 +701,7 @@ static int rpmsg_probe(struct virtio_device *vdev)
 	void *addr;
 	int err, i, num_bufs, buf_size, total_buf_size;
 	struct rpmsg_channel_info *ch;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	vrp = kzalloc(sizeof(*vrp), GFP_KERNEL);
 	if (!vrp)
@@ -768,6 +797,7 @@ free_vi:
 static int rpmsg_remove_device(struct device *dev, void *data)
 {
 	struct rpmsg_channel *rpdev = to_rpmsg_channel(dev);
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	rpmsg_destroy_channel(rpdev);
 
@@ -778,6 +808,7 @@ static void __devexit rpmsg_remove(struct virtio_device *vdev)
 {
 	struct virtproc_info *vrp = vdev->priv;
 	int ret;
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
 	ret = device_for_each_child(&vdev->dev, NULL, rpmsg_remove_device);
 	if (ret)
@@ -813,7 +844,7 @@ static struct virtio_driver virtio_ipc_driver = {
 static int __init init(void)
 {
 	int ret;
-
+	//printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	ret = bus_register(&rpmsg_bus);
 	if (ret) {
 		pr_err("failed to register rpmsg bus: %d\n", ret);
@@ -822,7 +853,8 @@ static int __init init(void)
 
 	return register_virtio_driver(&virtio_ipc_driver);
 }
-module_init(init);
+//rpmsg: fix dependency on initialization order
+subsys_initcall(init);
 
 static void __exit fini(void)
 {
