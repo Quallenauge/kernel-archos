@@ -28,7 +28,7 @@ static struct omap_device_pad uart1_pads[] __initdata = {
 	{ 	/* UART1 RX on mcspi1_cs1 */
 		.name	= "mcspi1_cs1.mcspi1_cs1",
 		.flags	= OMAP_DEVICE_PAD_REMUX | OMAP_DEVICE_PAD_WAKEUP,
-		.enable	= OMAP_PIN_INPUT | OMAP_MUX_MODE1,
+		.enable	= OMAP_WAKEUP_EN | OMAP_PIN_INPUT | OMAP_MUX_MODE1,
 		.idle	= OMAP_PIN_INPUT | OMAP_MUX_MODE1,
 	},
 };
