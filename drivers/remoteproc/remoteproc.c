@@ -909,8 +909,8 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 			*bootaddr = da;
 			break;
 		case RSC_SUSPENDADDR:
-			printk("Found suspend address at: 0x%llu\n",da);
 			susp_addr = da;
+			printk("Found suspend address at: 0x%x\n",da);
 			break;
 		case RSC_DEVMEM:
 			ret = rproc_add_mem_entry(rproc, rsc);
@@ -1348,7 +1348,6 @@ struct rproc *rproc_get(const char *name)
 	struct device *dev;
 	int err;
 	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
-	dump_stack();
 
 	rproc = __find_rproc_by_name(name);
 	if (!rproc) {
@@ -1463,6 +1462,7 @@ void rproc_put(struct rproc *rproc)
 	 * this is important, because the fw loading might have failed.
 	 */
 	if (rproc->state == RPROC_RUNNING || rproc->state == RPROC_CRASHED) {
+		printk(">>%s:%s:%d: Remoteproc is running. Time to power it off.\n",__FILE__,__FUNCTION__,__LINE__);
 #ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
 		/*
 		 * Call resume, it will cancel any pending autosuspend,

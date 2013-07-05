@@ -45,7 +45,7 @@
 #define OMAP4_MBOX_NUM_USER            3
 #define OMAP4_MBOX_NR_REGS             3
 
-#define SET_MPU_CORE_CONSTRAINT		10
+#define SET_MPU_CORE_CONSTRAINT		400 // omap: mailbox: relax constraint to allow powerdomain to go to CSWR
 
 static void __iomem *mbox_base;
 

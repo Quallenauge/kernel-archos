@@ -131,6 +131,7 @@ static void omap2_iommu_disable(struct omap_iommu *obj)
 	 * shared MMU. That way we can clean the status bit and turn off
 	 * the iommu without any issue.
 	 */
+	printk("%s:%s:%d: obj->name=%s\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!strcmp(obj->name, "ipu") || !strcmp(obj->name, "dsp")) {
 		omap_hwmod_assert_hardreset(oh, oh->rst_lines->name);
 		omap_hwmod_deassert_hardreset(oh, oh->rst_lines->name);

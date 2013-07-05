@@ -1039,10 +1039,10 @@ int omapfb_apply_changes(struct fb_info *fbi, int init)
 	int i;
 	struct omap_dss_device *display = fb2display(fbi);
 
-//#ifdef DEBUG
-//	if (omapfb_test_pattern)
+#ifdef DEBUG
+	if (omapfb_test_pattern)
 		fill_fb(fbi);
-//#endif
+#endif
 
 	WARN_ON(!atomic_read(&ofbi->region->lock_count));
 

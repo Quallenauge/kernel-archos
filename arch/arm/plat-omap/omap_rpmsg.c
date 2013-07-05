@@ -268,6 +268,7 @@ static int rpmsg_rproc_pos_suspend(struct omap_rpmsg_vproc *rpdev)
 {
 	mutex_lock(&rpdev->lock);
 	if (rpdev->mbox) {
+		printk("%s:%s:%d: Suspending mailbox...\n",__FILE__,__FUNCTION__,__LINE__);
 		omap_mbox_put(rpdev->mbox, &rpdev->nb);
 		rpdev->mbox = NULL;
 	}
@@ -280,6 +281,7 @@ static int rpmsg_rproc_load_error(struct omap_rpmsg_vproc *rpdev)
 {
 	mutex_lock(&rpdev->lock);
 	if (rpdev->mbox) {
+		printk("%s:%s:%d: Suspending mailbox...\n",__FILE__,__FUNCTION__,__LINE__);
 		omap_mbox_put(rpdev->mbox, &rpdev->nb);
 		rpdev->mbox = NULL;
 	}
@@ -299,8 +301,10 @@ static int rpmsg_rproc_load_error(struct omap_rpmsg_vproc *rpdev)
 static int rpmsg_rproc_resume(struct omap_rpmsg_vproc *rpdev)
 {
 	mutex_lock(&rpdev->lock);
-	if (!rpdev->mbox)
+	if (!rpdev->mbox){
+		printk("%s:%s:%d: Create new mailbox assignment...\n",__FILE__,__FUNCTION__,__LINE__);
 		rpdev->mbox = omap_mbox_get(rpdev->mbox_name, &rpdev->nb);
+	}
 	mutex_unlock(&rpdev->lock);
 
 	return NOTIFY_DONE;

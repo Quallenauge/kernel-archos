@@ -1415,7 +1415,7 @@ static int _deassert_hardreset(struct omap_hwmod *oh, const char *name)
 {
 	struct omap_hwmod_rst_info ohri;
 	int ret;
-
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!oh)
 		return -EINVAL;
 
@@ -1694,6 +1694,7 @@ static int _enable(struct omap_hwmod *oh)
 {
 	int r;
 	int hwsup = 0;
+	int ret;
 
 //TODO Archos log
 //	pr_warning("omap_hwmod: %s: enabling\n", oh->name);
@@ -1762,8 +1763,10 @@ static int _enable(struct omap_hwmod *oh)
 	 * call it after enabling clocks.
 	 */
 	if ((oh->_state == _HWMOD_STATE_INITIALIZED ||
-	     oh->_state == _HWMOD_STATE_DISABLED) && oh->rst_lines_cnt == 1)
-		_deassert_hardreset(oh, oh->rst_lines[0].name);
+	     oh->_state == _HWMOD_STATE_DISABLED) && oh->rst_lines_cnt == 1){
+		ret = _deassert_hardreset(oh, oh->rst_lines[0].name);
+		pr_warning("omap_hwmod: Triggered hardreset for line: %s - Result %d\n", oh->rst_lines[0].name, ret);
+	}
 
 	if (arch_hwmod && arch_hwmod->hwmod_update_context_lost)
 		arch_hwmod->hwmod_update_context_lost(oh);
@@ -2040,7 +2043,7 @@ static int _setup(struct omap_hwmod *oh, void *data)
 
 	r = _enable(oh);
 	//TODO ARCHOS REMOVE LOG
-//	printk("Result of _enable() was %d...", r);
+	//printk("%s:%s:%d: Result of _enable() was %d...\n", __FILE__,__FUNCTION__,__LINE__, r);
 	if (r) {
 #ifndef CONFIG_MACH_OMAP_5430ZEBU
 		pr_warning("omap_hwmod: %s: cannot be enabled (%d)\n",
@@ -2515,6 +2518,7 @@ int omap_hwmod_enable(struct omap_hwmod *oh)
 
 	spin_lock_irqsave(&oh->_lock, flags);
 	r = _enable(oh);
+//	printk("%s:%s:%d: Result of _enable() was %d...\n", __FILE__,__FUNCTION__,__LINE__, r);
 	//TODO ARCHOS REMOVE LOG
 //	printk("Call to spin_unlock_irqrestore...\n");
 	spin_unlock_irqrestore(&oh->_lock, flags);

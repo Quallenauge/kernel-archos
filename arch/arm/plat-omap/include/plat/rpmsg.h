@@ -33,42 +33,42 @@
 #ifndef _PLAT_RPMSG_H
 #define _PLAT_RPMSG_H
 
-/*
- * enum - Predefined Mailbox Messages
- *
- * @RP_MBOX_READY: informs the M3's that we're up and running. will be
- * followed by another mailbox message that carries the A9's virtual address
- * of the shared buffer. This would allow the A9's drivers to send virtual
- * addresses of the buffers.
- *
- * @RP_MBOX_PENDING_MSG: informs the receiver that there is an inbound
- * message waiting in its own receive-side vring. please note that currently
- * this message is optional: alternatively, one can explicitly send the index
- * of the triggered virtqueue itself. the preferred approach will be decided
- * as we progress and experiment with those design ideas.
- *
- * @RP_MBOX_CRASH: this message is sent upon a BIOS exception
- *
- * @RP_MBOX_ECHO_REQUEST: a mailbox-level "ping" message.
- *
- * @RP_MBOX_ECHO_REPLY: a mailbox-level reply to a "ping"
- *
- * @RP_MBOX_ABORT_REQUEST: a "please crash" request, used for testing the
- * recovery mechanism (to some extent). will trigger a @RP_MBOX_CRASH reply.
- *
- * @RP_MSG_BOOTINIT_DONE: this message is sent by remote processor once it has
- * completed some essential initialization during its boot. This notification
- * is used to relax any constraints put in to speed up the remote processor
- * boot.
- */
-enum {
-	RP_MBOX_READY		= 0xFFFFFF00,
-	RP_MBOX_PENDING_MSG	= 0xFFFFFF01,
-	RP_MBOX_CRASH		= 0xFFFFFF02,
-	RP_MBOX_ECHO_REQUEST	= 0xFFFFFF03,
-	RP_MBOX_ECHO_REPLY	= 0xFFFFFF04,
-	RP_MBOX_ABORT_REQUEST	= 0xFFFFFF05,
-	RP_MSG_BOOTINIT_DONE	= 0xFFFFFF08,
-};
+///*
+// * enum - Predefined Mailbox Messages
+// *
+// * @RP_MBOX_READY: informs the M3's that we're up and running. will be
+// * followed by another mailbox message that carries the A9's virtual address
+// * of the shared buffer. This would allow the A9's drivers to send virtual
+// * addresses of the buffers.
+// *
+// * @RP_MBOX_PENDING_MSG: informs the receiver that there is an inbound
+// * message waiting in its own receive-side vring. please note that currently
+// * this message is optional: alternatively, one can explicitly send the index
+// * of the triggered virtqueue itself. the preferred approach will be decided
+// * as we progress and experiment with those design ideas.
+// *
+// * @RP_MBOX_CRASH: this message is sent upon a BIOS exception
+// *
+// * @RP_MBOX_ECHO_REQUEST: a mailbox-level "ping" message.
+// *
+// * @RP_MBOX_ECHO_REPLY: a mailbox-level reply to a "ping"
+// *
+// * @RP_MBOX_ABORT_REQUEST: a "please crash" request, used for testing the
+// * recovery mechanism (to some extent). will trigger a @RP_MBOX_CRASH reply.
+// *
+// * @RP_MSG_BOOTINIT_DONE: this message is sent by remote processor once it has
+// * completed some essential initialization during its boot. This notification
+// * is used to relax any constraints put in to speed up the remote processor
+// * boot.
+// */
+//enum {
+//	RP_MBOX_READY		= 0xFFFFFF00,
+//	RP_MBOX_PENDING_MSG	= 0xFFFFFF01,
+//	RP_MBOX_CRASH		= 0xFFFFFF02,
+//	RP_MBOX_ECHO_REQUEST	= 0xFFFFFF03,
+//	RP_MBOX_ECHO_REPLY	= 0xFFFFFF04,
+//	RP_MBOX_ABORT_REQUEST	= 0xFFFFFF05,
+//	RP_MSG_BOOTINIT_DONE	= 0xFFFFFF08,
+//};
 
 #endif /* _PLAT_RPMSG_H */

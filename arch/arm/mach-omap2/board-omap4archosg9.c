@@ -1025,7 +1025,7 @@ static struct platform_device *a80s_devices[] __initdata = {
 	&fixed_supply_vcc,
 	&fixed_supply_vbus_musb,
 	&fixed_supply_vmmc2,
-	&fixed_supply_vmmc2_aux,
+//	&fixed_supply_vmmc2_aux,
 	&archos_pwm_leds,
 	&archos_abe_audio,
 };
