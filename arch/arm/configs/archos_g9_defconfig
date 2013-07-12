@@ -358,7 +358,7 @@ CONFIG_OMAP_PACKAGE_CBS=y
 CONFIG_SECURE_REGS=y
 CONFIG_MACH_ARCHOS=y
 CONFIG_MACH_ARCHOS_A80S=y
-CONFIG_CMDLINE_DEFAULT="mem=512M init=/linuxrc console=ttyO0,115200 debug omapdss.debug=0 omapfb.debug=0 kgdboc=ttyO0,115200 kgdbcon mem=512M@0xa0000000 no_console_suspend=1"
+CONFIG_CMDLINE_DEFAULT="mem=512M init=/linuxrc console=ttyO0,115200 debug omapdss.debug=0 omapfb.debug=0 kgdboc=ttyO0,115200 kgdbcon mem=512M@0xa0000000"
 CONFIG_OMAP4_ERRATA_I688=y
 CONFIG_OMAP_RAM_CONSOLE=y
 CONFIG_OMAP_SO_MAP_FORCE=y
