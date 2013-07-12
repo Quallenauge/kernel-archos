@@ -401,6 +401,7 @@ static void detach_buf(struct vring_virtqueue *vq, unsigned int head)
 
 static inline bool more_used(const struct vring_virtqueue *vq)
 {
+	printk("%s:%s:%d: Check: vq->last_used_idx (%d) != vq->vring.used->idx (%d)\n",__FILE__,__FUNCTION__,__LINE__,vq->last_used_idx, vq->vring.used->idx);
 	return vq->last_used_idx != vq->vring.used->idx;
 }
 

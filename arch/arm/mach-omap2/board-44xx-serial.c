@@ -115,6 +115,21 @@ static struct omap_board_data uart4_board_data __initdata = {
 	.pads_cnt = ARRAY_SIZE(uart4_pads),
 };
 
+static struct omap_device_pad no_uart_pads[] __initdata = {
+		/* empty structure */
+};
+
+static struct omap_board_data uart3_no_part_board_data __initdata = {
+	.id = 2,
+	.pads = no_uart_pads,
+	.pads_cnt = ARRAY_SIZE(no_uart_pads),
+};
+
+static struct omap_uart_port_info tablet_uart3_info_uncon __initdata = {
+	.dma_enabled	= 0,
+	.autosuspend_timeout = DEFAULT_UART_AUTOSUSPEND_DELAY,
+};
+
 static struct omap_uart_port_info uart1_info __initdata = {
 	.dma_enabled = 0,
 	.dma_rx_buf_size = 4096,
@@ -155,6 +170,9 @@ void __init omap4_board_serial_init(void)
 {
 	omap_serial_init_port(&uart1_board_data, &uart1_info);
 	omap_serial_init_port(&uart2_board_data, &uart2_info);
+
+//	omap_serial_init_port(&tablet_uart3_info_uncon, &tablet_uart3_info_uncon);
+
 //	omap_serial_init_port(&uart3_board_data, &uart3_info);
 //	omap_serial_init_port(&uart4_board_data, &uart4_info);
 }

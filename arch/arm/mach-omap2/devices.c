@@ -46,6 +46,7 @@
 #include <plat/dvfs.h>
 #include <plat/omap-pm.h>
 #include <linux/mfd/omap_control.h>
+#include <linux/platform_data/mailbox-omap.h>
 
 #include "mux.h"
 #include "control.h"
@@ -341,25 +342,33 @@ int __init omap4_keyboard_init(struct omap4_keypad_platform_data
 	return 0;
 }
 
-#if defined(CONFIG_OMAP_MBOX_FWK) || defined(CONFIG_OMAP_MBOX_FWK_MODULE)
+#if defined(CONFIG_OMAP2PLUS_MBOX) || defined(CONFIG_OMAP2PLUS_MBOX_MODULE)
 static inline void __init omap_init_mbox(void)
 {
-	struct omap_hwmod *oh;
-	struct platform_device *pdev;
+        struct omap_hwmod *oh;
+        struct platform_device *pdev;
+        struct omap_mbox_pdata *pdata;
+        printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
-	oh = omap_hwmod_lookup("mailbox");
-	if (!oh) {
-		pr_err("%s: unable to find hwmod\n", __func__);
-		return;
-	}
+        oh = omap_hwmod_lookup("mailbox");
+        if (!oh) {
+                pr_err("%s: unable to find hwmod\n", __func__);
+                return;
+        }
+        if (!oh->dev_attr) {
+                pr_err("%s: hwmod doesn't have valid attrs\n", __func__);
+                return;
+        }
 
-	pdev = omap_device_build("omap-mailbox", -1, oh, NULL, 0, NULL, 0, 0);
-	WARN(IS_ERR(pdev), "%s: could not build device, err %ld\n",
-						__func__, PTR_ERR(pdev));
+        pdata = (struct omap_mbox_pdata *)oh->dev_attr;
+        pdev = omap_device_build("omap-mailbox", -1, oh, pdata, sizeof(*pdata),
+                                                                NULL, 0, 0);
+        WARN(IS_ERR(pdev), "%s: could not build device, err %ld\n",
+                                                __func__, PTR_ERR(pdev));
 }
 #else
 static inline void omap_init_mbox(void) { }
-#endif /* CONFIG_OMAP_MBOX_FWK */
+#endif /* CONFIG_OMAP2PLUS_MBOX */
 
 static inline void omap_init_sti(void) {}
 

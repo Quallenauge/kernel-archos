@@ -17,7 +17,7 @@
  * GNU General Public License for more details.
  */
 
-// #define DEBUG
+#define DEBUG
 #define pr_fmt(fmt) "%s: " fmt, __func__
 
 #include <linux/init.h>
@@ -35,11 +35,13 @@
 #include <linux/remoteproc.h>
 #include <linux/delay.h>
 #include <linux/module.h>
+#include <linux/mailbox.h>
+
+#include <linux/platform_data/mailbox-omap.h>
 
 #include <asm/io.h>
 
 #include <plat/rpmsg.h>
-#include <plat/mailbox.h>
 #include <plat/remoteproc.h>
 
 struct omap_rpmsg_vproc {
@@ -50,7 +52,7 @@ struct omap_rpmsg_vproc {
 	void *buf_mapped;
 	char *mbox_name;
 	char *rproc_name;
-	struct omap_mbox *mbox;
+	struct mailbox *mbox;
 	struct mutex lock;
 	struct rproc *rproc;
 	struct notifier_block nb;
@@ -158,6 +160,7 @@ static void omap_rpmsg_get(struct virtio_device *vdev, unsigned int request,
 static void omap_rpmsg_notify(struct virtqueue *vq)
 {
 	struct omap_rpmsg_vq_info *rpvq = vq->priv;
+	struct mailbox_msg msg;
 	int ret;
 	int count = 15;
 
@@ -176,9 +179,11 @@ static void omap_rpmsg_notify(struct virtqueue *vq)
 		return;
 	}
 	/* send the index of the triggered virtqueue as the mailbox payload */
-	ret = omap_mbox_msg_send(rpvq->rpdev->mbox, rpvq->vq_id);
+	printk("%s:%s: Send virtqueue as the mailbox payload: %d\n", __FILE__,__FUNCTION__, (mbox_msg_t)rpvq->vq_id);
+	MAILBOX_FILL_MSG(msg, 0, (mbox_msg_t)rpvq->vq_id, 0);
+	ret = mailbox_msg_send(rpvq->rpdev->mbox, &msg);
 	if (ret)
-		pr_err("ugh, omap_mbox_msg_send() failed: %d\n", ret);
+		pr_err("ugh, mailbox_msg_send() failed: %d\n", ret);
 	mutex_unlock(&rpvq->rpdev->lock);
 }
 
@@ -194,7 +199,7 @@ static int omap_rpmsg_mbox_callback(struct notifier_block *this,
 
 	switch (msg) {
 	case RP_MBOX_CRASH:
-		pr_err("%s has just crashed !\n", rpdev->rproc_name);
+		pr_err("%s has just crashed 																																																																																																													!\n", rpdev->rproc_name);
 		rproc_error_notify(rpdev->rproc);
 		break;
 	case RP_MBOX_ECHO_REPLY:
@@ -259,8 +264,10 @@ static int rpmsg_rproc_error(struct omap_rpmsg_vproc *rpdev)
 
 static int rpmsg_rproc_suspend(struct omap_rpmsg_vproc *rpdev)
 {
-	if (virtqueue_more_used(rpdev->vq[0]))
+	if (virtqueue_more_used(rpdev->vq[0])){
+		printk("%s:%s:%d: !virtqueue_more_used\n",__FILE__,__FUNCTION__,__LINE__);
 		return NOTIFY_BAD;
+	}
 	return NOTIFY_DONE;
 }
 
@@ -269,7 +276,7 @@ static int rpmsg_rproc_pos_suspend(struct omap_rpmsg_vproc *rpdev)
 	mutex_lock(&rpdev->lock);
 	if (rpdev->mbox) {
 		printk("%s:%s:%d: Suspending mailbox...\n",__FILE__,__FUNCTION__,__LINE__);
-		omap_mbox_put(rpdev->mbox, &rpdev->nb);
+		mailbox_put(rpdev->mbox, &rpdev->nb);
 		rpdev->mbox = NULL;
 	}
 	mutex_unlock(&rpdev->lock);
@@ -282,7 +289,7 @@ static int rpmsg_rproc_load_error(struct omap_rpmsg_vproc *rpdev)
 	mutex_lock(&rpdev->lock);
 	if (rpdev->mbox) {
 		printk("%s:%s:%d: Suspending mailbox...\n",__FILE__,__FUNCTION__,__LINE__);
-		omap_mbox_put(rpdev->mbox, &rpdev->nb);
+		mailbox_put(rpdev->mbox, &rpdev->nb);
 		rpdev->mbox = NULL;
 	}
 
@@ -303,7 +310,7 @@ static int rpmsg_rproc_resume(struct omap_rpmsg_vproc *rpdev)
 	mutex_lock(&rpdev->lock);
 	if (!rpdev->mbox){
 		printk("%s:%s:%d: Create new mailbox assignment...\n",__FILE__,__FUNCTION__,__LINE__);
-		rpdev->mbox = omap_mbox_get(rpdev->mbox_name, &rpdev->nb);
+		rpdev->mbox = mailbox_get(rpdev->mbox_name, &rpdev->nb);
 	}
 	mutex_unlock(&rpdev->lock);
 
@@ -339,7 +346,7 @@ static int rpmsg_rproc_events(struct notifier_block *this,
 {
 	struct omap_rpmsg_vproc *rpdev = container_of(this,
 				struct omap_rpmsg_vproc, rproc_nb);
-
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	switch (type) {
 	case RPROC_ERROR:
 		return rpmsg_rproc_error(rpdev);
@@ -426,7 +433,7 @@ static void omap_rpmsg_del_vqs(struct virtio_device *vdev)
 	}
 
 	if (rpdev->mbox)
-		omap_mbox_put(rpdev->mbox, &rpdev->nb);
+		mailbox_put(rpdev->mbox, &rpdev->nb);
 
 	if (rpdev->rproc) {
 		if (rpdev->bootcstr_set) {
@@ -449,6 +456,7 @@ static int omap_rpmsg_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 		       const char *names[])
 {
 	struct omap_rpmsg_vproc *rpdev = to_omap_rpdev(vdev);
+	struct mailbox_msg msg;
 	int i, err;
 
 	/* we maintain two virtqueues per remote processor (for RX and TX) */
@@ -476,7 +484,7 @@ static int omap_rpmsg_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 
 	/* for now, use mailbox's notifiers. later that can be optimized */
 	rpdev->nb.notifier_call = omap_rpmsg_mbox_callback;
-	rpdev->mbox = omap_mbox_get(rpdev->mbox_name, &rpdev->nb);
+	rpdev->mbox = mailbox_get(rpdev->mbox_name, &rpdev->nb);
 	if (IS_ERR(rpdev->mbox)) {
 		pr_err("failed to get mailbox %s\n", rpdev->mbox_name);
 		err = -EINVAL;
@@ -487,25 +495,31 @@ static int omap_rpmsg_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 					(unsigned int) rpdev->buf_mapped);
 
 	/* tell the M3 we're ready. hmm. do we really need this msg */
-	err = omap_mbox_msg_send(rpdev->mbox, RP_MBOX_READY);
+	printk("%s:%s: Send RP_MBOX_ECHO_REQUEST\n", __FILE__,__FUNCTION__);
+	MAILBOX_FILL_MSG(msg, 0, RP_MBOX_READY, 0);
+	err = mailbox_msg_send(rpdev->mbox, &msg);
 	if (err) {
-		pr_err("ugh, omap_mbox_msg_send() failed: %d\n", err);
+		pr_err("ugh, mailbox_msg_send() failed: %d\n", err);
 		goto put_mbox;
 	}
 
 	/* send it the physical address of the mapped buffer + vrings, */
 	/* this should be moved to the resource table logic */
-	err = omap_mbox_msg_send(rpdev->mbox, (mbox_msg_t) rpdev->buf_addr);
+	printk("%s:%s: Send buf_addr: %x\n", __FILE__,__FUNCTION__, rpdev->buf_addr);
+	MAILBOX_FILL_MSG(msg, 0, rpdev->buf_addr, 0);
+	err = mailbox_msg_send(rpdev->mbox, &msg );
 	if (err) {
-		pr_err("ugh, omap_mbox_msg_send() failed: %d\n", err);
+		pr_err("ugh, mailbox_msg_send() failed: %d\n", err);
 		goto put_mbox;
 	}
 
 	/* ping the remote processor. this is only for sanity-sake;
 	 * there is no functional effect whatsoever */
-	err = omap_mbox_msg_send(rpdev->mbox, RP_MBOX_ECHO_REQUEST);
+	printk("%s:%s: Send RP_MBOX_ECHO_REQUEST\n", __FILE__,__FUNCTION__);
+	MAILBOX_FILL_MSG(msg, 0, RP_MBOX_ECHO_REQUEST, 0);
+	err = mailbox_msg_send(rpdev->mbox, &msg);
 	if (err) {
-		pr_err("ugh, omap_mbox_msg_send() failed: %d\n", err);
+		pr_err("ugh, mailbox_msg_send() failed: %d\n", err);
 		goto put_mbox;
 	}
 
@@ -524,7 +538,7 @@ static int omap_rpmsg_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 	return 0;
 
 put_mbox:
-	omap_mbox_put(rpdev->mbox, &rpdev->nb);
+	mailbox_put(rpdev->mbox, &rpdev->nb);
 unmap_buf:
 	/* iounmap normal memory, so make sparse happy */
 	iounmap((__force void __iomem *)rpdev->buf_mapped);
@@ -631,7 +645,7 @@ static struct omap_rpmsg_vproc omap_rpmsg_vprocs[] = {
 	{
 		.vdev.id.device	= VIRTIO_ID_RPMSG,
 		.vdev.config	= &omap_rpmsg_config_ops,
-		.mbox_name	= "mailbox-1",
+		.mbox_name	= "mbox-ipu",
 		.rproc_name	= "ipu",
 		.base_vq_id	= 0,
 		.hardcoded_chnls = omap_ipuc0_hardcoded_chnls,
@@ -643,7 +657,7 @@ static struct omap_rpmsg_vproc omap_rpmsg_vprocs[] = {
 	{
 		.vdev.id.device	= VIRTIO_ID_RPMSG,
 		.vdev.config	= &omap_rpmsg_config_ops,
-		.mbox_name	= "mailbox-1",
+		.mbox_name	= "mbox-ipu",
 		.rproc_name	= "ipu",
 		.base_vq_id	= 2,
 		.hardcoded_chnls = omap_ipuc1_hardcoded_chnls,

@@ -31,6 +31,7 @@ static struct nl5550_device {
 
 static void archos_nl5550_enable(struct nl5550_device *dev, bool en)
 {
+	printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	if (dev->enabled == en)
 		return;
 
@@ -45,6 +46,7 @@ static void archos_nl5550_enable(struct nl5550_device *dev, bool en)
 static int archos_nl5550_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct nl5550_device *dev = platform_get_drvdata(pdev);
+	printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	if (dev->enabled)
 		regulator_disable(dev->gps_1v8);
 
@@ -54,6 +56,7 @@ static int archos_nl5550_suspend(struct platform_device *pdev, pm_message_t stat
 static int archos_nl5550_resume(struct platform_device *pdev)
 {
 	struct nl5550_device *dev = platform_get_drvdata(pdev);
+	printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	if (dev->enabled)
 		regulator_enable(dev->gps_1v8);
 	return 0;
@@ -81,6 +84,8 @@ static int __init nl5550_init(void)
 	const struct archos_gps_conf *conf;
 	int ret;
 	
+	printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
+
 	gps_cfg = omap_get_config(ARCHOS_TAG_GPS,
 			struct archos_gps_config);
 	if (NULL == gps_cfg)

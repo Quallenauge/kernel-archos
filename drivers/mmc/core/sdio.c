@@ -1083,6 +1083,7 @@ int mmc_attach_sdio(struct mmc_host *host)
 	if (host->ocr_avail_sdio)
 		host->ocr_avail = host->ocr_avail_sdio;
 
+#ifndef CONFIG_MACH_ARCHOS
 	/*
 	 * Sanity check the voltages that the card claims to
 	 * support.
@@ -1093,6 +1094,7 @@ int mmc_attach_sdio(struct mmc_host *host)
 		       mmc_hostname(host));
 		ocr &= ~0x7F;
 	}
+#endif
 
 	host->ocr = mmc_select_voltage(host, ocr);
 

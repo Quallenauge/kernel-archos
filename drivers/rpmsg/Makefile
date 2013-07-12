@@ -1,3 +1,5 @@
+obj-$(CONFIG_OMAP_RPMSG) += omap_rpmsg.o
+
 obj-$(CONFIG_RPMSG)	+= virtio_rpmsg_bus.o
 
 obj-$(CONFIG_RPMSG_OMX) += rpmsg_omx.o
