@@ -384,7 +384,8 @@ int omap_rproc_activate(struct omap_device *od)
 
 	if (!rpp->mbox)
 		rpp->mbox = omap_mbox_get(pdata->sus_mbox_name, NULL);
-#endif
+
+	#endif
 	/**
 	 * explicitly configure a boot address from which remoteproc
 	 * starts executing code when taken out of reset.
@@ -465,10 +466,10 @@ int omap_rproc_deactivate(struct omap_device *od)
 	//Try to use activate/deactivate like the 3.4 way
 	rproc_idle_iommu(rpp);
 
-//	if (rpp->mbox) {
-//		omap_mbox_put(rpp->mbox, NULL);
-//		rpp->mbox = NULL;
-//	}
+	if (rpp->mbox) {
+		omap_mbox_put(rpp->mbox, NULL);
+		rpp->mbox = NULL;
+	}
 #endif
 err:
 	if (pdata->clkdm)

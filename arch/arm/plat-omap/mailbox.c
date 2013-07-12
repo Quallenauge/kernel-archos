@@ -53,7 +53,7 @@ MODULE_PARM_DESC(mbox_kfifo_size, "Size of omap's mailbox kfifo (bytes)");
 static int omap_mbox_save_ctx(struct device *dev, void *data)
 {
 	struct omap_mbox *mbox = dev_get_drvdata(dev);
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!mbox->ops->save_ctx) {
 		dev_err(mbox->dev, "%s:\tno save\n", __func__);
 		return -EINVAL;
@@ -67,10 +67,12 @@ static int omap_mbox_save_ctx(struct device *dev, void *data)
 static int omap_mbox_restore_ctx(struct device *dev, void *data)
 {
 	struct omap_mbox *mbox = dev_get_drvdata(dev);
-
-	/* mailbox is not init'ed.. no need to restore */
-	if (!mbox->use_count)
-		return 0;
+	//printk("%s:%s:%d:mbox->use_count=%d\n",__FILE__,__FUNCTION__,__LINE__, mbox->use_count);
+//
+//	/* mailbox is not init'ed.. no need to restore */
+//	if (!mbox->use_count){
+//		return 0;
+//	}
 
 	if (!mbox->ops->restore_ctx) {
 		dev_err(mbox->dev, "%s:\tno restore\n", __func__);
@@ -85,7 +87,7 @@ static int omap_mbox_restore_ctx(struct device *dev, void *data)
 static int mbox_runtime_resume(struct device *dev)
 {
 	int ret;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	pm_qos_update_request(&mbox_qos_request, SET_MPU_CORE_CONSTRAINT);
 	ret = device_for_each_child(dev, NULL, omap_mbox_restore_ctx);
 	if (ret)
@@ -97,11 +99,14 @@ static int mbox_runtime_resume(struct device *dev)
 
 static int mbox_runtime_suspend(struct device *dev)
 {
-	int ret = device_for_each_child(dev, NULL, omap_mbox_save_ctx);
-
-	if (!ret)
+	int ret;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
+	ret = device_for_each_child(dev, NULL, omap_mbox_save_ctx);
+	//printk("%s:%s:%d:device_for_each_child returned %d\n",__FILE__,__FUNCTION__,__LINE__, ret);
+	if (!ret){
 		pm_qos_update_request(&mbox_qos_request,
 					 CLEAR_MPU_CORE_CONSTRAINT);
+	}
 
 	return ret;
 }
@@ -113,29 +118,35 @@ const struct dev_pm_ops mbox_pm_ops = {
 /* Mailbox FIFO handle functions */
 static inline mbox_msg_t mbox_fifo_read(struct omap_mbox *mbox)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	return mbox->ops->fifo_read(mbox);
 }
 static inline void mbox_fifo_write(struct omap_mbox *mbox, mbox_msg_t msg)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	mbox->ops->fifo_write(mbox, msg);
 }
 static inline int mbox_fifo_empty(struct omap_mbox *mbox)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	return mbox->ops->fifo_empty(mbox);
 }
 static inline int mbox_fifo_full(struct omap_mbox *mbox)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	return mbox->ops->fifo_full(mbox);
 }
 
 /* Mailbox IRQ handle functions */
 static inline void ack_mbox_irq(struct omap_mbox *mbox, omap_mbox_irq_t irq)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	if (mbox->ops->ack_irq)
 		mbox->ops->ack_irq(mbox, irq);
 }
 static inline int is_mbox_irq(struct omap_mbox *mbox, omap_mbox_irq_t irq)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	return mbox->ops->is_irq(mbox, irq);
 }
 
@@ -145,7 +156,7 @@ static inline int is_mbox_irq(struct omap_mbox *mbox, omap_mbox_irq_t irq)
 static int __mbox_poll_for_space(struct omap_mbox *mbox)
 {
 	int ret = 0, i = 1000;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	while (mbox_fifo_full(mbox)) {
 		if (mbox->ops->type == OMAP_MBOX_TYPE2)
 			return -1;
@@ -160,8 +171,10 @@ int omap_mbox_msg_send(struct omap_mbox *mbox, mbox_msg_t msg)
 {
 	struct omap_mbox_queue *mq = mbox->txq;
 	int ret = 0, len;
-
-	spin_lock_bh(&mq->lock);
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
+//	spin_lock_bh(&mq->lock);
+	mutex_lock(&mq->mlock);
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (kfifo_avail(&mq->fifo) < sizeof(msg)) {
 		ret = -ENOMEM;
@@ -179,7 +192,8 @@ int omap_mbox_msg_send(struct omap_mbox *mbox, mbox_msg_t msg)
 	tasklet_schedule(&mbox->txq->tasklet);
 
 out:
-	spin_unlock_bh(&mq->lock);
+//	spin_unlock_bh(&mq->lock);
+	mutex_unlock(&mq->mlock);
 	return ret;
 }
 EXPORT_SYMBOL(omap_mbox_msg_send);
@@ -190,6 +204,7 @@ static void mbox_tx_tasklet(unsigned long tx_data)
 	struct omap_mbox_queue *mq = mbox->txq;
 	mbox_msg_t msg;
 	int ret;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 
 	while (kfifo_len(&mq->fifo)) {
 		if (__mbox_poll_for_space(mbox)) {
@@ -214,7 +229,7 @@ static void mbox_rx_work(struct work_struct *work)
 			container_of(work, struct omap_mbox_queue, work);
 	mbox_msg_t msg;
 	int len;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	while (kfifo_len(&mq->fifo) >= sizeof(msg)) {
 		len = kfifo_out(&mq->fifo, (unsigned char *)&msg, sizeof(msg));
 		WARN_ON(len != sizeof(msg));
@@ -235,6 +250,7 @@ static void mbox_rx_work(struct work_struct *work)
  */
 static void __mbox_tx_interrupt(struct omap_mbox *mbox)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	omap_mbox_disable_irq(mbox, IRQ_TX);
 	ack_mbox_irq(mbox, IRQ_TX);
 	tasklet_schedule(&mbox->txq->tasklet);
@@ -245,6 +261,7 @@ static void __mbox_rx_interrupt(struct omap_mbox *mbox)
 	struct omap_mbox_queue *mq = mbox->rxq;
 	mbox_msg_t msg;
 	int len;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 
 	while (!mbox_fifo_empty(mbox)) {
 		if (unlikely(kfifo_avail(&mq->fifo) < sizeof(msg))) {
@@ -271,6 +288,7 @@ nomem:
 static irqreturn_t mbox_interrupt(int irq, void *p)
 {
 	struct omap_mbox *mbox = p;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (is_mbox_irq(mbox, IRQ_TX))
 		__mbox_tx_interrupt(mbox);
@@ -286,12 +304,13 @@ static struct omap_mbox_queue *mbox_queue_alloc(struct omap_mbox *mbox,
 					void (*tasklet)(unsigned long))
 {
 	struct omap_mbox_queue *mq;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	mq = kzalloc(sizeof(struct omap_mbox_queue), GFP_KERNEL);
 	if (!mq)
 		return NULL;
 
 	spin_lock_init(&mq->lock);
+	mutex_init(&mq->mlock);
 
 	if (kfifo_alloc(&mq->fifo, mbox_kfifo_size, GFP_KERNEL))
 		goto error;
@@ -309,6 +328,7 @@ error:
 
 static void mbox_queue_free(struct omap_mbox_queue *q)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	kfifo_free(&q->fifo);
 	kfree(q);
 }
@@ -317,6 +337,7 @@ static int omap_mbox_startup(struct omap_mbox *mbox)
 {
 	int ret = 0;
 	struct omap_mbox_queue *mq;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 
 	mutex_lock(&mbox_configured_lock);
 
@@ -331,6 +352,7 @@ static int omap_mbox_startup(struct omap_mbox *mbox)
 			goto fail_startup;
 	}
 
+	//printk("%s:%s:%d:Increase mbox->use_count to %d\n",__FILE__,__FUNCTION__,__LINE__, mbox->use_count+1);
 	if (!mbox->use_count++) {
 		mq = mbox_queue_alloc(mbox, NULL, mbox_tx_tasklet);
 		if (!mq) {
@@ -365,6 +387,7 @@ fail_alloc_rxq:
 fail_alloc_txq:
 	if (mbox->ops->shutdown)
 		mbox->ops->shutdown(mbox);
+	//printk("%s:%s:%d:Decrease mbox->use_count to %d\n",__FILE__,__FUNCTION__,__LINE__, mbox->use_count-1);
 	mbox->use_count--;
 fail_startup:
 	omap_mbox_disable(mbox);
@@ -374,9 +397,11 @@ fail_startup:
 
 static void omap_mbox_fini(struct omap_mbox *mbox)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	mutex_lock(&mbox_configured_lock);
 
 	flush_work_sync(&mbox->rxq->work);
+	//printk("%s:%s:%d:Decrease mbox->use_count to %d\n",__FILE__,__FUNCTION__,__LINE__, mbox->use_count-1);
 	if (!--mbox->use_count) {
 		free_irq(mbox->irq, mbox);
 		tasklet_kill(&mbox->txq->tasklet);
@@ -398,6 +423,7 @@ struct omap_mbox *omap_mbox_get(const char *name, struct notifier_block *nb)
 {
 	struct omap_mbox *_mbox, *mbox = NULL;
 	int i, ret;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 
 	if (!mboxes)
 		return ERR_PTR(-EINVAL);
@@ -425,6 +451,7 @@ EXPORT_SYMBOL(omap_mbox_get);
 
 void omap_mbox_put(struct omap_mbox *mbox, struct notifier_block *nb)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	omap_mbox_fini(mbox);
 	if (nb)
 		blocking_notifier_chain_unregister(&mbox->notifier, nb);
@@ -433,12 +460,14 @@ EXPORT_SYMBOL(omap_mbox_put);
 
 int omap_mbox_enable(struct omap_mbox *mbox)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	return pm_runtime_get_sync(mbox->dev->parent);
 }
 EXPORT_SYMBOL(omap_mbox_enable);
 
 int omap_mbox_disable(struct omap_mbox *mbox)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	return pm_runtime_put_sync(mbox->dev->parent);
 }
 EXPORT_SYMBOL(omap_mbox_disable);
@@ -449,6 +478,7 @@ int omap_mbox_register(struct device *parent, struct omap_mbox **list)
 {
 	int ret;
 	int i;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 
 	mboxes = list;
 	if (!mboxes)
@@ -480,7 +510,7 @@ EXPORT_SYMBOL(omap_mbox_register);
 int omap_mbox_unregister(struct device *parent)
 {
 	int i;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!mboxes)
 		return -EINVAL;
 
@@ -498,7 +528,7 @@ EXPORT_SYMBOL(omap_mbox_unregister);
 static int __init omap_mbox_init(void)
 {
 	int err;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	err = class_register(&omap_mbox_class);
 	if (err)
 		return err;

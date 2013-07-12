@@ -89,7 +89,6 @@ struct omap_rpmsg_vq_info {
 #define RPMSG_BUFS_SPACE	(RPMSG_NUM_BUFS * RPMSG_BUF_SIZE)
 
 /*
- * The alignment between the consumer and producer parts of the vring.
  * Note: this is part of the "wire" protocol. If you change this, you need
  * to update your BIOS image as well
  */
@@ -110,6 +109,7 @@ static void omap_rpmsg_get(struct virtio_device *vdev, unsigned int request,
 	struct omap_rpmsg_vproc *rpdev = to_omap_rpdev(vdev);
 	void *presult;
 	int iresult;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 
 	switch (request) {
 	case VPROC_BUF_ADDR:
@@ -160,7 +160,7 @@ static void omap_rpmsg_notify(struct virtqueue *vq)
 	struct omap_rpmsg_vq_info *rpvq = vq->priv;
 	int ret;
 	int count = 15;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	pr_debug("sending mailbox msg: %d\n", rpvq->vq_id);
 	do {
 		rproc_last_busy(rpvq->rpdev->rproc);
@@ -187,6 +187,7 @@ static int omap_rpmsg_mbox_callback(struct notifier_block *this,
 {
 	mbox_msg_t msg = (mbox_msg_t) data;
 	struct omap_rpmsg_vproc *rpdev;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 
 	rpdev = container_of(this, struct omap_rpmsg_vproc, nb);
 
@@ -259,6 +260,7 @@ static int rpmsg_rproc_error(struct omap_rpmsg_vproc *rpdev)
 
 static int rpmsg_rproc_suspend(struct omap_rpmsg_vproc *rpdev)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	if (virtqueue_more_used(rpdev->vq[0]))
 		return NOTIFY_BAD;
 	return NOTIFY_DONE;
@@ -266,9 +268,10 @@ static int rpmsg_rproc_suspend(struct omap_rpmsg_vproc *rpdev)
 
 static int rpmsg_rproc_pos_suspend(struct omap_rpmsg_vproc *rpdev)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	mutex_lock(&rpdev->lock);
 	if (rpdev->mbox) {
-		printk("%s:%s:%d: Suspending mailbox...\n",__FILE__,__FUNCTION__,__LINE__);
+		//printk("%s:%s:%d: Suspending mailbox...\n",__FILE__,__FUNCTION__,__LINE__);
 		omap_mbox_put(rpdev->mbox, &rpdev->nb);
 		rpdev->mbox = NULL;
 	}
@@ -279,9 +282,10 @@ static int rpmsg_rproc_pos_suspend(struct omap_rpmsg_vproc *rpdev)
 
 static int rpmsg_rproc_load_error(struct omap_rpmsg_vproc *rpdev)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	mutex_lock(&rpdev->lock);
 	if (rpdev->mbox) {
-		printk("%s:%s:%d: Suspending mailbox...\n",__FILE__,__FUNCTION__,__LINE__);
+		//printk("%s:%s:%d: Suspending mailbox...\n",__FILE__,__FUNCTION__,__LINE__);
 		omap_mbox_put(rpdev->mbox, &rpdev->nb);
 		rpdev->mbox = NULL;
 	}
@@ -300,9 +304,10 @@ static int rpmsg_rproc_load_error(struct omap_rpmsg_vproc *rpdev)
 
 static int rpmsg_rproc_resume(struct omap_rpmsg_vproc *rpdev)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	mutex_lock(&rpdev->lock);
 	if (!rpdev->mbox){
-		printk("%s:%s:%d: Create new mailbox assignment...\n",__FILE__,__FUNCTION__,__LINE__);
+		//printk("%s:%s:%d: Create new mailbox assignment...\n",__FILE__,__FUNCTION__,__LINE__);
 		rpdev->mbox = omap_mbox_get(rpdev->mbox_name, &rpdev->nb);
 	}
 	mutex_unlock(&rpdev->lock);
@@ -322,6 +327,7 @@ static int rpmsg_rproc_secure(struct omap_rpmsg_vproc *rpdev, bool s)
 
 static int rpmsg_rproc_preload(struct omap_rpmsg_vproc *rpdev)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	mutex_lock(&rpdev->lock);
 	if (rpdev->bootcstr_freq) {
 		rpdev->bootcstr_set = !rproc_set_constraints(rpdev->rproc,
@@ -339,7 +345,7 @@ static int rpmsg_rproc_events(struct notifier_block *this,
 {
 	struct omap_rpmsg_vproc *rpdev = container_of(this,
 				struct omap_rpmsg_vproc, rproc_nb);
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	switch (type) {
 	case RPROC_ERROR:
 		return rpmsg_rproc_error(rpdev);
@@ -368,7 +374,7 @@ static struct virtqueue *rp_find_vq(struct virtio_device *vdev,
 	struct omap_rpmsg_vq_info *rpvq;
 	struct virtqueue *vq;
 	int err;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	rpvq = kmalloc(sizeof(*rpvq), GFP_KERNEL);
 	if (!rpvq)
 		return ERR_PTR(-ENOMEM);
@@ -415,7 +421,7 @@ static void omap_rpmsg_del_vqs(struct virtio_device *vdev)
 {
 	struct virtqueue *vq, *n;
 	struct omap_rpmsg_vproc *rpdev = to_omap_rpdev(vdev);
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	rproc_event_unregister(rpdev->rproc, &rpdev->rproc_nb);
 
 	list_for_each_entry_safe(vq, n, &vdev->vqs, list) {
@@ -450,7 +456,7 @@ static int omap_rpmsg_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 {
 	struct omap_rpmsg_vproc *rpdev = to_omap_rpdev(vdev);
 	int i, err;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	/* we maintain two virtqueues per remote processor (for RX and TX) */
 	if (nvqs != 2)
 		return -EINVAL;
@@ -577,7 +583,7 @@ static void rpmsg_reset_work(struct work_struct *work)
 		container_of(work, struct omap_rpmsg_vproc, reset_work);
 	struct omap_rpmsg_vproc *tmp;
 	int ret;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	for (tmp = rpdev; tmp; tmp = tmp->slave_next) {
 		pr_err("reseting virtio device %d\n", tmp->vdev.index);
 		unregister_virtio_device(&tmp->vdev);
@@ -671,7 +677,7 @@ static int __init omap_rpmsg_ini(void)
 	phys_addr_t psize = 0;
 	bool set_ipu = true;
 
-	printk("%s:%s\n", __FILE__,__FUNCTION__);
+	//printk("%s:%s\n", __FILE__,__FUNCTION__);
 	for (i = 0; i < ARRAY_SIZE(omap_rpmsg_vprocs); i++) {
 		struct omap_rpmsg_vproc *rpdev = &omap_rpmsg_vprocs[i];
 

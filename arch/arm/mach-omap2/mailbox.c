@@ -74,18 +74,20 @@ static void omap2_mbox_enable_irq(struct omap_mbox *mbox,
 
 static inline unsigned int mbox_read_reg(size_t ofs)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	return __raw_readl(mbox_base + ofs);
 }
 
 static inline void mbox_write_reg(u32 val, size_t ofs)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	__raw_writel(val, mbox_base + ofs);
 }
 
 static void omap2_mbox_save_ctx(struct omap_mbox *mbox)
 {
 	int i, max_iter = 100;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	if (context_saved)
 		return;
 
@@ -121,7 +123,7 @@ static void omap2_mbox_save_ctx(struct omap_mbox *mbox)
 static void omap2_mbox_restore_ctx(struct omap_mbox *mbox)
 {
 	int i;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!context_saved)
 		return;
 
@@ -143,7 +145,7 @@ static void omap2_mbox_restore_ctx(struct omap_mbox *mbox)
 static int omap2_mbox_startup(struct omap_mbox *mbox)
 {
 	u32 l;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	l = mbox_read_reg(MAILBOX_REVISION);
 	pr_debug("omap mailbox rev %d.%d\n", (l & 0xf0) >> 4, (l & 0x0f));
 
@@ -160,6 +162,7 @@ static mbox_msg_t omap2_mbox_fifo_read(struct omap_mbox *mbox)
 {
 	struct omap_mbox2_fifo *fifo =
 		&((struct omap_mbox2_priv *)mbox->priv)->rx_fifo;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	return (mbox_msg_t) mbox_read_reg(fifo->msg);
 }
 
@@ -167,6 +170,7 @@ static void omap2_mbox_fifo_write(struct omap_mbox *mbox, mbox_msg_t msg)
 {
 	struct omap_mbox2_fifo *fifo =
 		&((struct omap_mbox2_priv *)mbox->priv)->tx_fifo;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	mbox_write_reg(msg, fifo->msg);
 }
 
@@ -174,6 +178,7 @@ static int omap2_mbox_fifo_empty(struct omap_mbox *mbox)
 {
 	struct omap_mbox2_fifo *fifo =
 		&((struct omap_mbox2_priv *)mbox->priv)->rx_fifo;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	return (mbox_read_reg(fifo->msg_stat) == 0);
 }
 
@@ -181,6 +186,7 @@ static int omap2_mbox_fifo_full(struct omap_mbox *mbox)
 {
 	struct omap_mbox2_fifo *fifo =
 		&((struct omap_mbox2_priv *)mbox->priv)->tx_fifo;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	return mbox_read_reg(fifo->fifo_stat);
 }
 
@@ -190,7 +196,7 @@ static void omap2_mbox_enable_irq(struct omap_mbox *mbox,
 {
 	struct omap_mbox2_priv *p = mbox->priv;
 	u32 l, bit = (irq == IRQ_TX) ? p->notfull_bit : p->newmsg_bit;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	l = mbox_read_reg(p->irqenable);
 	l |= bit;
 	mbox_write_reg(l, p->irqenable);
@@ -201,7 +207,7 @@ static void omap2_mbox_disable_irq(struct omap_mbox *mbox,
 {
 	struct omap_mbox2_priv *p = mbox->priv;
 	u32 bit = (irq == IRQ_TX) ? p->notfull_bit : p->newmsg_bit;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!(cpu_is_omap44xx() || cpu_is_omap54xx()))
 		bit = mbox_read_reg(p->irqdisable) & ~bit;
 
@@ -213,7 +219,7 @@ static void omap2_mbox_ack_irq(struct omap_mbox *mbox,
 {
 	struct omap_mbox2_priv *p = mbox->priv;
 	u32 bit = (irq == IRQ_TX) ? p->notfull_bit : p->newmsg_bit;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	mbox_write_reg(bit, p->irqstatus);
 
 	/* Flush posted write for irq status to avoid spurious interrupts */
@@ -224,6 +230,7 @@ static int omap2_mbox_is_irq(struct omap_mbox *mbox,
 		omap_mbox_type_t irq)
 {
 	struct omap_mbox2_priv *p = mbox->priv;
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	u32 bit = (irq == IRQ_TX) ? p->notfull_bit : p->newmsg_bit;
 	u32 enable = mbox_read_reg(p->irqenable);
 	u32 status = mbox_read_reg(p->irqstatus);
@@ -376,7 +383,7 @@ static int __devinit omap2_mbox_probe(struct platform_device *pdev)
 	struct resource *mem;
 	int ret;
 	struct omap_mbox **list;
-
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	if (false)
 		;
 #if defined(CONFIG_ARCH_OMAP3)
@@ -457,6 +464,7 @@ static struct platform_driver omap2_mbox_driver = {
 
 static int __init omap2_mbox_init(void)
 {
+	//printk("%s:%s:%d:\n",__FILE__,__FUNCTION__,__LINE__);
 	return platform_driver_register(&omap2_mbox_driver);
 }
 
