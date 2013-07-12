@@ -146,7 +146,7 @@ static struct omap_rproc_pdata omap4_rproc_data[] = {
 		.idle_mask	= OMAP4430_STBYST_MASK,
 		.suspend_mask	= ~0,
 		.sus_timeout	= 5000,
-		.sus_mbox_name	= "mbox-ipu",
+		.sus_mbox_name	= "mailbox-1",
 		.ops		= &ipu_ops,
 	},
 };

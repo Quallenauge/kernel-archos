@@ -19,8 +19,6 @@ config OMAP_REMOTEPROC
 	select OMAP_IOMMU
 	select REMOTEPROC
 	select RPMSG
-    select MAILBOX
-    select OMAP2PLUS_MBOX	
 	default y
 	help
 	  Say y here to support OMAP's remote processors (dual M3

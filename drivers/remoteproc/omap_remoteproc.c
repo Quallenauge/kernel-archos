@@ -24,16 +24,13 @@
 #include <linux/remoteproc.h>
 #include <linux/sched.h>
 #include <linux/rproc_drm.h>
-#include <linux/irqreturn.h>
-#include <linux/interrupt.h>
 
 #include <linux/iommu.h>
 
 #include <plat/iommu.h>
 #include <plat/omap_device.h>
 #include <plat/remoteproc.h>
-#include <linux/mailbox.h>
-#include <linux/platform_data/mailbox-omap.h>
+#include <plat/mailbox.h>
 #include <plat/common.h>
 #include <plat/omap-pm.h>
 #include <plat/dmtimer.h>
@@ -52,7 +49,7 @@ struct omap_rproc_priv {
 	int (*wdt_cb)(struct rproc *);
 	u64 bootaddr;
 #ifdef CONFIG_REMOTEPROC_AUTOSUSPEND
-	struct mailbox *mbox;
+	struct omap_mbox *mbox;
 	void __iomem *idle;
 	u32 idle_mask;
 	void __iomem *suspend;
@@ -117,7 +114,6 @@ static bool _may_suspend(struct omap_rproc_priv *rpp)
 
 static int _suspend(struct omap_rproc_priv *rpp, bool force)
 {
-	struct mailbox_msg msg;
 	unsigned long timeout = msecs_to_jiffies(PM_SUSPEND_TIMEOUT) + jiffies;
 	int ret;
 	int suspVal=-1;
@@ -125,15 +121,12 @@ static int _suspend(struct omap_rproc_priv *rpp, bool force)
 
 	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 
-	if (force){
-		MAILBOX_FILL_MSG(msg, 0, PM_SUSPEND_MBOX_FORCE, 0);
-		ret = mailbox_msg_send(rpp->mbox, &msg);
-	}else{
-		MAILBOX_FILL_MSG(msg, 0, PM_SUSPEND_MBOX, 0);
-		ret = mailbox_msg_send(rpp->mbox, &msg);
-	}
+	if (force)
+		ret = omap_mbox_msg_send(rpp->mbox, PM_SUSPEND_MBOX_FORCE);
+	else
+		ret = omap_mbox_msg_send(rpp->mbox, PM_SUSPEND_MBOX);
 
-	printk(">>%s:%s:%d mailbox_send returned: %d\n",__FILE__,__FUNCTION__,__LINE__, ret);
+	printk(">>%s:%s:%d omap_mbox_msg_send returned: %d\n",__FILE__,__FUNCTION__,__LINE__, ret);
 
 	while (time_after(timeout, jiffies)) {
 		suspVal = readl(rpp->suspend);
@@ -390,7 +383,7 @@ int omap_rproc_activate(struct omap_device *od)
 	rproc_activate_iommu(rpp);
 
 	if (!rpp->mbox)
-		rpp->mbox = mailbox_get(pdata->sus_mbox_name, NULL);
+		rpp->mbox = omap_mbox_get(pdata->sus_mbox_name, NULL);
 #endif
 	/**
 	 * explicitly configure a boot address from which remoteproc
@@ -585,10 +578,10 @@ static int _init_pm_flags(struct rproc *rproc)
 {
 	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
 	struct omap_rproc_priv *rpp = rproc->priv;
-	struct mailbox *mbox;
+	struct omap_mbox *mbox;
 	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (!rpp->mbox) {
-		mbox = mailbox_get(pdata->sus_mbox_name, NULL);
+		mbox = omap_mbox_get(pdata->sus_mbox_name, NULL);
 		if (IS_ERR(mbox))
 			return PTR_ERR(mbox);
 		rpp->mbox = mbox;
@@ -618,7 +611,7 @@ err_suspend:
 	iounmap(rpp->idle);
 	rpp->idle = NULL;
 err_idle:
-	mailbox_put(rpp->mbox, NULL);
+	omap_mbox_put(rpp->mbox, NULL);
 	rpp->mbox = NULL;
 	return -EIO;
 }
@@ -628,7 +621,7 @@ static void _destroy_pm_flags(struct rproc *rproc)
 	struct omap_rproc_priv *rpp = rproc->priv;
 	printk(">>%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	if (rpp->mbox) {
-		mailbox_put(rpp->mbox, NULL);
+		omap_mbox_put(rpp->mbox, NULL);
 		rpp->mbox = NULL;
 	}
 	if (rpp->idle) {

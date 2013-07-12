@@ -23,8 +23,6 @@ obj-$(CONFIG_ARM_AMBA)		+= amba/
 # really early.
 obj-$(CONFIG_DMA_ENGINE)	+= dma/
 
-obj-$(CONFIG_MAILBOX)		+= mailbox/
-
 obj-$(CONFIG_VIRTIO)		+= virtio/
 obj-$(CONFIG_RPMSG)		+= rpmsg/
 obj-$(CONFIG_XEN)		+= xen/

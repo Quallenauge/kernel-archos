@@ -21,7 +21,6 @@
 #include <linux/io.h>
 #include <linux/omap_ocp2scp.h>
 #include <linux/power/smartreflex.h>
-#include <linux/platform_data/mailbox-omap.h>
 
 #include <plat/omap_hwmod.h>
 #include <plat/cpu.h>
@@ -3344,16 +3343,6 @@ static struct omap_hwmod_class omap44xx_mailbox_hwmod_class = {
 };
 
 /* mailbox */
-static struct omap_mbox_dev_info omap44xx_mailbox_info[] = {
-        { .name = "mbox-ipu", .tx_id = 0, .rx_id = 1 },
-        { .name = "mbox-dsp", .tx_id = 3, .rx_id = 2 },
-};
-
-static struct omap_mbox_pdata omap44xx_mailbox_attrs = {
-        .intr_type      = MBOX_INTR_CFG_TYPE2,
-        .info_cnt       = ARRAY_SIZE(omap44xx_mailbox_info),
-        .info           = omap44xx_mailbox_info,
-};
 static struct omap_hwmod omap44xx_mailbox_hwmod;
 static struct omap_hwmod_irq_info omap44xx_mailbox_irqs[] = {
 	{ .irq = 26 + OMAP44XX_IRQ_GIC_START },
@@ -3396,7 +3385,6 @@ static struct omap_hwmod omap44xx_mailbox_hwmod = {
 	},
 	.slaves		= omap44xx_mailbox_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_mailbox_slaves),
-	.dev_attr   = &omap44xx_mailbox_attrs,
 };
 
 /*
