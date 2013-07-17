@@ -399,30 +399,45 @@ static int __cpuinit flow_cache_cpu(struct notifier_block *nfb,
 static int __init flow_cache_init(struct flow_cache *fc)
 {
 	int i;
-
+	
 	fc->hash_shift = 10;
 	fc->low_watermark = 2 * flow_cache_hash_size(fc);
 	fc->high_watermark = 4 * flow_cache_hash_size(fc);
-
+	
 	fc->percpu = alloc_percpu(struct flow_cache_percpu);
 	if (!fc->percpu)
-		return -ENOMEM;
-
+	  return -ENOMEM;
+	
+	get_online_cpus();
 	for_each_online_cpu(i) {
-		if (flow_cache_cpu_prepare(fc, i))
-			return -ENOMEM;
+	  if (flow_cache_cpu_prepare(fc, i))
+	    goto err;
 	}
 	fc->hotcpu_notifier = (struct notifier_block){
-		.notifier_call = flow_cache_cpu,
+	  .notifier_call = flow_cache_cpu,
 	};
 	register_hotcpu_notifier(&fc->hotcpu_notifier);
-
+	put_online_cpus();
+	
 	setup_timer(&fc->rnd_timer, flow_cache_new_hashrnd,
 		    (unsigned long) fc);
 	fc->rnd_timer.expires = jiffies + FLOW_HASH_RND_PERIOD;
 	add_timer(&fc->rnd_timer);
-
+	
 	return 0;
+	
+	err:
+	put_online_cpus();
+	for_each_possible_cpu(i) {
+	  struct flow_cache_percpu *fcp = per_cpu_ptr(fc->percpu, i);
+	  kfree(fcp->hash_table);
+	  fcp->hash_table = NULL;
+	}
+	
+	free_percpu(fc->percpu);
+	fc->percpu = NULL;
+	
+	return -ENOMEM;
 }
 
 static int __init flow_cache_init_global(void)
