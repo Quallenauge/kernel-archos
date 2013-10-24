@@ -5586,6 +5586,7 @@ static struct omap_hwmod omap44xx_uart1_hwmod = {
 	.slaves		= omap44xx_uart1_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_uart1_slaves),
 	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
+	.flags		= HWMOD_SWSUP_SIDLE,	
 };
 
 /* uart2 */
@@ -5639,6 +5640,7 @@ static struct omap_hwmod omap44xx_uart2_hwmod = {
 	.slaves		= omap44xx_uart2_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_uart2_slaves),
 	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
+	.flags		= HWMOD_SWSUP_SIDLE,	
 };
 
 /* uart3 */
@@ -5692,6 +5694,7 @@ static struct omap_hwmod omap44xx_uart3_hwmod = {
 	.slaves		= omap44xx_uart3_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_uart3_slaves),
 	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
+	.flags		= HWMOD_SWSUP_SIDLE,
 };
 
 /* uart4 */
@@ -5745,6 +5748,7 @@ static struct omap_hwmod omap44xx_uart4_hwmod = {
 	.slaves		= omap44xx_uart4_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_uart4_slaves),
 	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
+	.flags		= HWMOD_SWSUP_SIDLE,
 };
 
 /*
