@@ -26,6 +26,16 @@ config EXT4_FS
 
 	  If unsure, say N.
 
+config EXT4_FS_UMODE
+	bool "Ext4 force permissions"
+	depends on EXT4_FS
+	default n
+	help
+	  allow to force a set of permissions on overy file, overriding the
+	  ext4 permissions, forced permissions will be or'ed to the ext ones
+
+	  If unsure, say N (only say Y if you REALLY, REALLY know what you are doing)
+
 config EXT4_USE_FOR_EXT23
 	bool "Use ext4 for ext2/ext3 file systems"
 	depends on EXT4_FS
