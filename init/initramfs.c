@@ -572,7 +572,7 @@ static void __init clean_rootfs(void)
 static int __init populate_rootfs(void)
 {
 	char *err = NULL;
-	if(strstr(saved_command_line,"androidboot.mode=recovery") != NULL ) {
+	if(false && strstr(saved_command_line,"androidboot.mode=recovery") != NULL ) {
 		err = unpack_to_rootfs(__initramfs_start, __initramfs_size);
 		if (err)
 			panic(err);	/* Failed to decompress INTERNAL initramfs */
