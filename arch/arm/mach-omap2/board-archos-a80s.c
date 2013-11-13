@@ -1843,11 +1843,16 @@ static void __init board_map_io(void)
 
 static struct sgx_omaplfb_config omaplfb_config_config_cpt_xga8_wuxga[OMAPLFB_NUM_DEV] = {
 	{
-//	.tiler2d_buffers = 3,
-	.vram_buffers = 3,
-	.swap_chain_length = 3,
+	.tiler2d_buffers = 2,
+	.swap_chain_length = 2,
+	},
+	{
+	.tiler2d_buffers = 0,
+	.vram_buffers = 2,
+	.swap_chain_length = 2,
 	}
 };
+
 
 static struct sgx_omaplfb_platform_data omaplfb_plat_data_cpt_xga8_wuxga = {
 	.num_configs = OMAPLFB_NUM_DEV,
