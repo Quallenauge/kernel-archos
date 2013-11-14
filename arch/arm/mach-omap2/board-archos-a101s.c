@@ -1729,7 +1729,7 @@ static void __init board_map_io(void)
 #define OMAPLFB_NUM_DEV 1
 #endif
 
-static struct sgx_omaplfb_config omaplfb_config_config_cpt_xga8_wuxga[OMAPLFB_NUM_DEV] = {
+static struct sgx_omaplfb_config omaplfb_config_config_auo_wxga_10_wuxga[OMAPLFB_NUM_DEV] = {
 	{
 	.tiler2d_buffers = 2,
 	.swap_chain_length = 2,

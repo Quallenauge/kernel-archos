@@ -1753,7 +1753,7 @@ static void __init board_map_io(void)
 #define OMAPLFB_NUM_DEV 1
 #endif
 
-static struct sgx_omaplfb_config omaplfb_config_config_cpt_xga8_wuxga[OMAPLFB_NUM_DEV] = {
+static struct sgx_omaplfb_config omaplfb_config_config_auo_wxga_10_wuxga[OMAPLFB_NUM_DEV] = {
 	{
 	.tiler2d_buffers = 2,
 	.swap_chain_length = 2,
@@ -1765,9 +1765,9 @@ static struct sgx_omaplfb_config omaplfb_config_config_cpt_xga8_wuxga[OMAPLFB_NU
 	}
 };
 
-static struct sgx_omaplfb_platform_data omaplfb_plat_data_cpt_xga8_wuxga = {
+static struct sgx_omaplfb_platform_data omaplfb_plat_data_auo_wxga_10_wuxga = {
 	.num_configs = OMAPLFB_NUM_DEV,
-	.configs = omaplfb_config_config_cpt_xga8_wuxga,
+	.configs = omaplfb_config_config_auo_wxga_10_wuxga,
 };
 
 
@@ -1785,7 +1785,7 @@ static void tablet_android_display_setup(struct omap_ion_platform_data *ion)
 
 	omap_android_display_setup(&board_dss_data,
 				   &dsscomp_config_cpt_xga8_wuxga,
-				   &omaplfb_plat_data_cpt_xga8_wuxga,
+				   &omaplfb_plat_data_auo_wxga_10_wuxga,
 				   &tablet_fb_pdata,
 				   ion);
 }
