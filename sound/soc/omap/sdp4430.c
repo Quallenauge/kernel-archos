@@ -20,11 +20,13 @@
  *
  */
 
+#define DEBUG 1
 #include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
 #include <linux/i2c/twl.h>
 #include <linux/regulator/consumer.h>
+#include <linux/cdc_tcxo.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -46,7 +48,9 @@
 #include "omap-dmic.h"
 #include "../codecs/twl6040.h"
 
+#ifdef DAPM
 static struct regulator *av_switch_reg;
+#endif
 static int twl6040_power_mode;
 static int mcbsp_cfg;
 static struct snd_soc_codec *twl6040_codec;
@@ -151,6 +155,17 @@ static int sdp4430_mcpdm_startup(struct snd_pcm_substream *substream)
 	if (twl6040_power_mode) {
 		clk_id = TWL6040_HPPLL_ID;
 		freq = 38400000;
+
+		/*
+		 * TWL6040 requires MCLK to be active as long as
+		 * high-performance mode is in use. Glitch-free mux
+		 * cannot tolerate MCLK gating
+		 */
+		ret = cdc_tcxo_set_req_int(CDC_TCXO_CLK2, 1);
+		if (ret) {
+			printk(KERN_ERR "failed to enable twl6040 MCLK\n");
+			goto err;
+		}
 	} else {
 		clk_id = TWL6040_LPPLL_ID;
 		freq = 32768;
@@ -162,6 +177,13 @@ static int sdp4430_mcpdm_startup(struct snd_pcm_substream *substream)
 	if (ret) {
 		printk(KERN_ERR "can't set codec system clock\n");
 		goto err;
+	}
+
+	/* low-power mode uses 32k clock, MCLK is not required */
+	if (!twl6040_power_mode) {
+		ret = cdc_tcxo_set_req_int(CDC_TCXO_CLK2, 0);
+		if (ret)
+			printk(KERN_ERR "failed to disable twl6040 MCLK\n");
 	}
 
 	return 0;
@@ -192,22 +214,12 @@ static int sdp4430_mcbsp_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int ret = 0;
-	unsigned int be_id, channels;
+	unsigned int channels;
 
-	be_id = rtd->dai_link->be_id;
-
-	 if (be_id == OMAP_ABE_DAI_BT_VX) {
-		ret = snd_soc_dai_set_fmt(cpu_dai,
-			SND_SOC_DAIFMT_DSP_B |
-			SND_SOC_DAIFMT_NB_IF |
+	ret = snd_soc_dai_set_fmt(cpu_dai,
+			SND_SOC_DAIFMT_I2S |
+			SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBM_CFM);
-	} else {
-		/* Set cpu DAI configuration */
-		ret = snd_soc_dai_set_fmt(cpu_dai,
-				  SND_SOC_DAIFMT_I2S |
-				  SND_SOC_DAIFMT_NB_NF |
-				  SND_SOC_DAIFMT_CBM_CFM);
-	}
 
 	if (ret < 0) {
 		printk(KERN_ERR "can't set cpu DAI configuration\n");
@@ -266,13 +278,25 @@ static int sdp4430_dmic_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int ret = 0;
 
-	ret = snd_soc_dai_set_sysclk(cpu_dai, OMAP_DMIC_SYSCLK_PAD_CLKS,
-				     19200000, SND_SOC_CLOCK_IN);
+	if (!rtd->dai_link->no_pcm)
+		ret = snd_soc_dai_set_sysclk(cpu_dai,
+				OMAP_DMIC_SYSCLK_SYNC_MUX_CLKS, 24000000,
+				SND_SOC_CLOCK_IN);
+	else
+		ret = snd_soc_dai_set_sysclk(cpu_dai,
+				OMAP_DMIC_SYSCLK_PAD_CLKS, 19200000,
+				SND_SOC_CLOCK_IN);
+
 	if (ret < 0) {
 		printk(KERN_ERR "can't set DMIC cpu system clock\n");
 		return ret;
 	}
-	ret = snd_soc_dai_set_clkdiv(cpu_dai, OMAP_DMIC_CLKDIV, 8);
+
+	if (!rtd->dai_link->no_pcm)
+		ret = snd_soc_dai_set_clkdiv(cpu_dai, OMAP_DMIC_CLKDIV, 10);
+	else
+		ret = snd_soc_dai_set_clkdiv(cpu_dai, OMAP_DMIC_CLKDIV, 8);
+
 	if (ret < 0) {
 		printk(KERN_ERR "can't set DMIC cpu clock divider\n");
 		return ret;
@@ -291,13 +315,8 @@ static int mcbsp_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 {
 	struct snd_interval *channels = hw_param_interval(params,
                                        SNDRV_PCM_HW_PARAM_CHANNELS);
-	unsigned int be_id = rtd->dai_link->be_id;
 
-	if (be_id == OMAP_ABE_DAI_BT_VX)
-		channels->min = 1;
-	else
-		channels->min = 2;
-
+	channels->min = 2;
 	snd_mask_set(&params->masks[SNDRV_PCM_HW_PARAM_FORMAT -
 	                            SNDRV_PCM_HW_PARAM_FIRST_MASK],
 	                            SNDRV_PCM_FORMAT_S16_LE);
@@ -309,9 +328,12 @@ static int dmic_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 {
 	struct snd_interval *rate = hw_param_interval(params,
 			SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval *channels = hw_param_interval(params,
+			SNDRV_PCM_HW_PARAM_CHANNELS);
 
 	/* The ABE will covert the FE rate to 96k */
 	rate->min = rate->max = 96000;
+	channels->min = channels->max = 2;
 
 	snd_mask_set(&params->masks[SNDRV_PCM_HW_PARAM_FORMAT -
 	                            SNDRV_PCM_HW_PARAM_FIRST_MASK],
@@ -334,6 +356,7 @@ static struct snd_soc_jack_pin hs_jack_pins[] = {
 	},
 };
 
+#ifdef DAPM
 static int sdp4430_av_switch_event(struct snd_soc_dapm_widget *w,
 				   struct snd_kcontrol *kcontrol, int event)
 {
@@ -346,6 +369,7 @@ static int sdp4430_av_switch_event(struct snd_soc_dapm_widget *w,
 
 	return ret;
 }
+#endif
 
 static int sdp4430_get_power_mode(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
@@ -376,7 +400,7 @@ static const struct snd_kcontrol_new sdp4430_controls[] = {
 	SOC_ENUM_EXT("TWL6040 Power Mode", sdp4430_enum[0],
 		sdp4430_get_power_mode, sdp4430_set_power_mode),
 };
-
+#ifdef DAPM
 /* SDP4430 machine DAPM */
 static const struct snd_soc_dapm_widget sdp4430_twl6040_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Ext Mic", NULL),
@@ -429,6 +453,7 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"DMIC2", NULL, "Digital Mic1 Bias"},
 	{"Digital Mic1 Bias", NULL, "Digital Mic 2"},
 };
+#endif
 
 static int sdp4430_set_pdm_dl1_gains(struct snd_soc_dapm_context *dapm)
 {
@@ -444,6 +469,10 @@ static int sdp4430_set_pdm_dl1_gains(struct snd_soc_dapm_context *dapm)
 		else
 			/* HSDACL in HP mode */
 			output = OMAP_ABE_DL1_HEADSET_HP;
+#if !defined(CONFIG_SND_OMAP_SOC_ABE_DL2)
+	} else if (snd_soc_dapm_get_pin_power(dapm, "Ext Spk")) {
+		output = OMAP_ABE_DL1_HANDSFREE;
+#endif
 	} else {
 		output = OMAP_ABE_DL1_NO_PDM;
 	}
@@ -455,7 +484,9 @@ static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
 	struct twl6040 *twl6040 = codec->control_data;
+#ifdef DAPM
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
+#endif
 	int hsotrim, left_offset, right_offset, mode, ret;
 
 
@@ -465,6 +496,7 @@ static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
 	if (ret)
 		return ret;
 
+#ifdef DAPM
 	/* Add SDP4430 specific widgets */
 	ret = snd_soc_dapm_new_controls(dapm, sdp4430_twl6040_dapm_widgets,
 				ARRAY_SIZE(sdp4430_twl6040_dapm_widgets));
@@ -496,6 +528,7 @@ static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
 	ret = snd_soc_dapm_sync(dapm);
 	if (ret)
 		return ret;
+#endif
 
 	/* Headset jack detection */
 	ret = snd_soc_jack_new(codec, "Headset Jack",
@@ -662,39 +695,39 @@ static struct snd_soc_dai_driver dai[] = {
 },
 };
 
-static struct snd_soc_dsp_link fe_media = {
+struct snd_soc_dsp_link fe_media = {
 	.playback	= true,
 	.capture	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},
 };
 
-static struct snd_soc_dsp_link fe_media_capture = {
+struct snd_soc_dsp_link fe_media_capture = {
 	.capture	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},
 };
 
-static struct snd_soc_dsp_link fe_tones = {
+struct snd_soc_dsp_link fe_tones = {
 	.playback	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},
 };
 
-static struct snd_soc_dsp_link fe_vib = {
+struct snd_soc_dsp_link fe_vib = {
 	.playback	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},
 };
 
-static struct snd_soc_dsp_link fe_modem = {
+struct snd_soc_dsp_link fe_modem = {
 	.playback	= true,
 	.capture	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},
 };
 
-static struct snd_soc_dsp_link fe_lp_media = {
+struct snd_soc_dsp_link fe_lp_media = {
 	.playback	= true,
 	.trigger =
 		{SND_SOC_DSP_TRIGGER_BESPOKE, SND_SOC_DSP_TRIGGER_BESPOKE},
@@ -1067,8 +1100,11 @@ static int __init sdp4430_soc_init(void)
 	int ret;
 
 	if (!machine_is_omap_4430sdp() && !machine_is_omap4_panda() &&
-		!machine_is_omap_tabletblaze()) {
-		pr_debug("Not SDP4430, BlazeTablet or PandaBoard!\n");
+		!machine_is_omap_tabletblaze() &&
+		!machine_is_archos_a80s() && !machine_is_archos_a101s() &&
+		!machine_is_archos_a80h() && !machine_is_archos_a101h()
+	) {
+		pr_debug("Not SDP4430, BlazeTablet or PandaBoard or Archos Board!\n");
 		return -ENODEV;
 	}
 	printk(KERN_INFO "SDP4430 SoC init\n");
@@ -1078,6 +1114,16 @@ static int __init sdp4430_soc_init(void)
 		snd_soc_sdp4430.name = "Panda";
 	else if (machine_is_omap_tabletblaze())
 		snd_soc_sdp4430.name = "Tablet44xx";
+
+	else if (machine_is_archos_a80s())
+			snd_soc_sdp4430.name = "ArchosA80S";
+	else if (machine_is_archos_a80h())
+			snd_soc_sdp4430.name = "ArchosA80H";
+	else if (machine_is_archos_a101s())
+			snd_soc_sdp4430.name = "ArchosA101S";
+	else if (machine_is_archos_a101h())
+			snd_soc_sdp4430.name = "ArchosA101H";
+
 
 	sdp4430_snd_device = platform_device_alloc("soc-audio", -1);
 	if (!sdp4430_snd_device) {
@@ -1102,6 +1148,7 @@ static int __init sdp4430_soc_init(void)
 		goto err_dev;
 	}
 
+#ifdef DAPM
 	av_switch_reg = regulator_get(&sdp4430_snd_device->dev, "av-switch");
 	if (IS_ERR(av_switch_reg)) {
 		ret = PTR_ERR(av_switch_reg);
@@ -1109,6 +1156,17 @@ static int __init sdp4430_soc_init(void)
 			ret);
 		goto err_dev;
 	}
+#endif
+
+	/* Default mode is low-power, MCLK not required */
+	twl6040_power_mode = 0;
+	cdc_tcxo_set_req_int(CDC_TCXO_CLK2, 0);
+
+	/*
+	 * CDC CLK2 supplies TWL6040 MCLK, drive it from REQ2INT to
+	 * have full control of MCLK gating
+	 */
+	cdc_tcxo_set_req_prio(CDC_TCXO_CLK2, CDC_TCXO_PRIO_REQINT);
 
 	return ret;
 
@@ -1122,7 +1180,11 @@ module_init(sdp4430_soc_init);
 
 static void __exit sdp4430_soc_exit(void)
 {
+#ifdef DAPM
 	regulator_put(av_switch_reg);
+#endif
+	cdc_tcxo_set_req_int(CDC_TCXO_CLK2, 0);
+	cdc_tcxo_set_req_prio(CDC_TCXO_CLK2, CDC_TCXO_PRIO_REQINT);
 	platform_device_unregister(sdp4430_snd_device);
 	snd_soc_unregister_dais(&sdp4430_snd_device->dev, ARRAY_SIZE(dai));
 }
