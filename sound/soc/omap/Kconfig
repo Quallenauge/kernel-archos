@@ -114,7 +114,7 @@ config SND_OMAP_SOC_SDP3430
 config SND_OMAP_SOC_SDP4430
 	tristate "SoC Audio support for Texas Instruments SDP4430 or PandaBoard"
 	depends on TWL4030_CORE && \
-		(MACH_OMAP_4430SDP || MACH_OMAP4_PANDA || MACH_OMAP4_TABLET)
+		(MACH_OMAP_4430SDP || MACH_OMAP4_PANDA || MACH_OMAP4_TABLET || MACH_ARCHOS)
 	select SND_OMAP_SOC
 	select SND_OMAP_SOC_MCPDM
 	select SND_SOC_TWL6040
@@ -151,6 +151,14 @@ config SND_OMAP_SOC_OMAP4_HDMI
 	help
 	  Say Y if you want to add support for SoC HDMI audio on Texas Instruments
 	  OMAP4 chips
+
+config SND_OMAP_SOC_ABE_DL2
+	bool "Use ABE DL2 path"
+	depends on SND_OMAP_SOC && SND_OMAP_SOC_ABE_DSP
+	default n
+	help
+	  Say Y if you want to enable ABE DL2 path for PDM_DL2, otherwise it will be
+	  connected to DL1 path.
 
 config SND_OMAP4_ABE_USE_ALT_FW
 	bool "Use alternate ABE firmware configuration (DMIC support)"
