@@ -165,8 +165,8 @@ static void set_vram_sizes(struct sgx_omaplfb_config *sgx_config,
 	int i;
 
 	if (fb && fb->mem_desc.region_cnt >= 1) {
-		/* Need at least 1 VRAM buffer for fb0 */
-		num_vram_buffers = 1;
+		/* Need at least 2 VRAM buffers for fb0 */
+		num_vram_buffers = 2;
 	}
 
 	if (sgx_config) {
@@ -259,8 +259,8 @@ void omap_android_display_setup(struct omap_dss_board_info *dss,
 
 	struct omap_android_display_data mem = {
 		.bpp = 4,
-		.width = 1024,
-		.height = 768,
+		.width = 800,
+		.height = 600,
 	};
 
 	if (!sgx || !sgx->configs)
