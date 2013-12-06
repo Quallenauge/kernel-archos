@@ -984,11 +984,11 @@ static struct omap_dss_device *board_dss_devices[] = {
 static struct omap_dss_board_info board_dss_data = {
 	.num_devices	=	ARRAY_SIZE(board_dss_devices),
 	.devices	=	board_dss_devices,
-#ifdef CONFIG_OMAP4_DSS_HDMI
-	.default_device	=	&archos_4430_hdmi_device,
-#else
-	.default_device	=	NULL,
-#endif /* CONFIG_OMAP4_DSS_HDMI */
+//#ifdef CONFIG_OMAP4_DSS_HDMI
+//	.default_device	=	&archos_4430_hdmi_device,
+//#else
+	.default_device	=	&cpt_xga_8_dss_device,
+//#endif /* CONFIG_OMAP4_DSS_HDMI */
 };
 
 static struct platform_device *a80s_devices[] __initdata = {
