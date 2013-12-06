@@ -284,6 +284,15 @@ struct omap_dss_device cpt_xga_8_dss_device = {
 			.dispc_fclk_src = OMAP_DSS_CLK_SRC_FCK,
 		},
 	},
+	.panel = {
+		.timings = {
+			.x_res		= 1024,
+			.y_res		= 768,
+		},
+	},
+	.ctrl = {
+		.pixel_size = 24,
+	},
 };
 
 int __init panel_cpt_xga_8_init(struct omap_dss_device *disp_data)

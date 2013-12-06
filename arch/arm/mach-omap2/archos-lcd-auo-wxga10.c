@@ -211,6 +211,15 @@ struct omap_dss_device auo_wxga_10_dss_device = {
 			.dispc_fclk_src = OMAP_DSS_CLK_SRC_FCK,
 		},
 	},
+	.panel = {
+		.timings = {
+			.x_res		= 1280,
+			.y_res		= 800,
+		},
+	},
+	.ctrl = {
+		.pixel_size = 24,
+	},
 };
 
 static struct platform_device lcd_device = {
