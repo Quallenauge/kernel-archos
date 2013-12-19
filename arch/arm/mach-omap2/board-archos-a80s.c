@@ -88,6 +88,8 @@
 
 #include <plat/android-display.h>
 
+#include <linux/omap4_duty_cycle_governor.h>
+
 extern bool is512MByteArchosModel;
 
 static struct mma8453q_pdata board_mma8453q_pdata;
@@ -1463,6 +1465,87 @@ static void __init omap_i2c_hwspinlock_init(int bus_id, int spinlock_id,
 	}
 }
 
+#ifdef CONFIG_OMAP4_DUTY_CYCLE
+
+static struct pcb_section omap4_duty_governor_pcb_sections[] = {
+	{
+		.pcb_temp_level			= 65,
+		.max_opp			= 1200000,
+		.duty_cycle_enabled		= false,
+		.tduty_params = {
+			.nitro_rate		= 0,
+			.cooling_rate		= 0,
+			.nitro_interval		= 0,
+			.nitro_percentage	= 0,
+		},
+	},
+	{
+		.pcb_temp_level			= 70,
+		.max_opp			= 1200000,
+		.duty_cycle_enabled		= true,
+		.tduty_params = {
+			.nitro_rate		= 1200000,
+			.cooling_rate		= 1008000,
+			.nitro_interval		= 20000,
+			.nitro_percentage	= 37,
+		},
+	},
+	{
+		.pcb_temp_level			= 75,
+		.max_opp			= 1200000,
+		.duty_cycle_enabled		= true,
+		.tduty_params = {
+			.nitro_rate		= 1200000,
+			.cooling_rate		= 1008000,
+			.nitro_interval		= 20000,
+			.nitro_percentage	= 24,
+		},
+	},
+	{
+		.pcb_temp_level			= 80,
+		.max_opp			= 1200000,
+		.duty_cycle_enabled		= true,
+		.tduty_params = {
+			.nitro_rate		= 1200000,
+			.cooling_rate		= 1008000,
+			.nitro_interval		= 20000,
+			.nitro_percentage	= 19,
+		},
+	},
+	{
+		.pcb_temp_level			= 90,
+		.max_opp			= 1200000,
+		.duty_cycle_enabled		= true,
+		.tduty_params = {
+			.nitro_rate		= 1200000,
+			.cooling_rate		= 1008000,
+			.nitro_interval		= 20000,
+			.nitro_percentage	= 14,
+		},
+	},
+	{
+		.pcb_temp_level			= 110,
+		.max_opp			= 1008000,
+		.duty_cycle_enabled		= true,
+		.tduty_params = {
+			.nitro_rate		= 1008000,
+			.cooling_rate		= 800000,
+			.nitro_interval		= 20000,
+			.nitro_percentage	= 1,
+		},
+	},
+};
+
+static void init_duty_governor(void)
+{
+	omap4_duty_pcb_section_reg(omap4_duty_governor_pcb_sections,
+		ARRAY_SIZE(omap4_duty_governor_pcb_sections));
+}
+#else
+static void init_duty_governor(void){}
+#endif /*CONFIG_OMAP4_DUTY_CYCLE*/
+
+
 static struct omap_i2c_bus_board_data __initdata board_i2c_1_bus_pdata;
 static struct omap_i2c_bus_board_data __initdata board_i2c_2_bus_pdata;
 static struct omap_i2c_bus_board_data __initdata board_i2c_3_bus_pdata;
@@ -1733,6 +1816,7 @@ static void __init board_init(void)
 
 	omap_dmm_init();
 	omap_board_display_init();
+	init_duty_governor();
 
 	archos_hsusb_ext_regulator_init();
 
