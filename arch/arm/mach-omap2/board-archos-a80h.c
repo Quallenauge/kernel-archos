@@ -1390,6 +1390,17 @@ static struct regulator_init_data board_vcxio = {
 	.consumer_supplies	= board_vcxio_supply,
 };
 
+static struct regulator_consumer_supply board_vdac_supply[] = {
+	{
+        	// specify a supply to be regulated
+		// FIX: HDMI Output trevd 2013-08-24
+		// add the missing regulated supply to enable
+		// the mini hdmi port
+        	.supply = "hdmi_vref",
+	}
+
+};
+
 static struct regulator_init_data board_vdac = {
 	.constraints = {
 		.min_uV			= 1800000,
@@ -1405,6 +1416,8 @@ static struct regulator_init_data board_vdac = {
 		},
 		.initial_state          = PM_SUSPEND_MEM,
 	},
+	.num_consumer_supplies  = ARRAY_SIZE(board_vdac_supply),
+	.consumer_supplies      = board_vdac_supply,
 };
 
 static struct regulator_consumer_supply board_vusb_supply[] = {
