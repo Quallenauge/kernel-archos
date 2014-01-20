@@ -612,6 +612,23 @@ void mmc_release_host(struct mmc_host *host)
 
 EXPORT_SYMBOL(mmc_release_host);
 
+/**
+ *	mmc_release_host_sync - release a host immediately
+ *	@host: mmc host to release
+ *
+ *	Release a MMC host immediately, allowing others to claim the host
+ *	for their operations. Calls host->disable() synchronously
+ */
+void mmc_release_host_sync(struct mmc_host *host)
+{
+	WARN_ON(!host->claimed);
+
+	mmc_host_disable(host);
+
+	mmc_do_release_host(host);
+}
+EXPORT_SYMBOL(mmc_release_host_sync);
+
 /*
  * Internal function that does the actual ios call to the host driver,
  * optionally printing some debug output.
@@ -1684,7 +1701,7 @@ void mmc_rescan(struct work_struct *work)
 		wake_lock_timeout(&host->detect_wake_lock, HZ / 2);
 	else
 		wake_unlock(&host->detect_wake_lock);
-	if (host->caps & MMC_CAP_NEEDS_POLL && (!host->ops->get_cd || host->ops->get_cd(host)) && host->bus_dead) {
+	if (host->caps & MMC_CAP_NEEDS_POLL) {
 		wake_lock(&host->detect_wake_lock);
 		mmc_schedule_delayed_work(&host->detect, HZ);
 	}
@@ -1692,7 +1709,6 @@ void mmc_rescan(struct work_struct *work)
 
 void mmc_start_host(struct mmc_host *host)
 {
-	host->bus_dead = 1;
 	mmc_power_off(host);
 	mmc_detect_change(host, 0);
 }
