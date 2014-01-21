@@ -252,6 +252,9 @@ struct omap_hsmmc_host {
 	unsigned int		errata;
 
 	struct	omap_mmc_platform_data	*pdata;
+#ifdef CONFIG_MACH_OMAP_4430_KC1
+	int			shutdown;
+#endif
 };
 
 static void omap_hsmmc_status_notify_cb(int card_present, void *dev_id)
@@ -1718,6 +1721,10 @@ static void omap_hsmmc_request(struct mmc_host *mmc, struct mmc_request *req)
 
 	BUG_ON(host->req_in_progress);
 	BUG_ON(host->dma_ch != -1);
+#ifdef CONFIG_MACH_OMAP_4430_KC1
+	if (host->shutdown)
+		return;
+#endif
 	if (host->protect_card) {
 		if (host->reqs_blocked < 3) {
 			/*
@@ -2408,6 +2415,9 @@ static int __init omap_hsmmc_probe(struct platform_device *pdev)
 	}
 	host->power_mode = MMC_POWER_OFF;
 	host->flags	= AUTO_CMD12;
+#ifdef CONFIG_MACH_OMAP_4430_KC1
+	host->shutdown = 0;
+#endif
 
 	host->errata = 0;
 	if (cpu_is_omap44xx())
@@ -2534,7 +2544,7 @@ static int __init omap_hsmmc_probe(struct platform_device *pdev)
 	mmc->max_seg_size = mmc->max_req_size;
 
 	mmc->caps |= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED |
-		     MMC_CAP_WAIT_WHILE_BUSY | MMC_CAP_ERASE | MMC_CAP_CMD23;
+		     MMC_CAP_WAIT_WHILE_BUSY | MMC_CAP_CMD23;
 
 	mmc->caps |= mmc_slot(host).caps;
 	if (mmc->caps & MMC_CAP_8_BIT_DATA)
@@ -2832,6 +2842,31 @@ static int omap_hsmmc_runtime_resume(struct device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_MACH_OMAP_4430_KC1
+static void omap_hsmmc_shutdown(struct platform_device *pdev)
+{
+	struct omap_hsmmc_host *host;
+
+	host = platform_get_drvdata(pdev);
+
+#ifdef CONFIG_WL12XX_SDIO
+	/* No particular shutdown delay for WLAN - only apply this to real cards */
+	/* FIXME-HASH: HARD-CODING THE WLAN MMC (WAS: CONFIG_TIWLAN_MMC_CONTROLLER) */
+	if (pdev->id == (5-1)) {
+		return;
+	}
+#endif
+	dev_info(&pdev->dev, "shutting down mmc\n");
+	mmc_flush_scheduled_work();
+	host->shutdown = 1;
+	cancel_delayed_work(&host->mmc->detect);
+	mmc_flush_scheduled_work();
+
+	/* MMC spec gives 800ms min for card housekeeping.
+	   Leave it on the safe side */
+	msleep(1600);
+}
+#endif
 
 static struct dev_pm_ops omap_hsmmc_dev_pm_ops = {
 	.suspend	= omap_hsmmc_suspend,
@@ -2842,6 +2877,9 @@ static struct dev_pm_ops omap_hsmmc_dev_pm_ops = {
 
 static struct platform_driver omap_hsmmc_driver = {
 	.remove		= omap_hsmmc_remove,
+#ifdef CONFIG_MACH_OMAP_4430_KC1
+	.shutdown	= omap_hsmmc_shutdown,
+#endif
 	.driver		= {
 		.name = DRIVER_NAME,
 		.owner = THIS_MODULE,

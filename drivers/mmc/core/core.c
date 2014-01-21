@@ -78,7 +78,11 @@ static int mmc_schedule_delayed_work(struct delayed_work *work,
 /*
  * Internal function. Flush all scheduled work from the MMC work queue.
  */
+#ifdef CONFIG_MACH_OMAP_4430_KC1
+void mmc_flush_scheduled_work(void)
+#else
 static void mmc_flush_scheduled_work(void)
+#endif
 {
 	flush_workqueue(workqueue);
 }
@@ -1701,7 +1705,7 @@ void mmc_rescan(struct work_struct *work)
 		wake_lock_timeout(&host->detect_wake_lock, HZ / 2);
 	else
 		wake_unlock(&host->detect_wake_lock);
-	if (host->caps & MMC_CAP_NEEDS_POLL && (!host->ops->get_cd || host->ops->get_cd(host)) && host->bus_dead) {
+	if (host->caps & MMC_CAP_NEEDS_POLL) {
 		wake_lock(&host->detect_wake_lock);
 		mmc_schedule_delayed_work(&host->detect, HZ);
 	}
@@ -1709,7 +1713,6 @@ void mmc_rescan(struct work_struct *work)
 
 void mmc_start_host(struct mmc_host *host)
 {
-	host->bus_dead = 1;
 	mmc_power_off(host);
 	mmc_detect_change(host, 0);
 }
@@ -1870,6 +1873,7 @@ int mmc_suspend_host(struct mmc_host *host)
 			host->pm_flags = 0;
 			err = 0;
 		}
+		flush_delayed_work(&host->disable);
 	}
 	mmc_bus_put(host);
 
