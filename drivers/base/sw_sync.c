@@ -15,6 +15,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
@@ -42,6 +43,7 @@ struct sync_pt *sw_sync_pt_create(struct sw_sync_timeline *obj, u32 value)
 
 	return (struct sync_pt *)pt;
 }
+EXPORT_SYMBOL(sw_sync_pt_create);
 
 static struct sync_pt *sw_sync_pt_dup(struct sync_pt *sync_pt)
 {
@@ -99,6 +101,21 @@ static int sw_sync_fill_driver_data(struct sync_pt *sync_pt,
 	return sizeof(pt->value);
 }
 
+static void sw_sync_timeline_value_str(struct sync_timeline *sync_timeline,
+				       char *str, int size)
+{
+	struct sw_sync_timeline *timeline =
+		(struct sw_sync_timeline *)sync_timeline;
+	snprintf(str, size, "%d", timeline->value);
+}
+
+static void sw_sync_pt_value_str(struct sync_pt *sync_pt,
+				       char *str, int size)
+{
+	struct sw_sync_pt *pt = (struct sw_sync_pt *)sync_pt;
+	snprintf(str, size, "%d", pt->value);
+}
+
 struct sync_timeline_ops sw_sync_timeline_ops = {
 	.driver_name = "sw_sync",
 	.dup = sw_sync_pt_dup,
@@ -107,6 +124,8 @@ struct sync_timeline_ops sw_sync_timeline_ops = {
 	.print_obj = sw_sync_print_obj,
 	.print_pt = sw_sync_print_pt,
 	.fill_driver_data = sw_sync_fill_driver_data,
+	.timeline_value_str = sw_sync_timeline_value_str,
+	.pt_value_str = sw_sync_pt_value_str,
 };
 
 
@@ -119,6 +138,7 @@ struct sw_sync_timeline *sw_sync_timeline_create(const char *name)
 
 	return obj;
 }
+EXPORT_SYMBOL(sw_sync_timeline_create);
 
 void sw_sync_timeline_inc(struct sw_sync_timeline *obj, u32 inc)
 {
@@ -126,7 +146,7 @@ void sw_sync_timeline_inc(struct sw_sync_timeline *obj, u32 inc)
 
 	sync_timeline_signal(&obj->obj);
 }
-
+EXPORT_SYMBOL(sw_sync_timeline_inc);
 
 #ifdef CONFIG_SW_SYNC_USER
 /* *WARNING*
@@ -166,8 +186,13 @@ long sw_sync_ioctl_create_fence(struct sw_sync_timeline *obj, unsigned long arg)
 	struct sync_fence *fence;
 	struct sw_sync_create_fence_data data;
 
-	if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
-		return -EFAULT;
+	if (fd < 0)
+		return fd;
+
+	if (copy_from_user(&data, (void __user *)arg, sizeof(data))) {
+		err = -EFAULT;
+		goto err;
+	}
 
 	pt = sw_sync_pt_create(obj, data.value);
 	if (pt == NULL) {
