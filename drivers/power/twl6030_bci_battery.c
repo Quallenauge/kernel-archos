@@ -2966,7 +2966,7 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 		di->charger_incurrentmA = 100;
 		di->gpadc_vbat_chnl = TWL6032_GPADC_VBAT_CHNL;
 	} else {
-		di->charger_incurrentmA = twl6030_get_usb_max_power(di->otg);
+		di->charger_incurrentmA = di->otg->get_usb_max_power(di->otg);
 		di->gpadc_vbat_chnl = TWL6030_GPADC_VBAT_CHNL;
 	}
 
