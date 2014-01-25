@@ -322,6 +322,9 @@ struct twl6030_bci_device_info {
 	unsigned long		features;
 	unsigned long		errata;
 
+	bool			usb_is_dc;
+	bool			use_separate_charger;
+
 	int			use_hw_charger;
 	int			use_power_path;
 
@@ -746,6 +749,9 @@ static void twl6030_start_usb_charger_sw(struct twl6030_bci_device_info *di)
 			goto err;
 	}
 
+	if (di->usb_is_dc)
+		di->charger_incurrentmA = 1500;
+
 	return;
 err:
 	pr_err("%s: Error access to TWL6030 (%d)\n", __func__, ret);
@@ -979,6 +985,11 @@ static irqreturn_t twl6030charger_ctrl_interrupt(int irq, void *_di)
 		blocking_notifier_call_chain(&notifier_list, events, NULL);
 	}
 
+	if (!di->usb_is_dc) {
+		if (!(stat_reset & (VBUS_DET | VAC_DET)))
+			goto stat_fault;
+	}
+
 	if (stat_reset & VBUS_DET) {
 		/* On a USB detach, UNMASK VBUS OVP if masked*/
 		ret = twl_i2c_read_u8(TWL6030_MODULE_CHARGER, &temp,
@@ -993,7 +1004,10 @@ static irqreturn_t twl6030charger_ctrl_interrupt(int irq, void *_di)
 			if (ret)
 				goto err;
 		}
-		di->usb_online = 0;
+		if (di->usb_is_dc)
+			di->ac_online = 0;
+		else
+			di->usb_online = 0;
 		dev_dbg(di->dev, "usb removed\n");
 		twl6030_stop_usb_charger(di);
 		if (present_charge_state & VAC_DET)
@@ -1022,7 +1036,11 @@ static irqreturn_t twl6030charger_ctrl_interrupt(int irq, void *_di)
 					goto err;
 			}
 		} else {
-			di->usb_online = POWER_SUPPLY_TYPE_USB;
+				if (di->usb_is_dc) {
+					di->ac_online = POWER_SUPPLY_TYPE_USB;
+					twl6030_start_usb_charger(di);
+				} else
+					di->usb_online = POWER_SUPPLY_TYPE_USB;
 			if ((present_charge_state & VAC_DET) &&
 					(di->vac_priority == 2))
 				dev_dbg(di->dev, "USB charger detected"
@@ -1057,7 +1075,7 @@ static irqreturn_t twl6030charger_ctrl_interrupt(int irq, void *_di)
 		else
 			twl6030_start_ac_charger(di);
 	}
-
+stat_fault:
 	if (stat_set & CONTROLLER_STAT1_FAULT_WDG) {
 		charger_fault = 1;
 		dev_dbg(di->dev, "Fault watchdog fired\n");
@@ -1069,6 +1087,7 @@ static irqreturn_t twl6030charger_ctrl_interrupt(int irq, void *_di)
 	if (stat_reset & CONTROLLER_STAT1_BAT_REMOVED)
 		dev_dbg(di->dev, "Battery inserted\n");
 	if (stat_set & CONTROLLER_STAT1_BAT_TEMP_OVRANGE) {
+		charger_fault = 1;
 		dev_dbg(di->dev, "Battery temperature overrange\n");
 		di->bat_health = POWER_SUPPLY_HEALTH_OVERHEAT;
 	}
@@ -1097,6 +1116,7 @@ static irqreturn_t twl6030charger_fault_interrupt(int irq, void *_di)
 	int ret;
 
 	u8 usb_charge_sts = 0, usb_charge_sts1 = 0, usb_charge_sts2 = 0;
+	u8 present_charge_state = 0;
 
 	ret = twl_i2c_read_u8(TWL6030_MODULE_CHARGER, &usb_charge_sts,
 						CHARGERUSB_INT_STATUS);
@@ -1110,9 +1130,9 @@ static irqreturn_t twl6030charger_fault_interrupt(int irq, void *_di)
 
 	ret = twl_i2c_read_u8(TWL6030_MODULE_CHARGER, &usb_charge_sts2,
 						CHARGERUSB_STATUS_INT2);
-	if (ret)
-		goto err;
 
+	ret = twl_i2c_read_u8(TWL6030_MODULE_CHARGER, &present_charge_state,
+							CONTROLLER_STAT1);
 	di->status_int1 = usb_charge_sts1;
 	di->status_int2 = usb_charge_sts2;
 	if (usb_charge_sts & CURRENT_TERM_INT)
@@ -1156,6 +1176,20 @@ static irqreturn_t twl6030charger_fault_interrupt(int irq, void *_di)
 		twl6030_stop_usb_charger(di);
 		di->charge_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		dev_err(di->dev, "Charger Fault stop charging\n");
+
+		/* Check VBUS_DET for charger disconnection, if we get
+		 * a charger fault we might not get a control interruption
+		 * and the cable unplug will be unnoticed. */
+		} else if (di->stat1 & VBUS_DET && !(present_charge_state & VBUS_DET)) {
+			di->stat1 &= ~VBUS_DET;
+			if (di->usb_is_dc)
+				di->ac_online = 0;
+			else
+				di->usb_online = 0;
+			dev_dbg(di->dev, "usb removed (charger fault)\n");
+			twl6030_stop_usb_charger(di);
+			if (present_charge_state & VAC_DET)
+				twl6030_start_ac_charger(di);
 	}
 	dev_dbg(di->dev, "Charger fault detected STS, INT1, INT2 %x %x %x\n",
 	    usb_charge_sts, usb_charge_sts1, usb_charge_sts2);
@@ -1164,6 +1198,72 @@ static irqreturn_t twl6030charger_fault_interrupt(int irq, void *_di)
 err:
 	return IRQ_HANDLED;
 }
+
+/*
+ * In separate custom charger mode on 6032 irq routines must only deal
+ * with updating state of connected supplies to the device.
+ * */
+static irqreturn_t twl6032_separate_charger_ctrl_interrupt_hw(int irq, void *_di)
+{
+	struct twl6030_bci_device_info *di = _di;
+	u8 stat1 = 0;
+	int ret;
+
+	ret = twl_i2c_read_u8(TWL6030_MODULE_CHARGER, &stat1,
+			CONTROLLER_STAT1);
+
+	if (ret)
+		goto out;
+
+	if (di->usb_is_dc)
+		di->usb_online = (stat1 & VBUS_DET) ? POWER_SUPPLY_TYPE_MAINS : 0;
+// else usb_online is handled by twl6030_usb_charger_work.
+
+	di->ac_online = (stat1 & VAC_DET) ? POWER_SUPPLY_TYPE_MAINS : 0;
+
+	if (!(di->usb_online | di->ac_online)) {
+		di->charge_status = POWER_SUPPLY_STATUS_DISCHARGING;
+	} else {
+		di->charge_status = POWER_SUPPLY_STATUS_CHARGING;
+	}
+
+	di->bat_health = POWER_SUPPLY_HEALTH_GOOD;
+
+	power_supply_changed(&di->bat);
+
+out:
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t twl6032_separate_charger_fault_interrupt_hw(int irq, void *_di)
+{
+	u8 sts = 0, sts_int1 = 0, sts_int2 = 0, stat1 = 0;
+	int ret;
+
+	ret = twl_i2c_read_u8(TWL6030_MODULE_CHARGER, &sts,
+						CHARGERUSB_INT_STATUS);
+	if (ret)
+		goto out;
+
+	ret = twl_i2c_read_u8(TWL6030_MODULE_CHARGER, &sts_int1,
+						CHARGERUSB_STATUS_INT1);
+	if (ret)
+		goto out;
+
+	ret = twl_i2c_read_u8(TWL6030_MODULE_CHARGER, &sts_int2,
+						CHARGERUSB_STATUS_INT2);
+	if (ret)
+		goto out;
+
+	ret = twl_i2c_read_u8(TWL6030_MODULE_CHARGER, &stat1,
+						CONTROLLER_STAT1);
+	if (ret)
+		goto out;
+
+out:
+	return IRQ_HANDLED;
+}
+
 
 /*
  * In HW charger mode on 6032 irq routines must only deal with updating
@@ -1631,32 +1731,32 @@ err:
 	pr_err("%s: Error access to TWL6030 (%d)\n", __func__, ret);
 }
 
-static int twl6030_usb_autogate_charger(struct twl6030_bci_device_info *di)
-{
-	int ret = 0;
-
-	if ((di->charger_source == POWER_SUPPLY_TYPE_USB) &&
-			!twl6030_vbus_above_thres(di)) {
-
-			twl6030_stop_usb_charger(di);
-
-			if (di->ac_online == POWER_SUPPLY_TYPE_MAINS)
-				twl6030_start_ac_charger(di);
-
-			ret = 1;
-	} else if ((di->charger_source != POWER_SUPPLY_TYPE_MAINS) &&
-			(di->charger_source != POWER_SUPPLY_TYPE_USB) &&
-			di->usb_online) {
-
-		di->charger_source = POWER_SUPPLY_TYPE_USB;
-
-		twl6030_start_usb_charger(di);
-
-		ret = 1;
-	}
-
-	return ret;
-}
+//static int twl6030_usb_autogate_charger(struct twl6030_bci_device_info *di)
+//{
+//	int ret = 0;
+//
+//	if ((di->charger_source == POWER_SUPPLY_TYPE_USB) &&
+//			!twl6030_vbus_above_thres(di)) {
+//
+//			twl6030_stop_usb_charger(di);
+//
+//			if (di->ac_online == POWER_SUPPLY_TYPE_MAINS)
+//				twl6030_start_ac_charger(di);
+//
+//			ret = 1;
+//	} else if ((di->charger_source != POWER_SUPPLY_TYPE_MAINS) &&
+//			(di->charger_source != POWER_SUPPLY_TYPE_USB) &&
+//			di->usb_online) {
+//
+//		di->charger_source = POWER_SUPPLY_TYPE_USB;
+//
+//		twl6030_start_usb_charger(di);
+//
+//		ret = 1;
+//	}
+//
+//	return ret;
+//}
 
 #ifdef CONFIG_FUEL_GAUGE
 static void twl6030_gasgauge_calibrate(struct twl6030_bci_device_info *di)
@@ -1782,7 +1882,7 @@ static void twl6030_bci_battery_work(struct work_struct *work)
 	struct twl6030_gpadc_request req;
 	int adc_code;
 	int temp;
-	int ret = 0, ret1;
+	int ret = 0;
 
 	/* Kick the charger watchdog */
 	if (di->charge_status == POWER_SUPPLY_STATUS_CHARGING)
@@ -1793,6 +1893,7 @@ static void twl6030_bci_battery_work(struct work_struct *work)
 
 	req.active = 0;
 	req.func_cb = NULL;
+	req.type = TWL6030_GPADC_WAIT;
 	ret = twl6030_gpadc_conversion(&req);
 
 	schedule_delayed_work(&di->twl6030_bci_monitor_work,
@@ -1833,9 +1934,8 @@ static void twl6030_bci_battery_work(struct work_struct *work)
 #ifdef CONFIG_FUEL_GAUGE
 	ret = capacity_changed(di);
 #endif
-	ret1 = twl6030_usb_autogate_charger(di);
 
-	if (ret || ret1)
+	if (ret)
 		power_supply_changed(&di->bat);
 }
 
@@ -2053,6 +2153,9 @@ static void twl6030_usb_charger_work(struct work_struct *work)
 {
 	struct twl6030_bci_device_info	*di =
 		container_of(work, struct twl6030_bci_device_info, usb_work);
+
+	if (di->usb_is_dc)
+		return;
 
 	switch (di->event) {
 	case USB_EVENT_CHARGER:
@@ -2757,6 +2860,14 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 				twl6030_get_voreg_reg(di);
 	}
 
+#ifdef CONFIG_MACH_ARCHOS
+	di->usb_is_dc = pdata->usb_is_dc;
+	di->use_separate_charger = pdata->use_separate_charger;
+#else
+	di->use_separate_charger = 0;
+	di->usb_is_dc = 0;
+#endif
+
 	di->bat.name = "twl6030_battery";
 	di->bat.supplied_to = twl6030_bci_supplied_to;
 	di->bat.num_supplicants = ARRAY_SIZE(twl6030_bci_supplied_to);
@@ -2863,6 +2974,10 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 		ret = request_threaded_irq(irq, NULL,
 				twl6030charger_fault_interrupt,
 				0, "twl_bci_fault", di);
+	else if (di->use_separate_charger)
+		ret = request_threaded_irq(irq, NULL,
+				twl6032_separate_charger_fault_interrupt_hw,
+				0, "twl_bci_ctrl", di);
 	else
 		ret = request_threaded_irq(irq, NULL,
 				twl6032charger_fault_interrupt_hw,
@@ -2879,6 +2994,10 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 	if (!di->use_hw_charger)
 		ret = request_threaded_irq(irq, NULL,
 				twl6030charger_ctrl_interrupt,
+				0, "twl_bci_ctrl", di);
+	else if (di->use_separate_charger)
+		ret = request_threaded_irq(irq, NULL,
+				twl6032_separate_charger_ctrl_interrupt_hw,
 				0, "twl_bci_ctrl", di);
 	else
 		ret = request_threaded_irq(irq, NULL,
@@ -2909,11 +3028,13 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 		goto ac_failed;
 	}
 
+#ifndef NO_BACKUP_BATTERY
 	ret = power_supply_register(&pdev->dev, &di->bk_bat);
 	if (ret) {
 		dev_dbg(&pdev->dev, "failed to register backup battery\n");
 		goto bk_batt_failed;
 	}
+#endif
 	di->charge_n1 = 0;
 	di->timer_n1 = 0;
 
@@ -2978,9 +3099,41 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 		di->gpadc_vbat_chnl = TWL6030_GPADC_VBAT_CHNL;
 	}
 
+	di->charger_incurrentmA = otg_get_usb_max_power(di->otg);
+	dev_dbg(di->dev, "Charger IN current at Bootup is %d mA\n",
+			di->charger_incurrentmA);
+
 	di->voltage_mV = twl6030_get_gpadc_conversion(di, di->gpadc_vbat_chnl);
 	dev_info(&pdev->dev, "Battery Voltage at Bootup is %d mV\n",
 							di->voltage_mV);
+
+	/* Try to preserve avboots charger detection */
+	/* FIXME: welwarsk@archos.com
+	 * is this hack still required? it seems that the OTG transceiver
+	 * charger detection has already run when this code is called
+	 */
+	if (di->charger_incurrentmA == 0) {
+		u8 cin_limit_mask;
+		u8 cin_limit_preboot;
+
+		if (di->features & TWL6032_SUBCLASS)
+			cin_limit_mask = 0x3f;
+		else
+			cin_limit_mask = 0x0f;
+
+		twl_i2c_read_u8(TWL6030_MODULE_CHARGER,
+				&cin_limit_preboot, CHARGERUSB_CINLIMIT);
+
+		di->charger_incurrentmA = ((cin_limit_mask & cin_limit_preboot)*50)+50;
+		if (di->usb_is_dc) {	// always full charge on H units
+			di->charger_incurrentmA = 1500;
+		} else
+			di->charger_incurrentmA = (di->charger_incurrentmA > 500) ?
+					1500 : di->charger_incurrentmA;
+
+		dev_info(&pdev->dev, "Read %x as cin_limit, set current to %i\n",
+				cin_limit_preboot, di->charger_incurrentmA);
+	}
 
 	ret = twl_i2c_read_u8(TWL6030_MODULE_ID0, &hw_state, STS_HW_CONDITIONS);
 	if (ret)
@@ -3009,10 +3162,14 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 			 * do no enable usb charging
 			 */
 			if (!(hw_state & STS_USB_ID)) {
-				di->usb_online = POWER_SUPPLY_TYPE_USB;
-				di->charger_source = POWER_SUPPLY_TYPE_USB;
-				di->charge_status =
-						POWER_SUPPLY_STATUS_CHARGING;
+				if (di->usb_is_dc) {
+					di->ac_online = POWER_SUPPLY_TYPE_USB;
+					di->charger_source = POWER_SUPPLY_TYPE_USB;
+				} else {
+					di->usb_online = POWER_SUPPLY_TYPE_USB;
+					di->charger_source = POWER_SUPPLY_TYPE_USB;
+				}
+				di->charge_status = POWER_SUPPLY_STATUS_CHARGING;
 				di->event = USB_EVENT_VBUS;
 				schedule_work(&di->usb_work);
 			}
@@ -3033,6 +3190,21 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 		dev_dbg(di->dev, "boot charge state fault %d, usb %d, ac %d\n",
 				fault, charge_usb, charge_ac);
 
+		if (charge_usb) {
+			/* welwarsky@archos.com: if IN current is > 500mA,
+			 * assume a dedicated charger is connected */
+			if (di->charger_incurrentmA > 500)
+				di->usb_online = POWER_SUPPLY_TYPE_USB_DCP;
+			else
+				di->usb_online = POWER_SUPPLY_TYPE_USB;
+		}
+
+		if (charge_ac)
+			di->ac_online = POWER_SUPPLY_TYPE_MAINS;
+
+		dev_dbg(di->dev, "boot charge state fault %d, usb %d, ac %d\n",
+				fault, charge_usb, charge_ac);
+
 		if (fault && (charge_usb || charge_ac))
 			di->charge_status = POWER_SUPPLY_STATUS_CHARGING;
 		else {
@@ -3042,15 +3214,6 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 			else
 				di->charge_status =
 					twl6030_get_discharge_status(di);
-		}
-
-		if (charge_usb) {
-			/* welwarsky@archos.com: if IN current is > 500mA,
-			 * assume a dedicated charger is connected */
-			if (di->charger_incurrentmA > 500)
-				di->usb_online = POWER_SUPPLY_TYPE_USB_DCP;
-			else
-				di->usb_online = POWER_SUPPLY_TYPE_USB;
 		}
 	}
 
@@ -3129,7 +3292,9 @@ static int __devexit twl6030_bci_battery_remove(struct platform_device *pdev)
 	power_supply_unregister(&di->bat);
 	power_supply_unregister(&di->usb);
 	power_supply_unregister(&di->ac);
+#ifndef NO_BACKUP_BATTERY
 	power_supply_unregister(&di->bk_bat);
+#endif
 	wake_lock_destroy(&chrg_lock);
 	platform_set_drvdata(pdev, NULL);
 	kfree(di->platform_data);
@@ -3153,8 +3318,8 @@ static int twl6030_bci_battery_suspend(struct device *dev)
 	if (ret)
 		goto err;
 
-	rd_reg |= MVAC_FAULT;
-	ret = twl_i2c_write_u8(TWL6030_MODULE_CHARGER, MBAT_TEMP,
+	rd_reg |= MVAC_FAULT | MBAT_TEMP;
+	ret = twl_i2c_write_u8(TWL6030_MODULE_CHARGER, rd_reg,
 						CONTROLLER_INT_MASK);
 	if (ret)
 		goto err;
@@ -3206,8 +3371,8 @@ static int twl6030_bci_battery_resume(struct device *dev)
 	if (ret)
 		goto err;
 
-	rd_reg &= ~(0xFF & MVAC_FAULT);
-	ret = twl_i2c_write_u8(TWL6030_MODULE_CHARGER, MBAT_TEMP,
+	rd_reg &= ~(0xFF & (MVAC_FAULT | MBAT_TEMP));
+	ret = twl_i2c_write_u8(TWL6030_MODULE_CHARGER, rd_reg,
 						CONTROLLER_INT_MASK);
 	if (ret)
 		goto err;
