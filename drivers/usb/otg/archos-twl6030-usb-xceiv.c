@@ -20,7 +20,7 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  */
-
+#define DEBUG 1
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -663,23 +663,47 @@ static int __devinit archos_twl6030_usb_probe(struct platform_device *pdev)
 
 	ATOMIC_INIT_NOTIFIER_HEAD(&twl->otg.notifier);
 
+//	twl->irq_enabled = true;
+//	status = request_irq(twl->irq1, archos_twl6030_usbotg_irq,
+//			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
+//			"archos_twl6030_usb", twl);
+//	if (status < 0) {
+//		dev_dbg(&pdev->dev, "can't get IRQ(1) %d, err %d\n",
+//			twl->irq1, status);
+//		device_remove_file(twl->dev, &dev_attr_vbus);
+//		kfree(twl);
+//		return status;
+//	}
+//
+//	status = request_irq(twl->irq2, archos_twl6030_usb_irq,
+//			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
+//			"archos_twl6030_usb", twl);
+//	if (status < 0) {
+//		dev_dbg(&pdev->dev, "can't get IRQ(2) %d, err %d\n",
+//			twl->irq2, status);
+//		free_irq(twl->irq1, twl);
+//		device_remove_file(twl->dev, &dev_attr_vbus);
+//		kfree(twl);
+//		return status;
+//	}
+
 	twl->irq_enabled = true;
-	status = request_irq(twl->irq1, archos_twl6030_usbotg_irq,
+	status = request_threaded_irq(twl->irq1, NULL, archos_twl6030_usbotg_irq,
 			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
-			"archos_twl6030_usb", twl);
+			"twl6030_usb", twl);
 	if (status < 0) {
-		dev_dbg(&pdev->dev, "can't get IRQ %d, err %d\n",
+		dev_err(&pdev->dev, "can't get IRQ %d, err %d\n",
 			twl->irq1, status);
 		device_remove_file(twl->dev, &dev_attr_vbus);
 		kfree(twl);
 		return status;
 	}
 
-	status = request_irq(twl->irq2, archos_twl6030_usb_irq,
+	status = request_threaded_irq(twl->irq2, NULL, archos_twl6030_usb_irq,
 			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
-			"archos_twl6030_usb", twl);
+			"twl6030_usb", twl);
 	if (status < 0) {
-		dev_dbg(&pdev->dev, "can't get IRQ %d, err %d\n",
+		dev_err(&pdev->dev, "can't get IRQ %d, err %d\n",
 			twl->irq2, status);
 		free_irq(twl->irq1, twl);
 		device_remove_file(twl->dev, &dev_attr_vbus);
