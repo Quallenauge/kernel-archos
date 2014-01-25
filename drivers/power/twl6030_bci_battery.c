@@ -30,6 +30,7 @@
 #include <linux/usb/otg.h>
 #include "fg/fg.h"
 
+#define NO_BACKUP_BATTERY
 
 #define CONTROLLER_INT_MASK	0x00
 #define CONTROLLER_CTRL1	0x01
@@ -376,7 +377,7 @@ static void twl6030_config_iterm_reg(struct twl6030_bci_device_info *di,
 	int ret;
 
 	if ((term_currentmA > 400) || (term_currentmA < 50)) {
-		dev_dbg(di->dev, "invalid termination current\n");
+		dev_dbg(di->dev, "invalid termination current %d\n", term_currentmA);
 		return;
 	}
 
@@ -573,6 +574,7 @@ static int twl6030_get_gpadc_conversion(struct twl6030_bci_device_info *di,
 	req.method = TWL6030_GPADC_SW2;
 	req.active = 0;
 	req.func_cb = NULL;
+	req.type = TWL6030_GPADC_WAIT;
 	ret = twl6030_gpadc_conversion(&req);
 	if (ret < 0)
 		return ret;
@@ -585,6 +587,9 @@ static int twl6030_get_gpadc_conversion(struct twl6030_bci_device_info *di,
 
 static int is_battery_present(struct twl6030_bci_device_info *di)
 {
+/* battery detection does not really works on Archos Gen9 hardware */
+/* This devices have a built-in battery and it is always present */
+#ifndef CONFIG_MACH_ARCHOS
 	int val;
 	static unsigned int current_src_val;
 
@@ -617,7 +622,7 @@ static int is_battery_present(struct twl6030_bci_device_info *di)
 
 	if (val < BATTERY_DETECT_THRESHOLD)
 		return 0;
-
+#endif
 	return 1;
 }
 
@@ -2080,7 +2085,10 @@ static void twl6030_usb_charger_work(struct work_struct *work)
 	default:
 		return;
 	}
-	twl6030_start_usb_charger(di);
+	if (di->charger_incurrentmA>0)
+		twl6030_start_usb_charger(di);
+	else
+		twl6030_stop_usb_charger(di);
 	power_supply_changed(&di->usb);
 }
 
@@ -3034,6 +3042,15 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 			else
 				di->charge_status =
 					twl6030_get_discharge_status(di);
+		}
+
+		if (charge_usb) {
+			/* welwarsky@archos.com: if IN current is > 500mA,
+			 * assume a dedicated charger is connected */
+			if (di->charger_incurrentmA > 500)
+				di->usb_online = POWER_SUPPLY_TYPE_USB_DCP;
+			else
+				di->usb_online = POWER_SUPPLY_TYPE_USB;
 		}
 	}
 
