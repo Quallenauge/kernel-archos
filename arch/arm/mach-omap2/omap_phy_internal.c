@@ -212,6 +212,7 @@ static int omap4430_phy_set_clk(struct device *dev, int on)
 
 int omap4_enable_charger_detect(void)
 {
+	printk("%s:%s:%d",__FILE__,__FUNCTION__,__LINE__);
 	u32 usb2phycore = 0;
 	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
 	usb2phycore &= ~USB2PHY_DISCHGDET;
@@ -221,6 +222,7 @@ int omap4_enable_charger_detect(void)
 
 int omap4_disable_charger_detect(void)
 {
+	printk("%s:%s:%d",__FILE__,__FUNCTION__,__LINE__);
 	u32 usb2phycore = 0;
 	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
 	usb2phycore |= USB2PHY_DISCHGDET;
@@ -235,14 +237,10 @@ int omap4_charger_detect(void)
 	u32 usb2phycore = 0;
 	u32 chargertype = 0;
 
-	/* enable charger detection and restart it */
+	omap4430_phy_power(NULL, 0, 1);
+
 	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
 	usb2phycore &= ~USB2PHY_DISCHGDET;
-	usb2phycore |= USB2PHY_RESTARTCHGDET;
-	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
-	mdelay(2);
-	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
-	usb2phycore &= ~USB2PHY_RESTARTCHGDET;
 	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
 
 	timeout = jiffies + msecs_to_jiffies(500);
