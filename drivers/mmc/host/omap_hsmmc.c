@@ -2317,11 +2317,13 @@ static void omap_hsmmc_debugfs(struct mmc_host *mmc)
 static int omap_hsmmc_dpll_notifier(struct notifier_block *nb,
 					unsigned long val, void *data)
 {
+
 	struct omap_hsmmc_host *host =
 		container_of(nb, struct omap_hsmmc_host, nb);
 	struct clk_notifier_data *cnd = (struct clk_notifier_data *)data;
+	unsigned long flags;
 
-	spin_lock(&host->dpll_lock);
+	spin_lock_irqsave(&host->dpll_lock, flags);
 
 	if (val != CLK_PRE_RATE_CHANGE) {
 		if (cnd->old_rate == OMAP_MMC_DPLL_CLOCK) {
@@ -2333,7 +2335,7 @@ static int omap_hsmmc_dpll_notifier(struct notifier_block *nb,
 		}
 	}
 
-	spin_unlock(&host->dpll_lock);
+	spin_unlock_irqrestore(&host->dpll_lock, flags);
 	return 0;
 }
 #endif
