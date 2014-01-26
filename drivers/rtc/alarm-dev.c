@@ -190,7 +190,7 @@ from_old_alarm_set:
 			rv = -EFAULT;
 			goto err1;
 		}
-		pr_alarm(IO, "alarm ignored on suspend set to %d\n",
+		printk("alarm ignored on suspend set to %d\n",
 		    android_alarm_ignored_on_suspend != 0 ? 1 : 0);
 		break;
 	default:
