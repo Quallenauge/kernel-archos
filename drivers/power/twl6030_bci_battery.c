@@ -322,6 +322,8 @@ struct twl6030_bci_device_info {
 	unsigned long		features;
 	unsigned long		errata;
 
+	bool                preferFuelGauge;
+	unsigned int		override_capacity;
 	bool			usb_is_dc;
 	bool			use_separate_charger;
 
@@ -2085,7 +2087,10 @@ static int twl6030_bci_battery_get_property(struct power_supply *psy,
 
 #ifdef CONFIG_FUEL_GAUGE
 	case POWER_SUPPLY_PROP_CAPACITY:
-		val->intval = di->cell.soc;
+		if (!di->preferFuelGauge && di->override_capacity != -1)
+			val->intval = di->override_capacity;
+		else
+			val->intval = di->cell.soc;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		val->intval = di->cell.fcc;
@@ -2400,6 +2405,142 @@ static ssize_t set_fg_cal(struct device *dev, struct device_attribute *attr,
 	return status;
 }
 
+static ssize_t show_fg_cal(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	u8 cal;
+
+	twl_i2c_read_u8(TWL6030_MODULE_GASGAUGE, &cal, FG_REG_00);
+	cal = (cal & CC_CAL_EN) >> 1;
+	return sprintf(buf, "%d\n", cal);
+}
+
+static ssize_t set_battery_capacity(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	long val;
+	struct twl6030_bci_device_info *di = dev_get_drvdata(dev);
+	struct power_supply *bat = &di->bat;
+
+	if (strict_strtol(buf, 10, &val) == 0  && val >= 0 && val <= 100) {
+		printk("%s:%s:%d: Set battery overriden capacity to: %ld - fuel gauge calculates %d.\n", __FILE__,__FUNCTION__,__LINE__, val, di->cell.soc);
+		di->override_capacity = val;
+		power_supply_changed(bat);
+	}
+	return count;
+}
+
+static ssize_t show_battery_capacity(struct device *dev,
+ 		struct device_attribute *attr, char *buf)
+ {
+ 	unsigned int val;
+ 	struct twl6030_bci_device_info *di = dev_get_drvdata(dev);
+
+	if (!di->preferFuelGauge && di->override_capacity != -1)
+		val = di->override_capacity;
+	else if (di->cell.soc != -1)
+		val = di->cell.soc;
+	else
+		val = 0;
+	return snprintf(buf, PAGE_SIZE, "%u\n", val);
+ }
+
+static ssize_t show_usb_online(struct device *dev,
+		struct device_attribute *attr, char* buf)
+{
+	struct twl6030_bci_device_info *di = dev_get_drvdata(dev);
+	return snprintf(buf, PAGE_SIZE, "%s\n", di->charger_incurrentmA>50?"1":"0"); // TODO
+}
+
+static ssize_t show_ac_online(struct device *dev,
+		struct device_attribute *attr, char* buf)
+{
+	return snprintf(buf, PAGE_SIZE, "0\n"); // TODO
+}
+
+static ssize_t show_charge_level(struct device *dev,
+		struct device_attribute *attr, char* buf)
+{
+	struct twl6030_bci_device_info *di = dev_get_drvdata(dev);
+	return snprintf(buf, PAGE_SIZE, "%s\n", (di->charger_incurrentmA<100?"0":
+					(di->charger_incurrentmA==100?"1":
+					(di->charger_incurrentmA<=500?"2":"3"))));
+}
+
+static ssize_t set_usb_online(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+/*
+	struct twl6030_bci_device_info *di = dev_get_drvdata(dev);
+	long val = 0;
+	if (strict_strtol(buf,10,&val) == 1) {	// USB charger enable
+		if (di->charger_source==POWER_SUPPLY_TYPE_MAINS)
+			twl6030_stop_ac_charger(di);
+		twl6030_start_usb_charger(di);
+	}
+	else
+		twl6030_stop_usb_charger(di);
+*/
+	return count;
+}
+
+static ssize_t set_ac_online(struct device* dev,
+		struct device_attribute *attr, const char* buf, size_t count)
+{
+/*
+	struct twl6030_bci_device_info *di = dev_get_drvdata(dev);
+	long val = 0;
+	if (strict_strtol(buf,10,&val) == 1) { 	// AC charger enable
+		if (di->charger_source == POWER_SUPPLY_TYPE_USB)
+			twl6030_stop_usb_charger(di);
+		twl6030_start_ac_charger(di);
+	}
+	else
+		twl6030_stop_ac_charger(di);
+*/
+	return count;
+}
+
+static ssize_t set_charge_level(struct device* dev,
+		struct device_attribute *attr, const char* buf, size_t count)
+{
+	struct twl6030_bci_device_info *di = dev_get_drvdata(dev);
+	long val = 0;
+	int len;
+
+	len = strict_strtol(buf, 10, &val);
+	printk(KERN_INFO "charge_level set to %i\n", (int) val);
+	switch (val) {
+		case 0:	// power off
+			if (!di->usb_is_dc) {
+				di->charger_incurrentmA = 50;
+				twl6030_config_cinlimit_reg(di, di->charger_incurrentmA);
+			}
+			break;
+		case 1:
+			if (di->usb_is_dc)
+				di->charger_incurrentmA = 1500;
+			else
+				di->charger_incurrentmA = 100;
+			twl6030_config_cinlimit_reg(di, di->charger_incurrentmA);
+			break;
+		case 2:
+			di->charger_incurrentmA = 500;
+			twl6030_config_cinlimit_reg(di, di->charger_incurrentmA);
+			break;
+		case 3:
+			di->charger_incurrentmA = 1500;
+			twl6030_config_cinlimit_reg(di, di->charger_incurrentmA);
+			break;
+		default:
+			return -EINVAL;
+	}
+	if (di->charger_incurrentmA>50)
+		twl6030_start_usb_charger(di);
+	return count;
+}
+
+
 static ssize_t set_charging(struct device *dev, struct device_attribute *attr,
 					  const char *buf, size_t count)
 {
@@ -2702,6 +2843,29 @@ static ssize_t set_vbus_charge_thres(struct device *dev,
 	return status;
 }
 
+static ssize_t show_prefer_fuel_gauge(struct device *dev,
+		struct device_attribute *attr, char* buf)
+{
+	struct twl6030_bci_device_info *di = dev_get_drvdata(dev);
+	return sprintf(buf, "%d\n", di->preferFuelGauge?1:0);
+	//return snprintf(buf, PAGE_SIZE, "%s\n", di->preferFuelGauge?"1":"0");
+}
+
+static ssize_t set_prefer_fuel_gauge(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	long val;
+	int status = count;
+	struct twl6030_bci_device_info *di = dev_get_drvdata(dev);
+
+	if ((strict_strtol(buf, 10, &val) < 0) || (val < 0) || (val > 1))
+		return -EINVAL;
+	di->preferFuelGauge = val==1?true:false;
+	printk("%s:%s:%d: Switching to fuel gauge: %s\n", __FILE__,__FUNCTION__,__LINE__, di->preferFuelGauge?"true":"false");
+
+	return status;
+}
+
 static DEVICE_ATTR(fg_mode, S_IWUSR | S_IRUGO, show_fg_mode, set_fg_mode);
 static DEVICE_ATTR(charge_src, S_IWUSR | S_IRUGO, show_charge_src,
 		set_charge_src);
@@ -2712,7 +2876,7 @@ static DEVICE_ATTR(fg_counter, S_IRUGO, show_fg_counter, NULL);
 static DEVICE_ATTR(fg_accumulator, S_IRUGO, show_fg_accumulator, NULL);
 static DEVICE_ATTR(fg_offset, S_IRUGO, show_fg_offset, NULL);
 static DEVICE_ATTR(fg_clear, S_IWUSR, NULL, set_fg_clear);
-static DEVICE_ATTR(fg_cal, S_IWUSR, NULL, set_fg_cal);
+static DEVICE_ATTR(fg_cal, S_IWUSR | S_IRUGO, show_fg_cal, set_fg_cal);
 static DEVICE_ATTR(charging, S_IWUSR | S_IRUGO, NULL, set_charging);
 static DEVICE_ATTR(regulation_voltage, S_IWUSR | S_IRUGO,
 		show_regulation_voltage, set_regulation_voltage);
@@ -2735,6 +2899,11 @@ static DEVICE_ATTR(status_int1, S_IRUGO, show_status_int1, NULL);
 static DEVICE_ATTR(status_int2, S_IRUGO, show_status_int2, NULL);
 static DEVICE_ATTR(vbus_charge_thres, S_IWUSR | S_IRUGO,
 		show_vbus_charge_thres, set_vbus_charge_thres);
+static DEVICE_ATTR(battery_capacity, S_IRUGO|S_IWUSR, show_battery_capacity, set_battery_capacity);
+static DEVICE_ATTR(charge_level, S_IWUSR | S_IRUGO, show_charge_level, set_charge_level);
+static DEVICE_ATTR(usb_online, S_IWUSR | S_IRUGO, show_usb_online, set_usb_online);
+static DEVICE_ATTR(ac_online, S_IWUSR | S_IRUGO, show_ac_online, set_ac_online);
+static DEVICE_ATTR(prefer_fuel_gauge, S_IWUSR | S_IRUGO, show_prefer_fuel_gauge, set_prefer_fuel_gauge);
 
 static struct attribute *twl6030_bci_attributes[] = {
 	&dev_attr_fg_mode.attr,
@@ -2761,6 +2930,11 @@ static struct attribute *twl6030_bci_attributes[] = {
 	&dev_attr_status_int2.attr,
 	&dev_attr_wakelock_enable.attr,
 	&dev_attr_vbus_charge_thres.attr,
+	&dev_attr_battery_capacity.attr,
+	&dev_attr_charge_level.attr,
+	&dev_attr_usb_online.attr,
+	&dev_attr_ac_online.attr,
+	&dev_attr_prefer_fuel_gauge.attr,
 	NULL,
 };
 
@@ -2823,6 +2997,8 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 	di->platform_data = pdata;
 	di->features = pdata->features;
 	di->errata = pdata->errata;
+
+	di->dev = &pdev->dev;
 
 	if (di->features & TWL6032_SUBCLASS) {
 		ret = twl_i2c_read_u8(TWL_MODULE_RTC, &reg, CHARGER_MODE_REG);
@@ -2903,6 +3079,8 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 	di->bk_bat.get_property = twl6030_bk_bci_battery_get_property;
 
 	di->vac_priority = 2;
+	di->override_capacity = -1;
+	di->preferFuelGauge = false;
 	platform_set_drvdata(pdev, di);
 
 
