@@ -2083,7 +2083,8 @@ omap_hsmmc_dpll_clocks_configure(struct omap_hsmmc_host *host, int clk)
 static void
 omap_hsmmc_dpll_clocks_reconfigure(struct omap_hsmmc_host *host)
 {
-	spin_lock(&host->dpll_lock);
+	unsigned long flags;
+	spin_lock_irqsave(&host->dpll_lock, flags);
 	if (host->dpll_entry == 1) {
 		omap_hsmmc_dpll_clocks_configure(host, OMAP_MMC_DPLL_CLOCK);
 		host->dpll_entry = 0;
@@ -2091,7 +2092,7 @@ omap_hsmmc_dpll_clocks_reconfigure(struct omap_hsmmc_host *host)
 		omap_hsmmc_dpll_clocks_configure(host, OMAP_MMC_MASTER_CLOCK);
 		host->dpll_exit = 0;
 	}
-	spin_unlock(&host->dpll_lock);
+	spin_unlock_irqrestore(&host->dpll_lock, flags);
 }
 #endif
 
