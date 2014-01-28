@@ -178,8 +178,8 @@ static struct cell_config cell_cfg =  {
 	.cc_out = true,
 	.ocv_below_edv1 = false,
 
-	.design_capacity = 4000,
-	.design_qmax = 4100,
+	.design_capacity = 4000+350,
+	.design_qmax = 4100+350,
 	.r_sense = 10,
 
 	.qmax_adjust = 1,
