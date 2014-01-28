@@ -566,10 +566,10 @@ static struct archos_wifi_bt_config board_wifi_bt_config __initdata = {
 /* wl127x BT, FM, GPS connectivity chip */
 static int platform_kim_suspend(struct platform_device *pdev, pm_message_t state);
 static int platform_kim_resume(struct platform_device *pdev);
-static int plat_kim_chip_enable(void);
-static int plat_kim_chip_disable(void);
-static int plat_kim_chip_awake(void);
-static int plat_kim_chip_asleep(void);
+static int plat_kim_chip_enable(struct kim_data_s *);
+static int plat_kim_chip_disable(struct kim_data_s *);
+static int plat_kim_chip_awake(struct kim_data_s *);
+static int plat_kim_chip_asleep(struct kim_data_s *);
 
 static struct ti_st_plat_data wilink_pdata = {
 	.nshutdown_gpio = -1,
@@ -595,19 +595,19 @@ static int platform_kim_resume(struct platform_device *pdev)
 	return 0;
 }
 
-static int plat_kim_chip_awake(void)
+static int plat_kim_chip_awake(struct kim_data_s *kim_data)
 {
 	wake_lock(&st_wk_lock);
 	return 0;
 }
 
-static int plat_kim_chip_asleep(void)
+static int plat_kim_chip_asleep(struct kim_data_s *kim_data)
 {
 	wake_unlock(&st_wk_lock);
 	return 0;
 }
 
-static int plat_kim_chip_disable(void)
+static int plat_kim_chip_disable(struct kim_data_s *kim_data)
 {
 	int port_id = 0;
 	int err = 0;
@@ -624,7 +624,7 @@ static int plat_kim_chip_disable(void)
 	return err;
 }
 
-static int plat_kim_chip_enable(void)
+static int plat_kim_chip_enable(struct kim_data_s *kim_data)
 {
 	int port_id = 0;
 	int err = 0;
