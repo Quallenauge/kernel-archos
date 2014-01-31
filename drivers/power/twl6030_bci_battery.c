@@ -2439,8 +2439,11 @@ static ssize_t set_battery_capacity(struct device *dev,
 	struct power_supply *bat = &di->bat;
 
 	if (strict_strtol(buf, 10, &val) == 0  && val >= 0 && val <= 100) {
-		printk("%s:%s:%d: Set battery overriden capacity to: %ld - fuel gauge calculates %d.\n", __FILE__,__FUNCTION__,__LINE__, val, di->cell.soc);
+		printk("%s:%s:%d: Set battery overriden capacity on voltage: %4d to: %ld - fuel gauge calculates %d.\n", __FILE__,__FUNCTION__,__LINE__, di->cell.voltage, val, di->cell.soc);
 		di->override_capacity = val;
+		if (!di->preferFuelGauge){
+			di->cell.soc = val;
+		}
 		power_supply_changed(bat);
 	}
 	return count;
@@ -3095,7 +3098,7 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 
 	di->vac_priority = 2;
 	di->override_capacity = -1;
-	di->preferFuelGauge = true;
+	di->preferFuelGauge = false;
 	platform_set_drvdata(pdev, di);
 
 
