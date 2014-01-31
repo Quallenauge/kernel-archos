@@ -136,7 +136,7 @@ static struct edv_config edv_cfg = {
 	.edv = {
 		{3150, 0},
 		{3450, 4},
-		{3600, 10},
+		{3555, 15},
 	},
 };
 
