@@ -1492,12 +1492,21 @@ static void twl6030battery_current(struct twl6030_bci_device_info *di)
 	u16 read_value = 0;
 	s16 temp = 0;
 	int current_now = 0;
+	int i=0;
 
-	/* FG_REG_10, 11 is 14 bit signed instantaneous current sample value */
-	ret = twl_i2c_read(TWL6030_MODULE_GASGAUGE, (u8 *)&read_value,
-								FG_REG_10, 2);
+	for (i=0; i<10; ++i){
+		/* FG_REG_10, 11 is 14 bit signed instantaneous current sample value */
+		ret = twl_i2c_read(TWL6030_MODULE_GASGAUGE, (u8 *)&read_value,
+									FG_REG_10, 2);
+		if (ret < 0) {
+			dev_err(di->dev, "failed to read FG_REG_10: current_now...retrying...\n");
+		}else{
+			break;
+		}
+	}
+
 	if (ret < 0) {
-		dev_dbg(di->dev, "failed to read FG_REG_10: current_now\n");
+		dev_err(di->dev, "failed to read FG_REG_10: current_now...aborting.\n");
 		return;
 	}
 
@@ -3288,9 +3297,27 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 	dev_dbg(di->dev, "Charger IN current at Bootup is %d mA\n",
 			di->charger_incurrentmA);
 
-	di->voltage_mV = twl6030_get_gpadc_conversion(di, di->gpadc_vbat_chnl);
-	dev_info(&pdev->dev, "Battery Voltage at Bootup is %d mV\n",
-							di->voltage_mV);
+	int validVoltageCount=0;
+	int voltage=0;
+	int accVoltage=0;
+	int i;
+	for (i=0; i<5; ++i){
+		voltage = twl6030_get_gpadc_conversion(di, di->gpadc_vbat_chnl);
+		dev_err(&pdev->dev, "Battery Voltage is %d mV\n", voltage);
+		if (voltage>3300){
+			accVoltage+=voltage;
+			validVoltageCount++;
+		}
+		msleep(2);
+	}
+
+	if (validVoltageCount>0){
+		di->voltage_mV = accVoltage / validVoltageCount;
+	}else{
+		di->voltage_mV = voltage;
+	}
+	dev_err(&pdev->dev, "Average Battery Voltage at Bootup is %d mV\n",
+			di->voltage_mV);
 
 	/* Try to preserve avboots charger detection */
 	/* FIXME: welwarsk@archos.com
