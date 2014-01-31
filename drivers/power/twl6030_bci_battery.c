@@ -2864,7 +2864,6 @@ static ssize_t show_prefer_fuel_gauge(struct device *dev,
 {
 	struct twl6030_bci_device_info *di = dev_get_drvdata(dev);
 	return sprintf(buf, "%d\n", di->preferFuelGauge?1:0);
-	//return snprintf(buf, PAGE_SIZE, "%s\n", di->preferFuelGauge?"1":"0");
 }
 
 static ssize_t set_prefer_fuel_gauge(struct device *dev,
@@ -3413,9 +3412,6 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 
 		if (charge_ac)
 			di->ac_online = POWER_SUPPLY_TYPE_MAINS;
-
-		dev_dbg(di->dev, "boot charge state fault %d, usb %d, ac %d\n",
-				fault, charge_usb, charge_ac);
 
 		if (fault && (charge_usb || charge_ac))
 			di->charge_status = POWER_SUPPLY_STATUS_CHARGING;
