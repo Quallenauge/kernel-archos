@@ -1515,6 +1515,7 @@ static void twl6030battery_current(struct twl6030_bci_device_info *di)
 	return;
 }
 
+#ifndef NO_BACKUP_BATTERY
 /*
  * Setup the twl6030 BCI module to enable backup
  * battery charging.
@@ -1533,6 +1534,7 @@ static int twl6030backupbatt_setup(void)
 
 	return ret;
 }
+#endif
 
 /*
  * Setup the twl6030 BCI module to measure battery
@@ -3399,11 +3401,11 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 					twl6030_get_discharge_status(di);
 		}
 	}
-
+#ifndef NO_BACKUP_BATTERY
 	ret = twl6030backupbatt_setup();
 	if (ret)
 		dev_dbg(&pdev->dev, "Backup Bat charging setup failed\n");
-
+#endif
 	twl6030_interrupt_unmask(TWL6030_CHARGER_CTRL_INT_MASK,
 						REG_INT_MSK_LINE_C);
 	twl6030_interrupt_unmask(TWL6030_CHARGER_CTRL_INT_MASK,
