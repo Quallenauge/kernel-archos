@@ -358,9 +358,12 @@ int rtc_set_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 {
 	int err;
 
-	err = rtc_valid_tm(&alarm->time);
-	if (err != 0)
-		return err;
+	/* check if tm valid only if we're not disabling alarm.  */
+	if (alarm->enabled) {
+		err = rtc_valid_tm(&alarm->time);
+		if (err != 0)
+			return err;
+	}
 
 	err = mutex_lock_interruptible(&rtc->ops_lock);
 	if (err)

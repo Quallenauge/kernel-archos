@@ -49,6 +49,7 @@ static DECLARE_WAIT_QUEUE_HEAD(alarm_wait_queue);
 static uint32_t alarm_pending;
 static uint32_t alarm_enabled;
 static uint32_t wait_pending;
+int android_alarm_ignored_on_suspend;
 
 struct devalarm {
 	union {
@@ -210,15 +211,16 @@ static long alarm_do_ioctl(struct file *file, unsigned int cmd,
 		if ((file->f_flags & O_ACCMODE) == O_RDONLY)
 			return -EPERM;
 		if (file->private_data == NULL &&
-		    cmd != ANDROID_ALARM_SET_RTC) {
-			spin_lock_irqsave(&alarm_slock, flags);
-			if (alarm_opened) {
+		    cmd != ANDROID_ALARM_SET_RTC &&
+		    cmd != ANDROID_ALARM_IGNORE_ON_SUSPEND) {
+				spin_lock_irqsave(&alarm_slock, flags);
+				if (alarm_opened) {
+					spin_unlock_irqrestore(&alarm_slock, flags);
+					return -EBUSY;
+				}
+				alarm_opened = 1;
+				file->private_data = (void *)1;
 				spin_unlock_irqrestore(&alarm_slock, flags);
-				return -EBUSY;
-			}
-			alarm_opened = 1;
-			file->private_data = (void *)1;
-			spin_unlock_irqrestore(&alarm_slock, flags);
 		}
 	}
 
@@ -241,7 +243,6 @@ static long alarm_do_ioctl(struct file *file, unsigned int cmd,
 	case ANDROID_ALARM_GET_TIME(0):
 		rv = alarm_get_time(alarm_type, ts);
 		break;
-
 	default:
 		rv = -EINVAL;
 	}
@@ -253,6 +254,17 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	struct timespec ts;
 	int rv;
+
+	switch (ANDROID_ALARM_BASE_CMD(cmd)) {
+	case ANDROID_ALARM_IGNORE_ON_SUSPEND:
+		if (copy_from_user(&android_alarm_ignored_on_suspend,
+		    (void __user *)arg, sizeof(int))) {
+			return -EFAULT;
+		}
+		alarm_dbg(INFO, "alarm ignored on suspend set to %d\n",
+		    android_alarm_ignored_on_suspend != 0 ? 1 : 0);
+		return 0;
+	}
 
 	switch (ANDROID_ALARM_BASE_CMD(cmd)) {
 	case ANDROID_ALARM_SET_AND_WAIT(0):

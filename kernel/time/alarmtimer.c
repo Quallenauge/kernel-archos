@@ -224,11 +224,15 @@ static int alarmtimer_suspend(struct device *dev)
 	struct rtc_device *rtc;
 	int i;
 	int ret;
+	extern int android_alarm_ignored_on_suspend;
 
 	spin_lock_irqsave(&freezer_delta_lock, flags);
 	min = freezer_delta;
 	freezer_delta = ktime_set(0, 0);
 	spin_unlock_irqrestore(&freezer_delta_lock, flags);
+
+	if (android_alarm_ignored_on_suspend)
+		return 0;
 
 	rtc = alarmtimer_get_rtcdev();
 	/* If we have no rtcdev, just return */
