@@ -27,6 +27,17 @@ static inline void fput_light(struct file *file, int fput_needed)
 		fput(file);
 }
 
+struct fd {
+	struct file *file;
+	int need_put;
+};
+
+static inline void fdput(struct fd fd)
+{
+	if (fd.need_put)
+		fput(fd.file);
+}
+
 extern struct file *fget(unsigned int fd);
 extern struct file *fget_light(unsigned int fd, int *fput_needed);
 extern struct file *fget_raw(unsigned int fd);
@@ -39,5 +50,12 @@ extern int get_unused_fd(void);
 extern void put_unused_fd(unsigned int fd);
 
 extern void fd_install(unsigned int fd, struct file *file);
+
+static inline struct fd fdget(unsigned int fd)
+{
+	int b;
+	struct file *f = fget_light(fd, &b);
+	return (struct fd){f,b};
+}
 
 #endif /* __LINUX_FILE_H */
