@@ -264,7 +264,7 @@ EXPORT_SYMBOL(mmc_wait_for_cmd);
  */
 void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 {
-	unsigned int mult;
+	unsigned int mult, timeout_us;;
 
 	/*
 	 * SDIO cards only define an upper 1 s limit on access.
@@ -287,16 +287,32 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 	if (data->flags & MMC_DATA_WRITE)
 		mult <<= card->csd.r2w_factor;
 
-	data->timeout_ns = card->csd.tacc_ns * mult;
+	/*
+	 * The timeout in nanoseconds may overflow, so calculate it in
+	 * microseconds first. Cap it at two seconds both to avoid the overflow
+	 * and also because host controllers cannot generally generate timeouts
+	 * that long anyway.
+	 */
+	timeout_us = (card->csd.tacc_ns / 1000) * mult;
+	/*
+	 * The timeout in nanoseconds may overflow with some cards. Cap it at
+	 * UINT_MAX to avoid the overflow; host controllers cannot generally
+	 * generate timeouts that long anyway.
+	 */
+	if (card->csd.tacc_ns <= UINT_MAX / mult)
+			data->timeout_ns = card->csd.tacc_ns * mult;
+	else
+			data->timeout_ns = UINT_MAX;
+
+
 	data->timeout_clks = card->csd.tacc_clks * mult;
 
 	/*
 	 * SD cards also have an upper limit on the timeout.
 	 */
 	if (mmc_card_sd(card)) {
-		unsigned int timeout_us, limit_us;
+		unsigned int limit_us;
 
-		timeout_us = data->timeout_ns / 1000;
 		if (mmc_host_clk_rate(card->host))
 			timeout_us += data->timeout_clks * 1000 /
 				(mmc_host_clk_rate(card->host) / 1000);
