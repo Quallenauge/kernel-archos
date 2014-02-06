@@ -3098,7 +3098,7 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 
 	di->vac_priority = 2;
 	di->override_capacity = -1;
-	di->preferFuelGauge = true;
+	di->preferFuelGauge = false;
 	platform_set_drvdata(pdev, di);
 
 
