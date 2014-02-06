@@ -28,6 +28,7 @@
 #include <linux/random.h>
 #include <linux/slab.h>
 #include <linux/of.h>
+#include <linux/wakelock.h>
 
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
@@ -2433,6 +2434,7 @@ EXPORT_SYMBOL(mmc_detect_card_removed);
 
 void mmc_rescan(struct work_struct *work)
 {
+	bool extend_wakelock = false;
 	struct mmc_host *host =
 		container_of(work, struct mmc_host, detect.work);
 	int i;
@@ -2456,6 +2458,12 @@ void mmc_rescan(struct work_struct *work)
 		host->bus_ops->detect(host);
 
 	host->detect_change = 0;
+
+	 /* If the card was removed the bus will be marked
+	  * as dead - extend the wakelock so userspace
+	  * can respond */
+	 if (host->bus_dead)
+			 extend_wakelock = 1;
 
 	/*
 	 * Let mmc_bus_put() free the bus/bus_ops if we've found that
@@ -2486,6 +2494,7 @@ void mmc_rescan(struct work_struct *work)
 	mmc_claim_host(host);
 	for (i = 0; i < ARRAY_SIZE(freqs); i++) {
 		if (!mmc_rescan_try_freq(host, max(freqs[i], host->f_min)))
+			extend_wakelock = true;
 			break;
 		if (freqs[i] <= host->f_min)
 			break;
@@ -2493,12 +2502,19 @@ void mmc_rescan(struct work_struct *work)
 	mmc_release_host(host);
 
  out:
-	if (host->caps & MMC_CAP_NEEDS_POLL)
+	if (extend_wakelock)
+		  wake_lock_timeout(&host->detect_wake_lock, HZ / 2);
+	else
+		  wake_unlock(&host->detect_wake_lock);
+	if (host->caps & MMC_CAP_NEEDS_POLL && (!host->ops->get_cd || host->ops->get_cd(host)) && host->bus_dead) {
+		wake_lock(&host->detect_wake_lock);
 		mmc_schedule_delayed_work(&host->detect, HZ);
+	}
 }
 
 void mmc_start_host(struct mmc_host *host)
 {
+	host->bus_dead = 1;
 	host->f_init = max(freqs[0], host->f_min);
 	host->rescan_disable = 0;
 	if (host->caps2 & MMC_CAP2_NO_PRESCAN_POWERUP)

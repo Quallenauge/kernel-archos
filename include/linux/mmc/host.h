@@ -18,6 +18,7 @@
 
 #include <linux/mmc/core.h>
 #include <linux/mmc/pm.h>
+#include <linux/wakelock.h>
 
 struct mmc_ios {
 	unsigned int	clock;			/* clock rate */
@@ -329,6 +330,7 @@ struct mmc_host {
 	int			claim_cnt;	/* "claim" nesting count */
 
 	struct delayed_work	detect;
+	struct wake_lock detect_wake_lock;
 	int			detect_change;	/* card detect flag */
 	struct mmc_slot		slot;
 
