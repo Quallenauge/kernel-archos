@@ -88,7 +88,6 @@ struct bus_type {
 	const struct attribute_group **dev_groups;
 
     const struct attribute_group **bus_groups;
-    const struct attribute_group **dev_groups;
     const struct attribute_group **drv_groups;
 
 	int (*match)(struct device *dev, struct device_driver *drv);

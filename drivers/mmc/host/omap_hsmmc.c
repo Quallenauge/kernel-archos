@@ -2174,8 +2174,8 @@ static int omap_hsmmc_probe(struct platform_device *pdev)
 	host->next_data.cookie = 1;
 	host->regulator_enabled = 0;
 	host->pbias_enabled = 0;
-//	host->needs_vmmc = pdata->needs_vmmc;
-//	host->needs_vmmc_aux = pdata->needs_vmmc_aux;
+	host->needs_vmmc = pdata->needs_vmmc;
+	host->needs_vmmc_aux = pdata->needs_vmmc_aux;
 
 	platform_set_drvdata(pdev, host);
 

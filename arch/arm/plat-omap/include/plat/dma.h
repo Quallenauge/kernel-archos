@@ -442,6 +442,12 @@ struct omap_system_dma_plat_info {
 	u32 (*dma_read)(int reg, int lch);
 };
 
+#ifdef CONFIG_ARCH_OMAP2PLUS
+ #define dma_omap2plus() 1
+#else
+ #define dma_omap2plus() 0
+#endif
+
 extern void omap_set_dma_priority(int lch, int dst_port, int priority);
 extern int omap_request_dma(int dev_id, const char *dev_name,
 			void (*callback)(int lch, u16 ch_status, void *data),
