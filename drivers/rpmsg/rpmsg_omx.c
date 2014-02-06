@@ -37,6 +37,7 @@
 #include <linux/completion.h>
 #include <linux/remoteproc.h>
 #include <linux/fdtable.h>
+#include <linux/dma-mapping.h>
 
 #include <mach/tiler.h>
 

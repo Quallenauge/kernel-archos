@@ -32,7 +32,13 @@
 
 #define OMAP_MMC_MAX_SLOTS	2
 
-#define OMAP_HSMMC_SUPPORTS_DUAL_VOLT	BIT(1)
+#define OMAP_HSMMC_SUPPORTS_DUAL_VOLT			BIT(0)
+#define OMAP_HSMMC_BROKEN_MULTIBLOCK_READ       BIT(1)
+
+#define HSMMC_HAS_HSPE_SUPPORT  (1 << 2)
+#define MMC_OMAP7XX             (1 << 3)
+#define MMC_OMAP15XX            (1 << 4)
+#define MMC_OMAP16XX            (1 << 5)
 
 struct omap_mmc_dev_attr {
 	u8 flags;
@@ -77,7 +83,7 @@ struct omap_mmc_platform_data {
 		 */
 		u8  wires;	/* Used for the MMC driver on omap1 and 2420 */
 		u32 caps;	/* Used for the MMC driver on 2430 and later */
-
+		u32 pm_caps;
 		/*
 		 * nomux means "standard" muxing is wrong on this board, and
 		 * that board-specific code handled it before common init logic.

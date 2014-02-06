@@ -163,6 +163,25 @@ static inline int irq_to_gpio(unsigned irq)
 	return -EINVAL;
 }
 
+static inline int devm_gpio_request(struct device *dev, unsigned gpio,
+                                    const char *label)
+{
+        WARN_ON(1);
+        return -EINVAL;
+}
+
+static inline int devm_gpio_request_one(struct device *dev, unsigned gpio,
+                                        unsigned long flags, const char *label)
+{
+        WARN_ON(1);
+        return -EINVAL;
+}
+
+static inline void devm_gpio_free(struct device *dev, unsigned int gpio)
+{
+        WARN_ON(1);
+}
+
 #endif
 
 #endif /* __LINUX_GPIO_H */

@@ -85,6 +85,10 @@ struct bus_type {
 	struct device_attribute	*dev_attrs;
 	struct driver_attribute	*drv_attrs;
 
+    const struct attribute_group **bus_groups;
+    const struct attribute_group **dev_groups;
+    const struct attribute_group **drv_groups;
+
 	int (*match)(struct device *dev, struct device_driver *drv);
 	int (*uevent)(struct device *dev, struct kobj_uevent_env *env);
 	int (*probe)(struct device *dev);
@@ -430,7 +434,26 @@ struct device_attribute {
 };
 
 #define DEVICE_ATTR(_name, _mode, _show, _store) \
-struct device_attribute dev_attr_##_name = __ATTR(_name, _mode, _show, _store)
+		struct device_attribute dev_attr_##_name = __ATTR(_name, _mode, _show, _store)
+#define DEVICE_ATTR_RW(_name) \
+        struct device_attribute dev_attr_##_name = __ATTR_RW(_name)
+#define DEVICE_ATTR_RO(_name) \
+        struct device_attribute dev_attr_##_name = __ATTR_RO(_name)
+#define DEVICE_ATTR_WO(_name) \
+        struct device_attribute dev_attr_##_name = __ATTR_WO(_name)
+#define DEVICE_ULONG_ATTR(_name, _mode, _var) \
+        struct dev_ext_attribute dev_attr_##_name = \
+                { __ATTR(_name, _mode, device_show_ulong, device_store_ulong), &(_var) }
+#define DEVICE_INT_ATTR(_name, _mode, _var) \
+        struct dev_ext_attribute dev_attr_##_name = \
+                { __ATTR(_name, _mode, device_show_int, device_store_int), &(_var) }
+#define DEVICE_BOOL_ATTR(_name, _mode, _var) \
+        struct dev_ext_attribute dev_attr_##_name = \
+                { __ATTR(_name, _mode, device_show_bool, device_store_bool), &(_var) }
+#define DEVICE_ATTR_IGNORE_LOCKDEP(_name, _mode, _show, _store) \
+        struct device_attribute dev_attr_##_name =              \
+                __ATTR_IGNORE_LOCKDEP(_name, _mode, _show, _store)
+
 
 extern int __must_check device_create_file(struct device *device,
 					const struct device_attribute *entry);
@@ -903,5 +926,31 @@ extern long sysfs_deprecated;
 #else
 #define sysfs_deprecated 0
 #endif
+
+/**
+ * module_driver() - Helper macro for drivers that don't do anything
+ * special in module init/exit. This eliminates a lot of boilerplate.
+ * Each module may only use this macro once, and calling it replaces
+ * module_init() and module_exit().
+ *
+ * @__driver: driver name
+ * @__register: register function for this driver type
+ * @__unregister: unregister function for this driver type
+ * @...: Additional arguments to be passed to __register and __unregister.
+ *
+ * Use this macro to construct bus specific macros for registering
+ * drivers, and do not use it on its own.
+ */
+#define module_driver(__driver, __register, __unregister, ...) \
+static int __init __driver##_init(void) \
+{ \
+        return __register(&(__driver) , ##__VA_ARGS__); \
+} \
+module_init(__driver##_init); \
+static void __exit __driver##_exit(void) \
+{ \
+        __unregister(&(__driver) , ##__VA_ARGS__); \
+} \
+module_exit(__driver##_exit);
 
 #endif /* _DEVICE_H_ */

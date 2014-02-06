@@ -82,6 +82,18 @@ struct attribute_group {
 
 #define attr_name(_attr) (_attr).attr.name
 
+#define __ATTRIBUTE_GROUPS(_name)                               \
+static const struct attribute_group *_name##_groups[] = {       \
+        &_name##_group,                                         \
+        NULL,                                                   \
+}
+
+#define ATTRIBUTE_GROUPS(_name)                                 \
+static const struct attribute_group _name##_group = {           \
+        .attrs = _name##_attrs,                                 \
+};                                                              \
+__ATTRIBUTE_GROUPS(_name)
+
 struct file;
 struct vm_area_struct;
 

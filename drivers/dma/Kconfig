@@ -235,9 +235,18 @@ config MXS_DMA
 	help
 	  Support the MXS DMA engine. This engine including APBH-DMA
 	  and APBX-DMA is integrated into Freescale i.MX23/28 chips.
+	  
+config DMA_OMAP
+    tristate "OMAP DMA support"
+    depends on ARCH_OMAP
+    select DMA_ENGINE
+    select DMA_VIRTUAL_CHANNELS	  
 
 config DMA_ENGINE
 	bool
+
+config DMA_VIRTUAL_CHANNELS
+    tristate	
 
 comment "DMA Clients"
 	depends on DMA_ENGINE

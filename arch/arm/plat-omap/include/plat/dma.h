@@ -2,7 +2,7 @@
  *  arch/arm/plat-omap/include/mach/dma.h
  *
  *  Copyright (C) 2003 Nokia Corporation
- *  Author: Juha Yrjölä <juha.yrjola@nokia.com>
+ *  Author: Juha Yrj��l�� <juha.yrjola@nokia.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,6 +30,9 @@
 
 /* Move omap4 specific defines to dma-44xx.h */
 #include "dma-44xx.h"
+
+
+#define OMAP_MMC_MAX_SLOTS      2
 
 /* DMA channels for omap1 */
 #define OMAP_DMA_NO_DEVICE		0
@@ -401,6 +404,8 @@ struct omap_dma_channel_params {
 #endif
 };
 
+struct dma_chan;
+
 struct omap_dma_lch {
 	int next_lch;
 	int dev_id;
@@ -492,6 +497,8 @@ extern int omap_dma_set_prio_lch(int lch, unsigned char read_prio,
 extern void omap_set_dma_dst_endian_type(int lch, enum end_type etype);
 extern void omap_set_dma_src_endian_type(int lch, enum end_type etype);
 extern int omap_get_dma_index(int lch, int *ei, int *fi);
+
+bool omap_dma_filter_fn(struct dma_chan *, void *);
 
 void omap_dma_global_context_save(void);
 void omap_dma_global_context_restore(void);

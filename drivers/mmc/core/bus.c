@@ -11,9 +11,11 @@
  *  MMC card bus driver model
  */
 
+#include <linux/module.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/stat.h>
 #include <linux/pm_runtime.h>
 
 #include <linux/mmc/card.h>
@@ -120,15 +122,39 @@ static int mmc_bus_remove(struct device *dev)
 	return 0;
 }
 
+static void mmc_bus_shutdown(struct device *dev)
+{
+	struct mmc_driver *drv = to_mmc_driver(dev->driver);
+	struct mmc_card *card = mmc_dev_to_card(dev);
+	struct mmc_host *host = card->host;
+	int ret;
+
+	if (dev->driver && drv->shutdown)
+		drv->shutdown(card);
+
+	if (host->bus_ops->shutdown) {
+		ret = host->bus_ops->shutdown(host);
+		if (ret)
+			pr_warn("%s: error %d during shutdown\n",
+				mmc_hostname(host), ret);
+	}
+}
+
+#ifdef CONFIG_PM_SLEEP
 static int mmc_bus_suspend(struct device *dev)
 {
 	struct mmc_driver *drv = to_mmc_driver(dev->driver);
 	struct mmc_card *card = mmc_dev_to_card(dev);
-	int ret = 0;
-	pm_message_t state = { PM_EVENT_SUSPEND };
+	struct mmc_host *host = card->host;
+	int ret;
 
-	if (dev->driver && drv->suspend)
+	if (dev->driver && drv->suspend) {
 		ret = drv->suspend(card);
+		if (ret)
+			return ret;
+	}
+
+	ret = host->bus_ops->suspend(host);
 	return ret;
 }
 
@@ -136,33 +162,53 @@ static int mmc_bus_resume(struct device *dev)
 {
 	struct mmc_driver *drv = to_mmc_driver(dev->driver);
 	struct mmc_card *card = mmc_dev_to_card(dev);
-	int ret = 0;
+	struct mmc_host *host = card->host;
+	int ret;
+
+	ret = host->bus_ops->resume(host);
+	if (ret)
+		pr_warn("%s: error %d during resume (card was removed?)\n",
+			mmc_hostname(host), ret);
 
 	if (dev->driver && drv->resume)
 		ret = drv->resume(card);
+
 	return ret;
 }
+#endif
 
 #ifdef CONFIG_PM_RUNTIME
+
 static int mmc_runtime_suspend(struct device *dev)
 {
 	struct mmc_card *card = mmc_dev_to_card(dev);
+	struct mmc_host *host = card->host;
+	int ret = 0;
 
-	return mmc_power_save_host(card->host);
+	if (host->bus_ops->runtime_suspend)
+		ret = host->bus_ops->runtime_suspend(host);
+
+	return ret;
 }
 
 static int mmc_runtime_resume(struct device *dev)
 {
 	struct mmc_card *card = mmc_dev_to_card(dev);
+	struct mmc_host *host = card->host;
+	int ret = 0;
 
-	return mmc_power_restore_host(card->host);
+	if (host->bus_ops->runtime_resume)
+		ret = host->bus_ops->runtime_resume(host);
+
+	return ret;
 }
 
 static int mmc_runtime_idle(struct device *dev)
 {
-	return pm_runtime_suspend(dev);
+	return 0;
 }
-#endif /* CONFIG_PM_RUNTIME */
+
+#endif /* !CONFIG_PM_RUNTIME */
 
 static const struct dev_pm_ops mmc_bus_pm_ops = {
 	SET_RUNTIME_PM_OPS(mmc_runtime_suspend, mmc_runtime_resume,
@@ -177,6 +223,7 @@ static struct bus_type mmc_bus_type = {
 	.uevent		= mmc_bus_uevent,
 	.probe		= mmc_bus_probe,
 	.remove		= mmc_bus_remove,
+	.shutdown	= mmc_bus_shutdown,
 	.pm		= &mmc_bus_pm_ops,
 };
 
@@ -220,8 +267,7 @@ static void mmc_release_card(struct device *dev)
 
 	sdio_free_common_cis(card);
 
-	if (card->info)
-		kfree(card->info);
+	kfree(card->info);
 
 	kfree(card);
 }
@@ -256,6 +302,15 @@ int mmc_add_card(struct mmc_card *card)
 {
 	int ret;
 	const char *type;
+	const char *uhs_bus_speed_mode = "";
+	static const char *const uhs_speeds[] = {
+		[UHS_SDR12_BUS_SPEED] = "SDR12 ",
+		[UHS_SDR25_BUS_SPEED] = "SDR25 ",
+		[UHS_SDR50_BUS_SPEED] = "SDR50 ",
+		[UHS_SDR104_BUS_SPEED] = "SDR104 ",
+		[UHS_DDR50_BUS_SPEED] = "DDR50 ",
+	};
+
 
 	dev_set_name(&card->dev, "%s:%04x", mmc_hostname(card->host), card->rca);
 
@@ -285,25 +340,30 @@ int mmc_add_card(struct mmc_card *card)
 		break;
 	}
 
+	if (mmc_sd_card_uhs(card) &&
+		(card->sd_bus_speed < ARRAY_SIZE(uhs_speeds)))
+		uhs_bus_speed_mode = uhs_speeds[card->sd_bus_speed];
+
 	if (mmc_host_is_spi(card->host)) {
-		printk(KERN_INFO "%s: new %s%s%s card on SPI\n",
+		pr_info("%s: new %s%s%s card on SPI\n",
 			mmc_hostname(card->host),
 			mmc_card_highspeed(card) ? "high speed " : "",
 			mmc_card_ddr_mode(card) ? "DDR " : "",
 			type);
 	} else {
-		printk(KERN_INFO "%s: new %s%s%s card at address %04x\n",
+		pr_info("%s: new %s%s%s%s%s card at address %04x\n",
 			mmc_hostname(card->host),
-			mmc_sd_card_uhs(card) ? "ultra high speed " :
+			mmc_card_uhs(card) ? "ultra high speed " :
 			(mmc_card_highspeed(card) ? "high speed " : ""),
+			(mmc_card_hs200(card) ? "HS200 " : ""),
 			mmc_card_ddr_mode(card) ? "DDR " : "",
-			type, card->rca);
+			uhs_bus_speed_mode, type, card->rca);
 	}
-	mmc_card_set_inserted(card);
 
 #ifdef CONFIG_DEBUG_FS
 	mmc_add_card_debugfs(card);
 #endif
+	mmc_init_context_info(card->host);
 
 	ret = device_add(&card->dev);
 	if (ret)
@@ -326,13 +386,12 @@ void mmc_remove_card(struct mmc_card *card)
 
 	if (mmc_card_present(card)) {
 		if (mmc_host_is_spi(card->host)) {
-			printk(KERN_INFO "%s: SPI card removed\n",
+			pr_info("%s: SPI card removed\n",
 				mmc_hostname(card->host));
 		} else {
-			printk(KERN_INFO "%s: card %04x removed\n",
+			pr_info("%s: card %04x removed\n",
 				mmc_hostname(card->host), card->rca);
 		}
-		card->state &= ~MMC_STATE_INSERTED;
 		device_del(&card->dev);
 	}
 

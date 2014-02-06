@@ -146,6 +146,13 @@ static inline int dma_set_seg_boundary(struct device *dev, unsigned long mask)
 		return -EIO;
 }
 
+#ifndef dma_max_pfn
+static inline unsigned long dma_max_pfn(struct device *dev)
+{
+        return *dev->dma_mask >> PAGE_SHIFT;
+}
+#endif
+
 #ifdef CONFIG_HAS_DMA
 static inline int dma_get_cache_alignment(void)
 {
