@@ -1190,6 +1190,7 @@ static struct omap2_hsmmc_info mmc[] = {
 		.power_saving   = true,
 #endif
 		//.vcc_aux_disable_is_sleep = true,
+		.pm_caps    = MMC_PM_KEEP_POWER /*| MMC_PM_IGNORE_PM_NOTIFY*/,
 	},
 	{
 		.mmc		= 4,
