@@ -1190,7 +1190,6 @@ static struct omap2_hsmmc_info mmc[] = {
 		.power_saving   = true,
 #endif
 		//.vcc_aux_disable_is_sleep = true,
-		.pm_caps    = MMC_PM_KEEP_POWER /*| MMC_PM_IGNORE_PM_NOTIFY*/,
 	},
 	{
 		.mmc		= 4,
@@ -1199,6 +1198,14 @@ static struct omap2_hsmmc_info mmc[] = {
 		.gpio_wp	= -EINVAL,
 		.ocr_mask	= MMC_VDD_165_195,
 		.nonremovable	= true,
+		/*
+		 * Check patches for information:
+		 * omap_hsmmc: consider MMC_PM_KEEP_POWER on suspend/resume
+		 * omap_hsmmc: add pm_caps field
+		 * omap: board-sdp4430: declare support for MMC_PM_KEEP_POWER
+		 *
+		 */
+		.pm_caps    = MMC_PM_KEEP_POWER,
 	},
 	{}	/* Terminator */
 };
