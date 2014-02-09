@@ -21,6 +21,7 @@
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/sdio_func.h>
+#include "core.h"
 
 #include "sdio_cis.h"
 #include "sdio_bus.h"
@@ -137,17 +138,22 @@ static int sdio_bus_probe(struct device *dev)
 	 */
 	if (func->card->host->caps & MMC_CAP_POWER_OFF_CARD) {
 		ret = pm_runtime_get_sync(dev);
-		if (ret < 0)
+		if (ret < 0){
+			printk(KERN_ERR "%s:%s:%d: pm_runtime_get_sync failed!\n",__FILE__,__FUNCTION__,__LINE__);
 			goto disable_runtimepm;
+		}
 	}
 
 	/* Set the default block size so the driver is sure it's something
 	 * sensible. */
 	sdio_claim_host(func);
+	mmc_power_restore_host(func->card->host);
 	ret = sdio_set_block_size(func, 0);
 	sdio_release_host(func);
-	if (ret)
+	if (ret){
+		printk(KERN_ERR "%s:%s:%d: sdio_set_block_size failed!\n",__FILE__,__FUNCTION__,__LINE__);
 		goto disable_runtimepm;
+	}
 
 	ret = drv->probe(func, id);
 	if (ret)
@@ -169,7 +175,9 @@ static int sdio_bus_remove(struct device *dev)
 
 	/* Make sure card is powered before invoking ->remove() */
 	if (func->card->host->caps & MMC_CAP_POWER_OFF_CARD)
-		pm_runtime_get_sync(dev);
+		ret = pm_runtime_get_sync(dev);
+	    if (ret < 0)
+	        goto out;
 
 	drv->remove(func);
 
@@ -188,7 +196,7 @@ static int sdio_bus_remove(struct device *dev)
 	/* Then undo the runtime PM settings in sdio_bus_probe() */
 	if (func->card->host->caps & MMC_CAP_POWER_OFF_CARD)
 		pm_runtime_put_sync(dev);
-
+out:
 	return ret;
 }
 
