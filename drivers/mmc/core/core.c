@@ -1549,7 +1549,6 @@ void mmc_set_driver_type(struct mmc_host *host, unsigned int drv_type)
 void mmc_power_up(struct mmc_host *host)
 {
 	int bit;
-
 	if (host->ios.power_mode == MMC_POWER_ON)
 		return;
 
@@ -1597,8 +1596,10 @@ void mmc_power_up(struct mmc_host *host)
 
 void mmc_power_off(struct mmc_host *host)
 {
-	if (host->ios.power_mode == MMC_POWER_OFF)
+	if (host->ios.power_mode == MMC_POWER_OFF){
+		printk("Bus already powered OFF\n");
 		return;
+	}
 
 	mmc_host_clk_hold(host);
 
