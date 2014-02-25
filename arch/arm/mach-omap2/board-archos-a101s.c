@@ -1416,7 +1416,7 @@ static struct twl4030_usb_data board_twl6030_usb_data = {
 	.phy_exit	= omap4430_phy_exit,
 	.phy_power	= omap4430_phy_power,
 //	.phy_set_clock	= omap4430_phy_set_clk,
-//	.phy_suspend	= omap4430_phy_suspend,
+	.phy_suspend	= omap4430_phy_suspend,
 	.name = "archos_twl6030_usb_xceiv",
 };
 
