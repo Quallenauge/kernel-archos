@@ -181,6 +181,13 @@ Files in /sys/fs/f2fs/<devname>
                               of the filesystem utilization, and used by
                               F2FS_IPU_UTIL and F2FS_IPU_SSR_UTIL policies.
 
+ dir_level                    This parameter controls the directory level to
+			      support large directory. If a directory has a
+			      number of files, it can reduce the file lookup
+			      latency by increasing this dir_level value.
+			      Otherwise, it needs to decrease this value to
+			      reduce the space overhead. The default value is 0.
+
 ================================================================================
 USAGE
 ================================================================================
