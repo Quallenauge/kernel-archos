@@ -1301,11 +1301,11 @@ static int serial_omap_suspend(struct device *dev)
 	struct uart_omap_port *up = dev_get_drvdata(dev);
 
 	if (up) {
-		disable_irq(up->port.irq);
 		if (up->rts_mux_driver_control) {
 			up->rts_pullup_in_suspend = 1;
 			omap_rts_mux_write(MUX_PULL_UP, up->port.line);
 		}
+		disable_irq(up->port.irq);
 		up->suspended = true;
 		uart_suspend_port(&serial_omap_reg, &up->port);
 		serial_omap_pm(&up->port, 3, 0);
