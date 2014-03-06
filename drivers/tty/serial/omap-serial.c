@@ -1488,6 +1488,10 @@ int omap_uart_recalibrate_baud_cb(struct notifier_block *nb,
 	case CLK_PRE_RATE_CHANGE:
 		for (portid = 0 ; portid < OMAP_MAX_HSUART_PORTS ; portid++) {
 			up = ui[portid];
+			if (!up){
+				printk("%s:%s:%d: up is NULL! \n", __FILE__,__FUNCTION__,__LINE__);
+				continue;
+			}
 			/* If the device uses the RTS based controlling,
 			 * Pull Up the signal to stop transaction. As the
 			 * Clocks are not disabled. It even if the data
@@ -1521,9 +1525,19 @@ int omap_uart_recalibrate_baud_cb(struct notifier_block *nb,
 	case CLK_POST_RATE_CHANGE:
 		for (portid = 0 ; portid < OMAP_MAX_HSUART_PORTS ; portid++) {
 			up = ui[portid];
+			if (!up){
+				printk("%s:%s:%d: up is NULL! \n", __FILE__,__FUNCTION__,__LINE__);
+				continue;
+			}
+			if (!cnd){
+				printk("%s:%s:%d: up is NULL! \n", __FILE__,__FUNCTION__,__LINE__);
+				continue;
+			}
+
 			/* these are hard coded here since the clock
 			 * framework is not return the correct value.
 			 */
+
 			/* Changed */
 			if (cnd->new_rate == OMAP_UART_DPLL_CLOCK)
 				up->port.uartclk = 24576000;
