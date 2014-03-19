@@ -24,3 +24,10 @@ Date:		July 2013
 Contact:	"Namjae Jeon" <namjae.jeon@samsung.com>
 Description:
 		 Controls the victim selection policy for garbage collection.
+
+
+What:		/sys/fs/f2fs/<disk>/ram_thresh
+Date:		March 2014
+Contact:	"Jaegeuk Kim" <jaegeuk.kim@samsung.com>
+Description:
+		 Controls the memory footprint used by f2fs.
