@@ -826,13 +826,14 @@ static int ehci_hcd_omap_probe(struct platform_device *pdev)
 	if (pdata->port_mode[0] == OMAP_EHCI_PORT_MODE_PHY) {
 		omap_ehci_soft_phy_reset(pdev, 0);
 		omap_ehci_ulpi_write(hcd,
-				1,
+				/* 1, */
 				(ULPI_FUNC_CTRL_FULL_SPEED |
 						ULPI_FUNC_CTRL_TERMSELECT |
 						ULPI_FUNC_CTRL_SUSPENDM),
 				ULPI_FUNC_CTRL,
 				1);
 	}
+	/*
 	if (pdata->port_mode[1] == OMAP_EHCI_PORT_MODE_PHY) {
 		omap_ehci_soft_phy_reset(pdev, 1);
 		omap_ehci_ulpi_write(hcd,
@@ -843,6 +844,7 @@ static int ehci_hcd_omap_probe(struct platform_device *pdev)
 				ULPI_FUNC_CTRL,
 				1);
 	}
+	*/
 
 	omap_ehci = hcd_to_ehci(hcd);
 	omap_ehci->sbrn = 0x20;
