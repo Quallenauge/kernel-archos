@@ -450,7 +450,7 @@ static int dpm_run_callback(pm_callback_t cb, struct device *dev,
  * The driver of @dev will not receive interrupts while this function is being
  * executed.
  */
-static int device_resume_noirq(struct device *dev, pm_message_t state)
+static int device_resume_noirq(struct device *dev, pm_message_t state, bool async)
 {
         pm_callback_t callback = NULL;
         char *info = NULL;
@@ -464,6 +464,8 @@ static int device_resume_noirq(struct device *dev, pm_message_t state)
 
 		if (!dev->power.is_noirq_suspended)
 				goto Out;
+
+		dpm_wait(dev->parent, async);
 
         if (dev->pwr_domain) {
                 info = "noirq power domain ";
@@ -488,9 +490,29 @@ static int device_resume_noirq(struct device *dev, pm_message_t state)
         dev->power.is_noirq_suspended = false;
 
  Out:
+ 	 	complete_all(&dev->power.completion);
         TRACE_RESUME(error);
         return error;
 }
+
+static bool is_async(struct device *dev)
+{
+ return dev->power.async_suspend && pm_async_enabled
+ && !pm_trace_is_enabled();
+}
+
+static void async_resume_noirq(void *data, async_cookie_t cookie)
+{
+ struct device *dev = (struct device *)data;
+ int error;
+
+ error = device_resume_noirq(dev, pm_transition, true);
+ if (error)
+ pm_dev_err(dev, pm_transition, " async", error);
+
+ put_device(dev);
+}
+
 
 /**
  * dpm_resume_noirq - Execute "early resume" callbacks for non-sysdev devices.
@@ -501,25 +523,45 @@ static int device_resume_noirq(struct device *dev, pm_message_t state)
  */
 void dpm_resume_noirq(pm_message_t state)
 {
+	struct device *dev;
 	ktime_t starttime = ktime_get();
 
 	mutex_lock(&dpm_list_mtx);
+	pm_transition = state;
+
+	/*
+	* Advanced the async threads upfront,
+	* in case the starting of async threads is
+	* delayed by non-async resuming devices.
+	*/
+	list_for_each_entry(dev, &dpm_noirq_list, power.entry) {
+		INIT_COMPLETION(dev->power.completion);
+		if (is_async(dev)) {
+			get_device(dev);
+			async_schedule(async_resume_noirq, dev);
+		}
+	}
 	while (!list_empty(&dpm_noirq_list)) {
-		struct device *dev = to_device(dpm_noirq_list.next);
-		int error;
+	dev = to_device(dpm_noirq_list.next);
 
 		get_device(dev);
 		list_move_tail(&dev->power.entry, &dpm_suspended_list);
 		mutex_unlock(&dpm_list_mtx);
 
-		error = device_resume_noirq(dev, state);
-		if (error)
-			pm_dev_err(dev, state, " early", error);
+		if (!is_async(dev)) {
+			int error;
+
+			error = device_resume_noirq(dev, state, false);
+			if (error) {
+				pm_dev_err(dev, state, " noirq", error);
+			}
+		}
 
 		mutex_lock(&dpm_list_mtx);
 		put_device(dev);
 	}
 	mutex_unlock(&dpm_list_mtx);
+	async_synchronize_full();
 	dpm_show_time(starttime, state, "early");
 	resume_device_irqs();
 }
@@ -621,12 +663,6 @@ static void async_resume(void *data, async_cookie_t cookie)
 	if (error)
 		pm_dev_err(dev, pm_transition, " async", error);
 	put_device(dev);
-}
-
-static bool is_async(struct device *dev)
-{
-	return dev->power.async_suspend && pm_async_enabled
-		&& !pm_trace_is_enabled();
 }
 
 /**
