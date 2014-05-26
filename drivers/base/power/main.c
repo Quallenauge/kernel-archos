@@ -822,14 +822,24 @@ static pm_message_t resume_event(pm_message_t sleep_state)
  * The driver of @dev will not receive interrupts while this function is being
  * executed.
  */
-static int device_suspend_noirq(struct device *dev, pm_message_t state)
+static int __device_suspend_noirq(struct device *dev, pm_message_t state, bool async)
 {
         pm_callback_t callback = NULL;
         char *info = NULL;
-        int error;
+        int error = 0;
+
+        if (async_error)
+        	goto Complete;
+
+        if (pm_wakeup_pending()) {
+			async_error = -EBUSY;
+			goto Complete;
+        }
 
 //        if (dev->power.syscore)
 //                return 0;
+
+        dpm_wait_for_children(dev, async);
 
         if (dev->pwr_domain) {
                 info = "noirq power domain ";
@@ -853,9 +863,39 @@ static int device_suspend_noirq(struct device *dev, pm_message_t state)
         error = dpm_run_callback(callback, dev, state, info);
         	if (!error)
         		dev->power.is_noirq_suspended = true;
-
+        	else
+        	    async_error = error;
+Complete:
+        complete_all(&dev->power.completion);
         return error;
 }
+
+static void async_suspend_noirq(void *data, async_cookie_t cookie)
+{
+ struct device *dev = (struct device *)data;
+ int error;
+
+ error = __device_suspend_noirq(dev, pm_transition, true);
+ if (error) {
+//	 dpm_save_failed_dev(dev_name(dev));
+	 pm_dev_err(dev, pm_transition, " async", error);
+ }
+
+ put_device(dev);
+}
+
+static int device_suspend_noirq(struct device *dev)
+{
+ INIT_COMPLETION(dev->power.completion);
+
+ if (pm_async_enabled && dev->power.async_suspend) {
+	 get_device(dev);
+ 	 async_schedule(async_suspend_noirq, dev);
+ return 0;
+ }
+ return __device_suspend_noirq(dev, pm_transition, false);
+}
+
 
 /**
  * dpm_suspend_noirq - Execute "late suspend" callbacks for non-sysdev devices.
@@ -871,13 +911,16 @@ int dpm_suspend_noirq(pm_message_t state)
 
 	suspend_device_irqs();
 	mutex_lock(&dpm_list_mtx);
+	pm_transition = state;
+	async_error = 0;
+
 	while (!list_empty(&dpm_suspended_list)) {
 		struct device *dev = to_device(dpm_suspended_list.prev);
 
 		get_device(dev);
 		mutex_unlock(&dpm_list_mtx);
 
-		error = device_suspend_noirq(dev, state);
+		error = device_suspend_noirq(dev);
 
 		mutex_lock(&dpm_list_mtx);
 		if (error) {
@@ -888,12 +931,19 @@ int dpm_suspend_noirq(pm_message_t state)
 		if (!list_empty(&dev->power.entry))
 			list_move(&dev->power.entry, &dpm_noirq_list);
 		put_device(dev);
+
+		if (async_error)
+			break;
 	}
-	mutex_unlock(&dpm_list_mtx);
-	if (error)
+	async_synchronize_full();
+	if (!error)
+		error = async_error;
+
+	if (error) {
 		dpm_resume_noirq(resume_event(state));
-	else
-		dpm_show_time(starttime, state, "late");
+	} else {
+		dpm_show_time(starttime, state, "noirq");
+	}
 	return error;
 }
 EXPORT_SYMBOL_GPL(dpm_suspend_noirq);
