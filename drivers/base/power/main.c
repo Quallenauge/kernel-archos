@@ -16,7 +16,6 @@
  * domain dependencies may differ from the ancestral dependencies that the
  * subsystem list maintains.
  */
-#define DEBUG
 #include <linux/device.h>
 #include <linux/kallsyms.h>
 #include <linux/mutex.h>
@@ -935,6 +934,7 @@ int dpm_suspend_noirq(pm_message_t state)
 		if (async_error)
 			break;
 	}
+	mutex_unlock(&dpm_list_mtx);
 	async_synchronize_full();
 	if (!error)
 		error = async_error;
