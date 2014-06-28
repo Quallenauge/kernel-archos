@@ -907,7 +907,7 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	blk_queue_make_request(lo->lo_queue, loop_make_request);
 	lo->lo_queue->queuedata = lo;
 
-	if (!(lo_flags & LO_FLAGS_READ_ONLY) && file->f_op->fsync)
+	if (!(lo_flags & LO_FLAGS_READ_ONLY) && (file->f_op->fsync || file->f_op->fsync_new))
 		blk_queue_flush(lo->lo_queue, REQ_FLUSH);
 
 	set_capacity(lo->lo_disk, size);

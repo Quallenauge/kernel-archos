@@ -168,23 +168,26 @@ int vfs_fsync_range(struct file *file, loff_t start, loff_t end, int datasync)
 	struct address_space *mapping = file->f_mapping;
 	int err, ret;
 
-	if (!file->f_op || !file->f_op->fsync) {
+	if (!file->f_op || (!file->f_op->fsync && !file->f_op->fsync_new)) {
 		ret = -EINVAL;
 		goto out;
 	}
+	if (file->f_op->fsync_new){
+		// Prefer new variant of fsync. (Currently only used for f2fs).
+		ret = file->f_op->fsync_new(file, start, end, datasync);
+	}else{
+		ret = filemap_write_and_wait_range(mapping, start, end);
 
-	ret = filemap_write_and_wait_range(mapping, start, end);
-
-	/*
-	 * We need to protect against concurrent writers, which could cause
-	 * livelocks in fsync_buffers_list().
-	 */
-	mutex_lock(&mapping->host->i_mutex);
-	err = file->f_op->fsync(file, datasync);
-	if (!ret)
-		ret = err;
-	mutex_unlock(&mapping->host->i_mutex);
-
+		/*
+		 * We need to protect against concurrent writers, which could cause
+		 * livelocks in fsync_buffers_list().
+		 */
+		mutex_lock(&mapping->host->i_mutex);
+		err = file->f_op->fsync(file, datasync);
+		if (!ret)
+			ret = err;
+		mutex_unlock(&mapping->host->i_mutex);
+	}
 out:
 	return ret;
 }
