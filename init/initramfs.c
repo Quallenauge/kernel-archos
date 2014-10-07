@@ -8,7 +8,11 @@
 #include <linux/dirent.h>
 #include <linux/syscalls.h>
 #include <linux/utime.h>
+#include <linux/gpio_keys.h>
+#include <linux/gpio.h>
 
+
+extern struct gpio_keys_platform_data *archos_gpio_volume_keys_info;
 static __initdata char *message;
 static void __init error(char *x)
 {
@@ -572,6 +576,23 @@ static void __init clean_rootfs(void)
 static int __init populate_rootfs(void)
 {
 	char *err = NULL;
+	bool recovery=false;
+	struct gpio_keys_button *gpio_keys_button;
+	int volup_gpio;
+	int volup_value;
+
+	if (archos_gpio_volume_keys_info!=NULL && archos_gpio_volume_keys_info->nbuttons>0){
+		// Volume up
+		gpio_keys_button = archos_gpio_volume_keys_info->buttons;
+		volup_gpio = gpio_keys_button->gpio;
+		printk(KERN_ERR "Found gpio: %d for volume up checking\n", volup_gpio);
+		volup_value= gpio_get_value(volup_gpio);
+		printk(KERN_ERR "Get value %d for gpio: %d\n", volup_value, volup_gpio);
+
+		// Volume down
+//		gpio_volume_buttons.gpio;
+	}
+
 	if(false && strstr(saved_command_line,"androidboot.mode=recovery") != NULL ) {
 		err = unpack_to_rootfs(__initramfs_start, __initramfs_size);
 		if (err)

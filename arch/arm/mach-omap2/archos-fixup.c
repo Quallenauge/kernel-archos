@@ -20,6 +20,9 @@
 
 static bool is512MByteArchosModel=true;
 
+struct gpio_keys_platform_data *archos_gpio_volume_keys_info;
+EXPORT_SYMBOL(archos_gpio_volume_keys_info);
+
 static char command_line[][COMMAND_LINE_SIZE] __initdata = {
 	[0] = CONFIG_CMDLINE_DEFAULT,
 #ifdef CONFIG_CMDLINE_AXYZ

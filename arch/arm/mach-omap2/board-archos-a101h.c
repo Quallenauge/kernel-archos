@@ -1849,6 +1849,7 @@ static void __init board_buttons_init(void)
 		omap_mux_init_gpio(gpio_volume_buttons[1].gpio, OMAP_PIN_INPUT);
 		
 		platform_device_register(&volume_keys_gpio);
+		archos_gpio_volume_keys_info = &gpio_volume_keys_info;
 	}
 }
 

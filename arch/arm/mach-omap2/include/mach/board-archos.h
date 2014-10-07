@@ -52,7 +52,7 @@
 #include <linux/input/nt11003.h>
 
 #include <asm/mach-types.h>
-
+#include <linux/gpio_keys.h>
 
 #define ARCHOS_PHYS_ADDR_OMAP_RAM_CONSOLE	(PHYS_ADDR_ION_HEAP_SECURE_INPUT_MEM - ARCHOS_OMAP_RAM_CONSOLE_SIZE)
 #define ARCHOS_OMAP_RAM_CONSOLE_SIZE 		(SZ_1M)
@@ -743,6 +743,8 @@ struct hardware_component {
 
 extern struct hardware_component hardware_comp;
 
+extern struct gpio_keys_platform_data *archos_gpio_volume_keys_info;
+
 static inline bool machine_has_tps62361(void) {
 	return !!hardware_comp.tps62361;
 }
@@ -766,7 +768,6 @@ static inline int machine_has_usbhost_plug(void)
 	}						\
 	_conf;						\
 })							\
-
 
 #endif /*  __MACH_BOARD_ARCHOS_H */
 
