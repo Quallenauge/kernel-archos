@@ -788,7 +788,6 @@ static const struct segment_allocation default_salloc_ops = {
 };
 
 
-	trace_f2fs_submit_write_bio(sbi->sb, rw, btype, io->bio);
 static bool __has_curseg_space(struct f2fs_sb_info *sbi, int type)
 {
 	struct curseg_info *curseg = CURSEG_I(sbi, type);
