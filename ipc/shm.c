@@ -277,19 +277,13 @@ static int shm_release(struct inode *ino, struct file *file)
 	return 0;
 }
 
-static int shm_fsync(struct file *file, loff_t start, loff_t end, int datasync)
+static int shm_fsync(struct file *file, int datasync)
 {
-         struct shm_file_data *sfd = shm_file_data(file);
+	struct shm_file_data *sfd = shm_file_data(file);
 
-         if (!sfd->file->f_op->fsync && !sfd->file->f_op->fsync_new)
-                 return -EINVAL;
-
-         if (sfd->file->f_op->fsync_new){
-        	 // Prefer new variant of fsync. (Currently only used for f2fs).
-        	 return sfd->file->f_op->fsync_new(sfd->file, start, end, datasync);
-         }else{
-        	 return sfd->file->f_op->fsync(sfd->file, datasync);
-         }
+	if (!sfd->file->f_op->fsync)
+		return -EINVAL;
+	return sfd->file->f_op->fsync(sfd->file, datasync);
 }
 
 static unsigned long shm_get_unmapped_area(struct file *file,
@@ -303,7 +297,7 @@ static unsigned long shm_get_unmapped_area(struct file *file,
 
 static const struct file_operations shm_file_operations = {
 	.mmap		= shm_mmap,
-	.fsync_new  = shm_fsync,
+	.fsync		= shm_fsync,
 	.release	= shm_release,
 #ifndef CONFIG_MMU
 	.get_unmapped_area	= shm_get_unmapped_area,
@@ -313,7 +307,7 @@ static const struct file_operations shm_file_operations = {
 
 static const struct file_operations shm_file_operations_huge = {
 	.mmap		= shm_mmap,
-	.fsync_new  = shm_fsync,
+	.fsync		= shm_fsync,
 	.release	= shm_release,
 	.get_unmapped_area	= shm_get_unmapped_area,
 	.llseek		= noop_llseek,
