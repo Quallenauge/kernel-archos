@@ -212,7 +212,7 @@ static int omap4430_phy_set_clk(struct device *dev, int on)
 
 int omap4_enable_charger_detect(void)
 {
-	printk("%s:%s:%d",__FILE__,__FUNCTION__,__LINE__);
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	u32 usb2phycore = 0;
 	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
 	usb2phycore &= ~USB2PHY_DISCHGDET;
@@ -222,7 +222,7 @@ int omap4_enable_charger_detect(void)
 
 int omap4_disable_charger_detect(void)
 {
-	printk("%s:%s:%d",__FILE__,__FUNCTION__,__LINE__);
+	printk("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
 	u32 usb2phycore = 0;
 	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
 	usb2phycore |= USB2PHY_DISCHGDET;

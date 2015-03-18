@@ -1955,7 +1955,7 @@ static struct sgx_omaplfb_platform_data omaplfb_plat_data_auo_wxga_10_wuxga = {
  * 54 MB of TILER1D
  */
 static struct dsscomp_platform_data dsscomp_config_auo_wxga_10_wuxga = {
-		.tiler1d_slotsz = (SZ_16M + SZ_2M + SZ_8M + SZ_1M),
+		.tiler1d_slotsz = ((15 * SZ_1M) + (9 * SZ_1M) + (9 * SZ_1M) + (1 * SZ_1M))
 };
 
 static void tablet_android_display_setup(struct omap_ion_platform_data *ion)
